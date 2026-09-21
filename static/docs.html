@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>jev-tree API</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+<style>
+  :root { --ink:#23201c; --dim:#6d675f; --line:#ded6c9; --bg:#faf7f1; --card:#fff; --accent:#8a5a2b; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); line-height:1.6;
+    font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:.86rem; }
+  header { border-bottom:1px solid var(--line); padding:1.6rem 1.25rem; background:var(--card); }
+  header h1 { margin:0; font-size:1.25rem; }
+  header p { margin:.3rem 0 0; color:var(--dim); font-size:.9rem; }
+  header a { color:var(--accent); }
+  main { max-width:920px; margin:0 auto; padding:1.25rem; }
+  .op { background:var(--card); border:1px solid var(--line); border-radius:10px; margin:0 0 .75rem; overflow:hidden; }
+  .op > summary { cursor:pointer; padding:.7rem .9rem; display:flex; gap:.6rem; align-items:baseline; list-style:none; }
+  .op > summary::-webkit-details-marker { display:none; }
+  .m { font-weight:700; font-size:.72rem; letter-spacing:.04em; padding:.15rem .45rem; border-radius:5px;
+    background:#efe9dd; color:var(--accent); min-width:3.6rem; text-align:center; }
+  .m.post { background:#e3eede; color:#3f6b33; } .m.delete { background:#f4e0dd; color:#a2403a; }
+  .m.patch { background:#f2ead6; color:#8a6a1f; }
+  .path { font-family:ui-monospace, Menlo, monospace; font-weight:600; }
+  .sum { color:var(--dim); font-size:.88rem; margin-left:auto; text-align:right; }
+  .body { padding:0 .9rem .9rem; border-top:1px solid var(--line); }
+  .body p { margin:.7rem 0; font-size:.92rem; }
+  table { width:100%; border-collapse:collapse; margin:.5rem 0 .2rem; font-size:.86rem; }
+  th, td { text-align:left; padding:.32rem .5rem; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--dim); font-weight:600; }
+  pre { background:#f4efe6; border:1px solid var(--line); border-radius:8px; padding:.65rem .8rem;
+    overflow:auto; margin:.4rem 0; }
+  h2 { font-size:.78rem; text-transform:uppercase; letter-spacing:.07em; color:var(--dim);
+    margin:1.6rem 0 .5rem; }
+  .lock { font-size:.75rem; color:var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">jev-tree API</h1>
+  <p id="sub">Loading <a href="/api/openapi.json">/api/openapi.json</a> …</p>
+</header>
+<main id="out"></main>
+<script>
+const esc = (s) => String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+let spec = null;
+const deref = (node, seen = 0) => {
+  if (!node || typeof node !== "object" || seen > 6) return node;
+  if (node.$ref) {
+    const path = node.$ref.replace(/^#\//, "").split("/");
+    return deref(path.reduce((acc, key) => (acc || {})[key], spec), seen + 1);
+  }
+  return node;
+};
+
+function schemaLine(schema) {
+  const s = deref(schema);
+  if (!s) return "";
+  if (s.type === "array") return `array of ${schemaLine(s.items)}`;
+  if (s.enum) return s.enum.map((v) => JSON.stringify(v)).join(" | ");
+  return Array.isArray(s.type) ? s.type.join(" | ") : s.type || "object";
+}
+
+function fields(schema) {
+  const s = deref(schema);
+  if (!s || !s.properties) return "";
+  const required = new Set(s.required || []);
+  const rows = Object.entries(s.properties).map(([name, raw]) => {
+    const p = deref(raw);
+    const meta = [schemaLine(raw)];
+    if (p && p.default !== undefined) meta.push(`default ${JSON.stringify(p.default)}`);
+    if (p && p.minimum !== undefined) meta.push(`min ${p.minimum}`);
+    if (p && p.maximum !== undefined) meta.push(`max ${p.maximum}`);
+    return `<tr><td><code>${esc(name)}${required.has(name) ? " *" : ""}</code></td>
+      <td>${esc(meta.join(", "))}</td><td>${esc(p && p.description || "")}</td></tr>`;
+  });
+  return rows.length ? `<table><tr><th>field</th><th>type</th><th></th></tr>${rows.join("")}</table>` : "";
+}
+
+function operation(path, method, op) {
+  const secured = (op.security || []).length > 0;
+  const params = (op.parameters || []).map((raw) => {
+    const p = deref(raw);
+    return `<tr><td><code>${esc(p.name)}${p.required ? " *" : ""}</code></td>
+      <td>${esc(p.in)}</td><td>${esc(schemaLine(p.schema))}${
+        p.schema && p.schema.default !== undefined ? esc(`, default ${JSON.stringify(p.schema.default)}`) : ""
+      }</td></tr>`;
+  });
+  const bodySchema = op.requestBody && op.requestBody.content
+    && (op.requestBody.content["application/json"] || {}).schema;
+  const responses = Object.entries(op.responses || {}).map(([code, raw]) => {
+    const r = deref(raw);
+    const s = r.content && (r.content["application/json"] || {}).schema;
+    return `<tr><td><code>${esc(code)}</code></td><td>${esc(r.description || "")}</td>
+      <td>${esc(s ? schemaLine(s) : "")}</td></tr>`;
+  });
+  return `<details class="op">
+    <summary><span class="m ${method}">${method.toUpperCase()}</span>
+      <span class="path">${esc(path)}</span>
+      <span class="sum">${esc(op.summary || "")}${secured ? ' <span class="lock">· bearer</span>' : ""}</span>
+    </summary>
+    <div class="body">
+      ${op.description ? `<p>${esc(op.description)}</p>` : ""}
+      ${params.length ? `<table><tr><th>parameter</th><th>in</th><th>type</th></tr>${params.join("")}</table>` : ""}
+      ${bodySchema ? `<h2>Request body</h2>${fields(bodySchema) || `<pre>${esc(schemaLine(bodySchema))}</pre>`}` : ""}
+      ${responses.length ? `<h2>Responses</h2><table><tr><th>code</th><th></th><th>schema</th></tr>${responses.join("")}</table>` : ""}
+      ${bodySchema || responses.length ? `<h2>Try it</h2><pre>curl -s ${esc(location.origin + path)}${
+        method === "get" ? "" : ` \\\n  -X ${method.toUpperCase()} -H 'content-type: application/json' \\\n  -d '{}'`
+      }</pre>` : ""}
+    </div>
+  </details>`;
+}
+
+fetch("/api/openapi.json").then((r) => r.json()).then((doc) => {
+  spec = doc;
+  document.getElementById("title").textContent = `${doc.info.title} ${doc.info.version}`;
+  document.getElementById("sub").innerHTML =
+    `${esc(doc.info.description || "")} · <a href="/api/openapi.json">openapi.json</a> · <a href="/">UI</a>`;
+  const groups = new Map();
+  for (const [path, methods] of Object.entries(doc.paths)) {
+    const group = path.split("/")[2] || "root";
+    for (const [method, op] of Object.entries(methods)) {
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group).push(operation(path, method, op));
+    }
+  }
+  document.getElementById("out").innerHTML = [...groups]
+    .map(([name, ops]) => `<h2>${esc(name)}</h2>${ops.join("")}`).join("");
+}).catch((e) => {
+  document.getElementById("sub").textContent = `Could not load /api/openapi.json: ${e.message}`;
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# SQLite (regenerable from data/seed.json)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Secrets — never commit. The server auto-creates the key file next to the DB.
+.env
+.jev-tree.key
+.jev-tree.salt
+**/.jev-tree.key
+**/.jev-tree.salt
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp

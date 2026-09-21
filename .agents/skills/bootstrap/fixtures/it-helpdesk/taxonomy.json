@@ -1,0 +1,154 @@
+{
+ "nodes": [
+  {
+   "description": "사내 IT 지원 요청. 와이파이·VPN·프린터·이메일·계정 문의를 다룬다. 하위 주제: 네트워크 연결, VPN 접속, 프린터 출력, 이메일, 계정 관리.",
+   "examples": [],
+   "id": "it",
+   "name": "IT 지원",
+   "parent_id": null
+  },
+  {
+   "description": "무선 네트워크 연결과 인터넷 접속. 연결 자체가 안 되는 경우와 연결은 되는데 인터넷이 안 되는 경우로 나뉜다. VPN 접속 문제는 VPN 갈래와 구분.",
+   "examples": [
+    "와이파이가 안 잡혀요",
+    "연결은 되는데 인터넷이 안 돼요"
+   ],
+   "id": "it_network",
+   "name": "네트워크 연결",
+   "parent_id": "it"
+  },
+  {
+   "description": "와이파이 목록에 뜨는데 연결이 안 됨. 저장된 네트워크 삭제 후 재연결, AP 재시작 요청. 인터넷 접속 장애(연결됨·DNS)와 구분.",
+   "examples": [
+    "3층 회의실 와이파이가 안 잡혀요",
+    "목록에 뜨는데 연결이 안 돼요"
+   ],
+   "id": "it_network_wifi",
+   "name": "와이파이 연결",
+   "parent_id": "it_network"
+  },
+  {
+   "description": "와이파이 연결은 되는데 인터넷이 안 됨. DNS 플러시, 기기별 문제 확인. 연결 자체 실패와 구분.",
+   "examples": [
+    "연결은 되는데 인터넷이 안 돼요",
+    "핸드폰은 되는데 노트북만 안 돼요"
+   ],
+   "id": "it_network_internet",
+   "name": "인터넷 접속",
+   "parent_id": "it_network"
+  },
+  {
+   "description": "원격 VPN 접속과 접속 후 사내망 이용. 인증 실패(접속 자체)와 접속 후 파일서버 미노출(DNS)로 나뉜다. 일반 인터넷 문제와 구분.",
+   "examples": [
+    "VPN 접속 오류",
+    "VPN은 되는데 파일서버가 안 보여요"
+   ],
+   "id": "it_vpn",
+   "name": "VPN 접속",
+   "parent_id": "it"
+  },
+  {
+   "description": "VPN 클라이언트 접속 자체 실패. 클라이언트 업데이트, 비밀번호, 계정 잠금 확인. 접속 후 사내망 문제와 구분.",
+   "examples": [
+    "VPN 인증 실패",
+    "집에서 VPN 접속이 안 돼요"
+   ],
+   "id": "it_vpn_auth",
+   "name": "VPN 인증",
+   "parent_id": "it_vpn"
+  },
+  {
+   "description": "VPN 연결은 됐는데 파일서버 등 사내망 자원이 안 보임. 사내 DNS 문제, IP 직접 접속. 접속 자체 실패와 구분.",
+   "examples": [
+    "VPN은 되는데 파일서버가 안 보여요"
+   ],
+   "id": "it_vpn_intranet",
+   "name": "VPN 연결 후 사내망",
+   "parent_id": "it_vpn"
+  },
+  {
+   "description": "공용 프린터 인쇄와 출력 품질. 인쇄 자체가 안 되는 경우와 출력은 되는데 깨지는 경우로 나뉜다.",
+   "examples": [
+    "프린터가 인쇄를 안 해요",
+    "글자가 깨져서 나와요"
+   ],
+   "id": "it_printer",
+   "name": "프린터 출력",
+   "parent_id": "it"
+  },
+  {
+   "description": "인쇄 명령에 반응 없음. 대기열 정리, 용지 확인. 출력 품질 문제와 구분.",
+   "examples": [
+    "인쇄를 눌러도 반응이 없어요"
+   ],
+   "id": "it_printer_no_print",
+   "name": "인쇄 불가",
+   "parent_id": "it_printer"
+  },
+  {
+   "description": "출력은 되는데 글자가 깨짐. 드라이버 롤백, PDF 변환 후 인쇄. 인쇄 자체 불가와 구분.",
+   "examples": [
+    "한글 글자가 깨져서 나옵니다"
+   ],
+   "id": "it_printer_quality",
+   "name": "출력 품질",
+   "parent_id": "it_printer"
+  },
+  {
+   "description": "이메일 송수신과 첨부파일. 수신이 안 되는 경우와 첨부파일이 안 열리는 경우로 나뉜다.",
+   "examples": [
+    "새 메일이 안 와요",
+    "첨부파일이 안 열려요"
+   ],
+   "id": "it_mail",
+   "name": "이메일",
+   "parent_id": "it"
+  },
+  {
+   "description": "새 메일 수신 안 됨. 보내기는 되는 경우. 첨부파일 문제와 구분.",
+   "examples": [
+    "아웃룩에서 새 메일이 안 옵니다"
+   ],
+   "id": "it_mail_receive",
+   "name": "메일 수신",
+   "parent_id": "it_mail"
+  },
+  {
+   "description": "첨부파일이 안 열림. 대용량 엑셀 등. 수신 자체 문제와 구분.",
+   "examples": [
+    "첨부 엑셀 파일이 안 열려요"
+   ],
+   "id": "it_mail_attach",
+   "name": "첨부파일",
+   "parent_id": "it_mail"
+  },
+  {
+   "description": "계정 잠금과 계정 정리. 본인 계정 잠금과 퇴사자 계정 정리로 나뉜다. VPN 인증 실패(비밀번호 불일치)와 구분.",
+   "examples": [
+    "계정이 잠겼어요",
+    "퇴사자 계정 정리해 주세요"
+   ],
+   "id": "it_account",
+   "name": "계정 관리",
+   "parent_id": "it"
+  },
+  {
+   "description": "비밀번호 반복 실패로 계정이 잠김. 대기 후 해제, 재설정 안내. VPN 인증 실패와 구분.",
+   "examples": [
+    "비밀번호를 틀려서 계정이 잠겼어요"
+   ],
+   "id": "it_account_lock",
+   "name": "계정 잠금",
+   "parent_id": "it_account"
+  },
+  {
+   "description": "퇴사자 등 불필요 계정 정리 요청. 관리자 처리. 본인 잠금 해제와 구분.",
+   "examples": [
+    "퇴사한 직원 계정을 정리해 주세요"
+   ],
+   "id": "it_account_offboard",
+   "name": "계정 정리",
+   "parent_id": "it_account"
+  }
+ ]
+}

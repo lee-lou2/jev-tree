@@ -1,0 +1,1602 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "jev-tree API",
+    "version": "0.2.5",
+    "description": "Hierarchical knowledge service: model-driven tree descent over SQLite. Search and ingest are the same descent. Human companion: docs/api.md. Browsable: GET /docs."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "this server"
+    },
+    {
+      "url": "http://127.0.0.1:8768",
+      "description": "local default"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "opaque session token"
+      }
+    },
+    "schemas": {
+      "Site": {
+        "type": "object",
+        "properties": {
+          "site_name": {
+            "type": "string"
+          },
+          "site_description": {
+            "type": "string"
+          },
+          "site_logo": {
+            "type": "string",
+            "description": "data URL or empty"
+          }
+        }
+      },
+      "SetupStatus": {
+        "type": "object",
+        "required": [
+          "has_server_key",
+          "jev_api_key_set",
+          "evaluator",
+          "site"
+        ],
+        "properties": {
+          "has_server_key": {
+            "type": "boolean"
+          },
+          "jev_api_key_set": {
+            "type": "boolean"
+          },
+          "evaluator": {
+            "type": "string",
+            "enum": [
+              "jev",
+              "heuristic"
+            ]
+          },
+          "site": {
+            "$ref": "#/components/schemas/Site"
+          }
+        }
+      },
+      "Node": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "item_count": {
+            "type": "integer"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Node"
+            }
+          }
+        }
+      },
+      "Item": {
+        "type": "object",
+        "required": [
+          "id",
+          "category_id",
+          "question",
+          "answer"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "category_id": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "qa",
+              "article"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          }
+        }
+      },
+      "PathPart": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "probability": {
+            "type": "number"
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      },
+      "Candidate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "probability": {
+            "type": "number"
+          }
+        }
+      },
+      "TraceStep": {
+        "type": "object",
+        "properties": {
+          "depth": {
+            "type": "integer"
+          },
+          "node_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "node_name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PathPart"
+            }
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            }
+          },
+          "choice_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "choice_name": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "FinalBeam": {
+        "type": "object",
+        "properties": {
+          "alive": {
+            "type": "boolean"
+          },
+          "node_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PathPart"
+            }
+          },
+          "score": {
+            "type": "number"
+          }
+        }
+      },
+      "Trace": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TraceStep"
+            }
+          },
+          "leaf_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "score": {
+            "type": "number"
+          },
+          "final_beams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FinalBeam"
+            }
+          }
+        }
+      },
+      "RankedItem": {
+        "type": "object",
+        "properties": {
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "directness": {
+            "type": "number"
+          },
+          "relevance": {
+            "type": "number"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "recommended",
+              "alternative",
+              "reference"
+            ]
+          },
+          "score": {
+            "type": "number"
+          },
+          "item": {
+            "$ref": "#/components/schemas/Item"
+          }
+        }
+      },
+      "SearchResult": {
+        "type": "object",
+        "properties": {
+          "abstained": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RankedItem"
+            }
+          },
+          "leaf_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PathPart"
+            }
+          },
+          "query": {
+            "type": "string"
+          },
+          "trace": {
+            "$ref": "#/components/schemas/Trace"
+          }
+        }
+      },
+      "IngestResult": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "category_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PathPart"
+            }
+          },
+          "duplicate_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "trace": {
+            "$ref": "#/components/schemas/Trace"
+          },
+          "item_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Stored row, draft or published. Use it to publish or discard a draft."
+          },
+          "version": {
+            "type": "integer"
+          },
+          "published_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SettingsMasked": {
+        "type": "object",
+        "properties": {
+          "site_name": {
+            "type": "string"
+          },
+          "site_description": {
+            "type": "string"
+          },
+          "site_logo": {
+            "type": "string"
+          },
+          "has_server_key": {
+            "type": "boolean"
+          },
+          "jev_api_key_set": {
+            "type": "boolean"
+          },
+          "jev_api_key_hint": {
+            "type": "string"
+          },
+          "llm_base_url": {
+            "type": "string"
+          },
+          "llm_token_set": {
+            "type": "boolean"
+          },
+          "llm_token_hint": {
+            "type": "string"
+          },
+          "llm_model": {
+            "type": "string"
+          }
+        }
+      },
+      "ModelInfo": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "release_date": {
+            "type": "string"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "code",
+          "detail"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "invalid_request",
+              "unauthorized",
+              "not_found",
+              "conflict",
+              "upstream_error",
+              "timeout",
+              "cancelled",
+              "internal_error"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiKey": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "summary": "Login",
+        "description": "Open mode (no login password) returns token + open_mode:true without checking.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "open_mode": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "server_key": {
+                    "type": "string",
+                    "description": "Login password. Required when a password exists. Open mode accepts {}."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "summary": "Logout",
+        "description": "Revokes the calling token.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/health": {
+      "get": {
+        "summary": "Health + counts",
+        "description": "Open mode: no token. Key mode: Bearer required.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "categories": {
+                      "type": "integer"
+                    },
+                    "evaluator": {
+                      "type": "string",
+                      "enum": [
+                        "jev",
+                        "heuristic"
+                      ]
+                    },
+                    "items": {
+                      "type": "integer"
+                    },
+                    "runtime": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/items": {
+      "get": {
+        "summary": "List/search knowledge",
+        "description": "scope=exact (the category itself) or subtree (all descendants). status=active|draft|all. A typo in either -> 400.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Item"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "scope": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "category_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "exact",
+                "subtree"
+              ],
+              "default": "exact"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "draft",
+                "all"
+              ],
+              "default": "active"
+            }
+          }
+        ]
+      }
+    },
+    "/api/items/{id}": {
+      "delete": {
+        "summary": "Archive a knowledge item",
+        "description": "Discards a draft or retires a published answer. Archived rows leave search, listings, and upsert matching.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "archived": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/keys": {
+      "post": {
+        "summary": "Issue consumer API key (plaintext once)",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 60
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "warning": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List consumer keys (masked)",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "keys": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ApiKey"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keys/{id}": {
+      "delete": {
+        "summary": "Revoke consumer key",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "revoked": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/models": {
+      "post": {
+        "summary": "Probe LLM model list (no persistence)",
+        "description": "Uses explicit base_url/token, else saved llm.*. Does not fall back to the Jev key. OpenAI `data[].id` and TypeSafe `models[].name` are both accepted. Missing credentials -> 400. Wrong key -> 502 upstream_error. Empty list is empty.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "models": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ModelInfo"
+                      }
+                    },
+                    "base_url": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "base_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "token": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/openapi.json": {
+      "get": {
+        "summary": "This document",
+        "description": "Serves static/openapi.json. No auth.",
+        "responses": {
+          "200": {
+            "description": "The OpenAPI document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run": {
+      "post": {
+        "summary": "Search or ingest (JSON)",
+        "description": "Text 1-8000 chars. search: answer = recommended item. ingest without auto_publish = draft (published_id null).",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SearchResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/IngestResult"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "search",
+                      "ingest"
+                    ],
+                    "default": "search",
+                    "description": "search|ingest only. classify returns 400."
+                  },
+                  "query": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "question": {
+                    "type": "string"
+                  },
+                  "answer": {
+                    "type": "string"
+                  },
+                  "context": {
+                    "type": "array",
+                    "maxItems": 32,
+                    "description": "Prior turns (strings or {role,text}); full conversation, not one sentence."
+                  },
+                  "start_node": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Force descent start. Omit when unsure."
+                  },
+                  "beam_width": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5,
+                    "default": 3
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 8
+                  },
+                  "auto_publish": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "ingest: save immediately"
+                  },
+                  "upsert": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "item_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "With expected_version: optimistic-lock update"
+                  },
+                  "expected_version": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/run/stream": {
+      "post": {
+        "summary": "Search or ingest (SSE)",
+        "description": "Same request as /api/run. Events as `data: {...}\\\\n\\\\n`. Terminal: search_done | ingest_saved | ingest_draft. Do not close before terminal.",
+        "responses": {
+          "200": {
+            "description": "text/event-stream of descent_step(asking/answered), retrieval_completed, candidate_evaluated, descent_done, search_done, ingest_saved, error",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "search",
+                      "ingest"
+                    ],
+                    "default": "search",
+                    "description": "search|ingest only. classify returns 400."
+                  },
+                  "query": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "question": {
+                    "type": "string"
+                  },
+                  "answer": {
+                    "type": "string"
+                  },
+                  "context": {
+                    "type": "array",
+                    "maxItems": 32,
+                    "description": "Prior turns (strings or {role,text}); full conversation, not one sentence."
+                  },
+                  "start_node": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Force descent start. Omit when unsure."
+                  },
+                  "beam_width": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5,
+                    "default": 3
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 8
+                  },
+                  "auto_publish": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "ingest: save immediately"
+                  },
+                  "upsert": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "item_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "With expected_version: optimistic-lock update"
+                  },
+                  "expected_version": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/seed": {
+      "post": {
+        "summary": "⚠️ Full reset",
+        "description": "DELETES everything then reseeds from file. Requires {\"confirm\":\"RESET\"}. Reloads the in-memory taxonomy without restart. Never call without explicit user order.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "confirm"
+                ],
+                "properties": {
+                  "confirm": {
+                    "type": "string",
+                    "enum": [
+                      "RESET"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "seeded": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/seed/stats": {
+      "get": {
+        "summary": "Seed info",
+        "description": "DB counts and taxonomy depth. No seed-domain metadata.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "nodes",
+                    "items",
+                    "max_depth",
+                    "runtime"
+                  ],
+                  "properties": {
+                    "nodes": {
+                      "type": "integer"
+                    },
+                    "items": {
+                      "type": "integer"
+                    },
+                    "max_depth": {
+                      "type": "integer"
+                    },
+                    "runtime": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "summary": "Masked settings",
+        "description": "Secrets come back as ****1234 hints only, never plaintext.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsMasked"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "patch": {
+        "summary": "Patch settings (all optional)",
+        "description": "Empty string clears a secret; site_logo:null clears the logo. Jev key change hot-swaps the evaluator without restart. server_key:\"\" turns login off (open mode).",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "evaluator": {
+                      "type": "string"
+                    },
+                    "settings": {
+                      "$ref": "#/components/schemas/SettingsMasked"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "site_name": {
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "site_description": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "site_logo": {
+                    "type": "string"
+                  },
+                  "jev_api_key": {
+                    "type": "string"
+                  },
+                  "llm_base_url": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "llm_token": {
+                    "type": "string"
+                  },
+                  "llm_model": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "server_key": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/setup/server-key": {
+      "post": {
+        "summary": "One-time login password issue",
+        "description": "Fails with 400 once a password exists. Omit body or server_key to auto-generate jev_tree_sk_…. Custom passwords need 6+ characters.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "server_key": {
+                      "type": "string"
+                    },
+                    "token": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "server_key": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/status": {
+      "get": {
+        "summary": "First branch point",
+        "description": "No auth. Start every integration here.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupStatus"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/site": {
+      "get": {
+        "summary": "Public branding",
+        "description": "No auth. Login screen and header use this.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Site"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tree": {
+      "get": {
+        "summary": "Full taxonomy tree",
+        "description": "Nested nodes with item_count. Call once and cache (~604 nodes).",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tree": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Node"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  }
+}

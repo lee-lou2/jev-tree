@@ -1,0 +1,39 @@
+{
+  "nodes": [
+    {
+      "id": "orders",
+      "name": "주문",
+      "description": "주문 생성과 결제 상태. 배송이 멈추거나 통관이 지연되는 문제는 하위 분류.",
+      "examples": ["주문", "통관이 왜 멈추나요"],
+      "parent_id": null
+    },
+    {
+      "id": "orders_tracking",
+      "name": "배송 추적",
+      "description": "운송장과 통관 지연",
+      "examples": ["통관", "운송장"],
+      "parent_id": "orders"
+    },
+    {
+      "id": "account",
+      "name": "계정",
+      "description": "로그인, 비밀번호 재설정, 계정 잠금. 주문·배송과는 무관.",
+      "examples": ["로그인", "비밀번호를 재설정하려면?"],
+      "parent_id": null
+    }
+  ],
+  "items": [
+    {
+      "category_id": "orders_tracking",
+      "kind": "qa",
+      "question": "해외 배송이 통관에서 멈췄어요",
+      "answer": "통관 요청과 개인통관번호를 확인하세요."
+    },
+    {
+      "category_id": "account",
+      "kind": "qa",
+      "question": "비밀번호를 재설정하려면?",
+      "answer": "로그인 화면에서 재설정 메일을 요청하세요."
+    }
+  ]
+}

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f3eee6">
+<meta name="description" content="jev-tree — a model carries the context down a tree to find and file knowledge">
+<meta property="og:type" content="website">
+<meta property="og:title" content="jev-tree — Jev-driven tree descent over knowledge">
+<meta property="og:description" content="People do not pick folders. A model carries the context down a tree and finds or files knowledge.">
+<meta property="og:image" content="/static/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="jev-tree — Jev-driven tree descent over knowledge">
+<meta name="twitter:description" content="People do not pick folders. A model carries the context down a tree and finds or files knowledge.">
+<meta name="twitter:image" content="/static/og.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/static/favicon.png?v=3">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v=3">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=3">
+<title>jev-tree — Jev-driven tree descent</title>
+<link rel="stylesheet" href="/static/lab.css?v=36">
+</head>
+<body>
+<header>
+  <a class="brand" href="/"><img src="/static/favicon-32.png?v=3" width="20" height="20" alt="">jev-tree</a>
+  <p id="stage">Expand a category or search below</p>
+  <div class="tools">
+    <button id="treeView" class="active" type="button" title="Tree">Tree</button>
+    <button id="tableView" type="button" title="Table">Table</button>
+    <button id="zoomOut" type="button" title="Zoom out" aria-label="Zoom out">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h9"/></svg>
+    </button>
+    <button id="zoomIn" type="button" title="Zoom in" aria-label="Zoom in">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>
+    </button>
+    <a id="docsLink" href="/docs" title="OpenAPI">API</a>
+    <button id="settingsBtn" type="button" title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2"/><path d="M6.70 4.38 7.03 2.64 8.97 2.64 9.30 4.38 10.49 5.06 12.16 4.48 13.13 6.15 11.79 7.32 11.79 8.68 13.13 9.85 12.16 11.52 10.49 10.94 9.30 11.62 8.97 13.36 7.03 13.36 6.70 11.62 5.51 10.94 3.84 11.52 2.87 9.85 4.21 8.68 4.21 7.32 2.87 6.15 3.84 4.48 5.51 5.06Z"/></svg>
+    </button>
+    <span id="health">Connecting</span>
+  </div>
+</header>
+
+<main>
+  <div id="viewport">
+    <div id="tree"></div>
+    <div id="table" class="hidden">
+      <div class="table-toolbar">
+        <input id="tableQuery" type="search" placeholder="Search categories" enterkeyhint="search" autocomplete="off">
+        <span id="tableCount" class="count"></span>
+      </div>
+      <nav id="tableTrail" class="table-trail" aria-label="Category path"></nav>
+      <div id="tableScroll" class="table-scroll"></div>
+    </div>
+    <p id="empty">Loading…</p>
+  </div>
+  <aside id="panel" class="hidden">
+    <button id="closePanel" type="button" aria-label="Close">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+    </button>
+    <h2 id="panelTitle">Results</h2>
+    <p id="panelMeta"></p>
+    <div id="panelBody"></div>
+  </aside>
+</main>
+
+<form id="bar" autocomplete="off">
+  <div class="modes">
+    <button id="searchMode" class="active" type="button">Search</button>
+    <button id="ingestMode" type="button">Ingest</button>
+  </div>
+  <div id="searchFields" class="fields">
+    <input id="query" type="text" placeholder="What are you looking for?" enterkeyhint="search">
+  </div>
+  <div id="ingestFields" class="fields hidden">
+    <input id="question" type="text" placeholder="Question or title">
+    <input id="answer" type="text" placeholder="Answer or body">
+  </div>
+  <button id="run" type="submit">Search</button>
+  <button id="cancel" class="hidden" type="button">Stop</button>
+</form>
+
+<div id="onboard" class="hidden">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="obTitle">
+    <h2 id="obTitle">Get started</h2>
+    <p id="obDesc" class="muted"></p>
+    <div id="obSteps"></div>
+    <div id="obBody"></div>
+    <p id="obError" class="error hidden"></p>
+    <div class="row nav">
+      <button id="obBack" type="button" class="ghost">Back</button>
+      <button id="obNext" type="button" class="primary">Next</button>
+    </div>
+  </div>
+</div>
+
+<div id="settings" class="hidden">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+    <h2 id="setTitle">Settings</h2>
+    <div class="tabs">
+      <button data-tab="site" class="active" type="button">Site</button>
+      <button data-tab="models" type="button">Models</button>
+      <button data-tab="server" type="button">Server</button>
+    </div>
+    <div id="setBody"></div>
+    <p id="setError" class="error hidden"></p>
+    <div class="row">
+      <button id="setLogout" type="button" class="ghost">Log out</button>
+      <span class="spacer"></span>
+      <button id="setClose" type="button" class="ghost">Close</button>
+      <button id="setSave" type="button" class="primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/lab.js?v=33"></script>
+</body>
+</html>
