@@ -33,6 +33,7 @@ Two things are optional and both degrade gracefully:
 | Missing | Effect |
 |---|---|
 | Jev API key | Falls back to a lexical heuristic. Check `GET /api/health` → `evaluator` |
+| LLM base, token, and model | Routing uses the beam above instead of the LLM |
 | Login password | Open mode: every endpoint is reachable without a token |
 
 ## How it works
@@ -43,6 +44,9 @@ Two things are optional and both degrade gracefully:
 2. At each node the evaluator compares the **direct children** plus one terminal option
    (`__none__` at the root, `__stop__` deeper) in the light of the full context, and descends.
    Beam search keeps `beam_width` paths, scored by the **geometric mean** of edge probabilities.
+   When an LLM base URL, token, and model are all set, this beam is replaced by two calls
+   to that model: the root topic, then one node inside it. `__none__` abstains. Ranking
+   still uses Jev or the heuristic.
 3. `search` ranks items from the selected node and its descendants.
    `ingest` routes a new Q&A through the same descent.
 4. Every run returns a `trace` with per-depth candidates and probabilities.

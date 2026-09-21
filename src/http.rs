@@ -811,6 +811,7 @@ mod tests {
             key: Some("env-key".into()),
             base_url: "https://api.typesafe.ai".into(),
             model: "jev-latest".into(),
+            ..JevConfig::default()
         };
         config.with_db(&crate::models::AppSettings {
             jev_api_key: "db-key".into(),
@@ -822,6 +823,8 @@ mod tests {
         assert_eq!(key.as_deref(), Some("db-key"));
         assert_eq!(base, "https://api.typesafe.ai");
         assert_eq!(model, "jev-latest");
+        assert_eq!(config.llm_model, "gpt-4o-mini");
+        assert_eq!(config.llm_base_url, "https://api.openai.com/v1");
     }
     #[test]
     fn path_score_is_geometric_mean() {

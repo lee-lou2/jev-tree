@@ -54,9 +54,14 @@ One descent step:
 - The terminal option competes on score. When it wins, that beam stops and its children
   are not expanded. A beam that lands on a childless node settles the same way.
 - Path score is the geometric mean of edge probabilities, so depth is not penalised.
-- With a Jev API key the evaluator is TypeSafe `POST /v1/systemone` (`src/jev.rs`).
-  Without one it is a lexical-overlap heuristic in the same file.
-  `GET /api/health` → `evaluator` reports which.
+- With `llm_base_url`, `llm_token`, and `llm_model` all set, **routing** (which node a
+  search or ingest lands on) is two LLM calls in `src/jev.rs`: the root topic, then one
+  node in a lexical shortlist of that subtree. `__none__` abstains. A failed call falls
+  back to the beam below. Item **ranking** does not use this model.
+- With a Jev API key the ranker (and the router, when no LLM is set) is TypeSafe
+  `POST /v1/systemone` (`src/jev.rs`). Without one it is a lexical-overlap heuristic in
+  the same file. `GET /api/health` → `evaluator` reports `jev` or `heuristic` for that
+  ranker, not which router ran.
 - The heuristic never scores the terminal option's own wording — that text is fixed
   English and would make the outcome depend on the query's alphabet. It descends only
   when one child stands out from its siblings (`terminal_bar` in `src/jev.rs`).
@@ -118,8 +123,9 @@ Domain and product concepts belong in `data/seed.json` or bootstrap fixtures onl
    `TYPESAFE_API_KEY` fill **empty slots at boot only**.
 
 The Jev API key and the LLM token are different things, and both belong with models.
-The login password and integration API keys belong with the server. Model listing uses
-the LLM base URL and token; search always posts to TypeSafe System One.
+The login password and integration API keys belong with the server. The LLM base URL,
+token, and model route search/ingest when all three are set, and they list models.
+Item ranking still posts to TypeSafe System One (or the heuristic).
 
 ## Deployment safety
 

@@ -194,6 +194,49 @@ async fn descend(
         alive: true,
         names: initial_names,
     }];
+    // A configured LLM routes the whole request in two calls (root, then a
+    // shortlist inside that subtree). Scripted choice tests keep the beam.
+    // A transport or parse failure falls back to the beam so a bad reply
+    // cannot do worse than the Jev/heuristic walk.
+    if !state.jev.choice_scripted() && state.jev.llm_routing() {
+        let restrict = beams[0].node_id.clone();
+        let progress = sender.clone();
+        match state
+            .jev
+            .route(query, &conversation, &nodes, restrict.as_deref(), |note| {
+                let Some(tx) = &progress else {
+                    return;
+                };
+                let event = if note.asking {
+                    json!({
+                        "type": "descent_step",
+                        "status": "asking",
+                        "depth": note.depth
+                    })
+                } else {
+                    json!({
+                        "type": "descent_step",
+                        "status": "answered",
+                        "depth": note.depth,
+                        "nodes": [{
+                            "node_name": note.parent_name,
+                            "choice_id": note.choice_id,
+                            "choice_name": note.choice_name
+                        }]
+                    })
+                };
+                let _ = tx.try_send(event);
+            })
+            .await
+        {
+            Ok(leaf) => {
+                return Ok(llm_route_result(&nodes, leaf, mode, query, &run_id, &sender).await);
+            }
+            Err(error) => {
+                tracing::warn!("llm route failed, using beam descent: {error}");
+            }
+        }
+    }
     let mut steps = vec![];
     for depth_value in 0..tree_depth(&nodes) {
         // Nobody is listening any more: stop before paying for another evaluator round.
@@ -441,6 +484,86 @@ struct Beam {
     alive: bool,
     names: Vec<String>,
 }
+async fn llm_route_result(
+    nodes: &[Node],
+    leaf: Option<String>,
+    mode: &str,
+    query: &str,
+    run_id: &str,
+    sender: &Option<mpsc::Sender<Value>>,
+) -> (Option<String>, Vec<PathPart>, Trace) {
+    let by_id: HashMap<&str, &Node> = nodes.iter().map(|node| (node.id.as_str(), node)).collect();
+    let leaf = leaf.filter(|id| by_id.contains_key(id.as_str()));
+    let mut chain: Vec<&Node> = Vec::new();
+    if let Some(id) = leaf.as_deref() {
+        let mut cursor = Some(id);
+        let mut guard = 0;
+        while let Some(current) = cursor {
+            guard += 1;
+            if guard > nodes.len() + 1 {
+                break;
+            }
+            let Some(node) = by_id.get(current) else {
+                break;
+            };
+            chain.push(*node);
+            cursor = node.parent_id.as_deref();
+        }
+        chain.reverse();
+    }
+    let mut path = Vec::new();
+    let mut steps = Vec::new();
+    for (depth, node) in chain.iter().enumerate() {
+        let parent = if depth == 0 {
+            None
+        } else {
+            Some(chain[depth - 1].id.clone())
+        };
+        let part = PathPart {
+            id: node.id.clone(),
+            name: node.name.clone(),
+            probability: 1.0,
+            confidence: Some(0.9),
+        };
+        steps.push(TraceStep {
+            depth,
+            node_id: parent,
+            node_name: if depth == 0 {
+                "the knowledge root".into()
+            } else {
+                chain[depth - 1].name.clone()
+            },
+            path: path.clone(),
+            candidates: vec![],
+            choice_id: Some(node.id.clone()),
+            choice_name: node.name.clone(),
+            confidence: Some(0.9),
+            reason: format!("llm: {mode}: {query}"),
+        });
+        path.push(part);
+    }
+    let score = if leaf.is_some() { 1.0 } else { 0.0 };
+    let trace = Trace {
+        run_id: run_id.to_string(),
+        mode: mode.to_string(),
+        steps,
+        leaf_id: leaf.clone(),
+        score,
+        final_beams: vec![FinalBeam {
+            node_id: leaf.clone(),
+            path: path.clone(),
+            score,
+            alive: false,
+        }],
+    };
+    emit(
+        sender,
+        json!({"type":"descent_done","run_id":run_id,"leaf_id":leaf,"path":path,"score":score,"trace":trace}),
+    )
+    .await;
+    (leaf, path, trace)
+}
+
 pub fn path_score(probs: &[f64]) -> f64 {
     if probs.is_empty() {
         0.0
@@ -807,6 +930,30 @@ mod tests {
             limit: 8,
             ..Default::default()
         }
+    }
+
+    #[tokio::test]
+    async fn llm_script_routes_search_to_that_leaf() {
+        let (_dir, state) = fixture_state();
+        state.jev.script_llm(Some("orders_tracking".into()));
+        let result = execute(state, run_req("해외 배송이 통관에서 멈췄어요"), None)
+            .await
+            .unwrap();
+        assert_eq!(result["leaf_id"], "orders_tracking", "{result}");
+        let path = result["path"].as_array().unwrap();
+        assert_eq!(path[0]["id"], "orders");
+        assert_eq!(path.last().unwrap()["id"], "orders_tracking");
+    }
+
+    #[tokio::test]
+    async fn llm_script_none_abstains() {
+        let (_dir, state) = fixture_state();
+        state.jev.script_llm(Some("__none__".into()));
+        let result = execute(state, run_req("안드로메다 은하까지의 거리"), None)
+            .await
+            .unwrap();
+        assert!(result["leaf_id"].is_null(), "{result}");
+        assert!(result["items"].as_array().unwrap().is_empty());
     }
 
     #[tokio::test]

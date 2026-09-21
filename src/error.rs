@@ -54,7 +54,7 @@ impl Error {
                     "Jev key rejected (401). Check the Jev API key in Settings → Models.".into()
                 }
                 crate::jev::JevError::Status(404) => {
-                    "Jev endpoint not found (404). Search always posts to TypeSafe (https://api.typesafe.ai). The LLM URL in Settings → Models is only for listing models.".into()
+                    "Jev endpoint not found (404). Item ranking posts to TypeSafe (https://api.typesafe.ai). The LLM base URL in Settings → Models is a different host.".into()
                 }
                 crate::jev::JevError::Status(s) => {
                     format!("Jev call failed (HTTP {s}). Check the Jev API key in Settings → Models.")

@@ -222,13 +222,14 @@ pub struct AppSettings {
     /// Jev API key (TypeSafe System One). Required before any run.
     #[serde(default)]
     pub jev_api_key: String,
-    /// Optional override of the TypeSafe base URL.
+    /// OpenAI-compatible base URL. With `llm_token` and `llm_model`, search and
+    /// ingest route through this model. Also used to list models.
     #[serde(default)]
     pub llm_base_url: String,
-    /// Optional override token used for the model list probe.
+    /// Bearer token for the LLM base URL.
     #[serde(default)]
     pub llm_token: String,
-    /// Optional pinned model id. Empty = `jev-latest`.
+    /// Model id on `llm_base_url`. Empty disables LLM routing.
     #[serde(default)]
     pub llm_model: String,
 }

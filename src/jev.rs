@@ -24,6 +24,11 @@ pub struct JevConfig {
     pub key: Option<String>,
     pub base_url: String,
     pub model: String,
+    /// OpenAI-compatible base used to route search/ingest when a token and model are set.
+    /// Never written into [`Self::normalized`]; System One stays on TypeSafe.
+    pub llm_base_url: String,
+    pub llm_token: Option<String>,
+    pub llm_model: String,
 }
 
 impl JevConfig {
@@ -33,8 +38,13 @@ impl JevConfig {
         if !settings.jev_api_key.trim().is_empty() {
             self.key = Some(settings.jev_api_key.clone());
         }
-        // llm.base_url / llm.token / llm.model are for model listing only.
-        // Search always posts to TypeSafe System One.
+        self.llm_base_url = settings
+            .llm_base_url
+            .trim()
+            .trim_end_matches('/')
+            .to_string();
+        self.llm_token = Some(settings.llm_token.clone()).filter(|token| !token.trim().is_empty());
+        self.llm_model = settings.llm_model.trim().to_string();
     }
 
     pub fn normalized(&self) -> (Option<String>, String, String) {
@@ -61,6 +71,8 @@ pub struct JevClient {
     nodes: Arc<RwLock<Vec<Node>>>,
     /// Test-only preferred Choice ids. Empty in production.
     script: Arc<Mutex<Vec<String>>>,
+    /// Test-only leaf for [`Self::route`]. `None` means "use the model".
+    llm_script: Arc<Mutex<Option<String>>>,
 }
 
 impl JevClient {
@@ -80,6 +92,7 @@ impl JevClient {
             config: std::sync::Arc::new(std::sync::RwLock::new(config)),
             nodes,
             script: Arc::new(Mutex::new(Vec::new())),
+            llm_script: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -87,6 +100,38 @@ impl JevClient {
         if let Ok(mut guard) = self.script.lock() {
             *guard = ids;
         }
+    }
+
+    /// Pin the router leaf in tests. `__none__` abstains. `None` clears the pin.
+    pub fn script_llm(&self, leaf: Option<String>) {
+        if let Ok(mut guard) = self.llm_script.lock() {
+            *guard = leaf;
+        }
+    }
+
+    pub fn choice_scripted(&self) -> bool {
+        self.script
+            .lock()
+            .map(|guard| !guard.is_empty())
+            .unwrap_or(false)
+    }
+
+    /// True when search/ingest should route with the configured LLM (or a test pin).
+    pub fn llm_routing(&self) -> bool {
+        if self
+            .llm_script
+            .lock()
+            .map(|guard| guard.is_some())
+            .unwrap_or(false)
+        {
+            return true;
+        }
+        let Ok(config) = self.config.read() else {
+            return false;
+        };
+        config.llm_token.is_some()
+            && !config.llm_model.trim().is_empty()
+            && !config.llm_base_url.trim().is_empty()
     }
 
     /// Hot-swap key/base/model after a settings change (no restart).
@@ -110,6 +155,267 @@ impl JevClient {
         } else {
             "heuristic"
         }
+    }
+
+    /// Pick the node a request should be stored under and retrieved from.
+    ///
+    /// Two calls when an LLM is configured: the root topic, then one node inside
+    /// that subtree (a lexical shortlist plus each candidate's parent). `__none__`
+    /// abstains. Item ranking is unchanged and still uses [`Self::evaluate`].
+    /// `restrict` limits the walk to that node (a `start_node` or a childless root).
+    /// `note` fires before each model call and again when that call chooses, so a
+    /// client can show the step while the model is still thinking.
+    pub async fn route<F>(
+        &self,
+        query: &str,
+        background: &str,
+        nodes: &[Node],
+        restrict: Option<&str>,
+        mut note: F,
+    ) -> Result<Option<String>, JevError>
+    where
+        F: FnMut(RouteNote),
+    {
+        let mut step = Stepper {
+            depth: 0,
+            note: &mut note,
+        };
+        if let Ok(guard) = self.llm_script.lock() {
+            if let Some(leaf) = guard.as_ref() {
+                return Ok(if leaf == "__none__" || leaf.trim().is_empty() {
+                    None
+                } else {
+                    Some(leaf.clone())
+                });
+            }
+        }
+        let (base, token, model) = {
+            let config = self
+                .config
+                .read()
+                .map_err(|_| JevError::Invalid("llm config unavailable".into()))?;
+            (
+                config.llm_base_url.clone(),
+                config.llm_token.clone().unwrap_or_default(),
+                config.llm_model.clone(),
+            )
+        };
+        if token.trim().is_empty() || model.trim().is_empty() || base.trim().is_empty() {
+            return Err(JevError::Invalid("LLM route is not configured".into()));
+        }
+        let by_id = node_index(nodes);
+        if let Some(start) = restrict {
+            if !by_id.contains_key(start) {
+                return Err(JevError::Invalid(format!("restrict not in scope: {start}")));
+            }
+            if children_of(nodes, Some(start)).is_empty() {
+                return Ok(Some(start.to_string()));
+            }
+            return self
+                .route_within(
+                    &LlmCreds { base, token, model },
+                    query,
+                    background,
+                    nodes,
+                    start,
+                    &mut step,
+                )
+                .await;
+        }
+        let roots = children_of(nodes, None);
+        if roots.is_empty() {
+            return Ok(None);
+        }
+        if roots.len() == 1 && children_of(nodes, Some(roots[0].as_str())).is_empty() {
+            return Ok(Some(roots[0].clone()));
+        }
+        let mut allowed = roots.to_vec();
+        allowed.push("__none__".into());
+        let mut lines = Vec::new();
+        for id in &roots {
+            let node = &by_id[id.as_str()];
+            let kids = children_of(nodes, Some(id))
+                .iter()
+                .take(8)
+                .map(|cid| by_id[cid.as_str()].name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            lines.push(format!(
+                "{id}\t{}\t{}\t아래: {kids}",
+                node.name,
+                clip(&node.description, 180),
+            ));
+        }
+        lines.push("__none__\t없음\t어느 주제에도 속하지 않는다.\t아래:".into());
+        step.ask("the knowledge root");
+        let root = self
+            .complete_id(
+                &base,
+                &token,
+                &model,
+                &format!(
+                    "요청의 최상위 주제를 하나 고르세요. 각 설명과 하위 주제를 읽고, 형제 주제와의 차이를 기준으로 고르세요. 어느 주제에도 속하지 않으면 __none__.\n허용된 id: {}\n\n{}\n\n{}\n\n마지막 줄에 id 하나만.",
+                    allowed.join(", "),
+                    request_block(query, background),
+                    lines.join("\n")
+                ),
+                &allowed,
+            )
+            .await?;
+        if root == "__none__" {
+            step.chose("the knowledge root", None, "no matching topic".into());
+            return Ok(None);
+        }
+        let root_name = by_id
+            .get(root.as_str())
+            .map(|node| node.name.clone())
+            .unwrap_or_else(|| root.clone());
+        step.chose("the knowledge root", Some(root.clone()), root_name);
+        self.route_within(
+            &LlmCreds { base, token, model },
+            query,
+            background,
+            nodes,
+            &root,
+            &mut step,
+        )
+        .await
+    }
+
+    async fn route_within<F>(
+        &self,
+        creds: &LlmCreds,
+        query: &str,
+        background: &str,
+        nodes: &[Node],
+        root: &str,
+        step: &mut Stepper<'_, F>,
+    ) -> Result<Option<String>, JevError>
+    where
+        F: FnMut(RouteNote),
+    {
+        let by_id = node_index(nodes);
+        let root_name = by_id
+            .get(root)
+            .map(|node| node.name.clone())
+            .unwrap_or_else(|| root.to_string());
+        let short = llm_shortlist(query, nodes, root, 20);
+        if short.is_empty() {
+            return Ok(Some(root.to_string()));
+        }
+        if short.len() == 1 {
+            return Ok(Some(short[0].clone()));
+        }
+        let lines = short
+            .iter()
+            .filter_map(|id| by_id.get(id.as_str()).map(|node| (id, node)))
+            .map(|(id, node)| {
+                format!(
+                    "{id}\t{}\t{}",
+                    ancestor_names(nodes, id).join(" / "),
+                    clip(&node.description, 180)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let prompt = format!(
+            "요청을 가장 정확히 보관할 노드 하나를 고르세요. 요청이 더 구체적인 조건을 말하면 그 하위 노드를 고르고, 주제만 묻고 하위 사례를 특정하지 않으면 그 주제 노드에 머물세요.\n허용된 id: {}\n\n{}\n\n{lines}\n\n마지막 줄에 id 하나만.",
+            short.join(", "),
+            request_block(query, background)
+        );
+        step.ask(&root_name);
+        let picked = self
+            .complete_id(&creds.base, &creds.token, &creds.model, &prompt, &short)
+            .await?;
+        let picked_name = by_id
+            .get(picked.as_str())
+            .map(|node| node.name.clone())
+            .unwrap_or_else(|| picked.clone());
+        if picked == root {
+            step.chose(&root_name, None, "stay here".into());
+        } else {
+            step.chose(&root_name, Some(picked.clone()), picked_name);
+        }
+        Ok(Some(picked))
+    }
+
+    async fn complete_id(
+        &self,
+        base: &str,
+        token: &str,
+        model: &str,
+        user: &str,
+        allowed: &[String],
+    ) -> Result<String, JevError> {
+        let content = self.chat(base, token, model, user).await?;
+        if let Some(id) = parse_final_id(&content, allowed) {
+            return Ok(id);
+        }
+        let retry =
+            format!("{user}\n\n마지막 줄에 허용된 id 하나만 다시 쓰세요. 설명은 쓰지 마세요.");
+        let content = self.chat(base, token, model, &retry).await?;
+        parse_final_id(&content, allowed)
+            .ok_or_else(|| JevError::Invalid("LLM route did not return an allowed id".into()))
+    }
+
+    async fn chat(
+        &self,
+        base: &str,
+        token: &str,
+        model: &str,
+        user: &str,
+    ) -> Result<String, JevError> {
+        let url = chat_completions_url(base);
+        let messages = json!([
+            {"role": "system", "content": "분류기입니다. 마지막 줄에는 허용된 id 하나만 씁니다."},
+            {"role": "user", "content": user},
+        ]);
+        let mut payload = json!({
+            "model": model,
+            "reasoning_effort": "low",
+            "max_tokens": 900,
+            "messages": messages,
+        });
+        match self.post_chat(&url, token, &payload).await {
+            Err(JevError::Status(400)) => {
+                if let Some(map) = payload.as_object_mut() {
+                    map.remove("reasoning_effort");
+                    map.insert("temperature".into(), json!(0));
+                }
+                self.post_chat(&url, token, &payload).await
+            }
+            other => other,
+        }
+    }
+
+    async fn post_chat(&self, url: &str, token: &str, payload: &Value) -> Result<String, JevError> {
+        let response = self
+            .client
+            .post(url)
+            .timeout(Duration::from_secs(45))
+            .bearer_auth(token)
+            .header(header::CONTENT_TYPE, "application/json")
+            .json(payload)
+            .send()
+            .await?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(JevError::Status(status.as_u16()));
+        }
+        let body: Value = response
+            .json()
+            .await
+            .map_err(|error| JevError::Invalid(format!("llm parse failed: {error}")))?;
+        let content = body
+            .pointer("/choices/0/message/content")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if content.is_empty() {
+            return Err(JevError::Invalid("LLM returned no content".into()));
+        }
+        Ok(content)
     }
 
     /// Probe `{base}/models` (OpenAI) or `{base}/v1/models` (TypeSafe) with the
@@ -414,6 +720,184 @@ fn parse_model_list(body: &Value) -> Vec<crate::models::ModelInfo> {
     models
 }
 
+/// One routing beat the UI can draw while the model call is in flight.
+#[derive(Clone, Debug)]
+pub struct RouteNote {
+    pub depth: usize,
+    pub asking: bool,
+    pub parent_name: String,
+    pub choice_id: Option<String>,
+    pub choice_name: String,
+}
+
+struct Stepper<'a, F> {
+    depth: usize,
+    note: &'a mut F,
+}
+
+impl<F: FnMut(RouteNote)> Stepper<'_, F> {
+    fn ask(&mut self, parent: &str) {
+        (self.note)(RouteNote {
+            depth: self.depth,
+            asking: true,
+            parent_name: parent.to_string(),
+            choice_id: None,
+            choice_name: String::new(),
+        });
+    }
+
+    fn chose(&mut self, parent: &str, choice_id: Option<String>, choice_name: String) {
+        (self.note)(RouteNote {
+            depth: self.depth,
+            asking: false,
+            parent_name: parent.to_string(),
+            choice_id,
+            choice_name,
+        });
+        self.depth += 1;
+    }
+}
+
+struct LlmCreds {
+    base: String,
+    token: String,
+    model: String,
+}
+
+fn chat_completions_url(base: &str) -> String {
+    let base = base.trim().trim_end_matches('/');
+    if base.ends_with("/v1") {
+        format!("{base}/chat/completions")
+    } else {
+        format!("{base}/v1/chat/completions")
+    }
+}
+
+fn clip(text: &str, max_chars: usize) -> String {
+    text.chars().take(max_chars).collect()
+}
+
+fn request_block(query: &str, background: &str) -> String {
+    let background = background.trim();
+    if background.is_empty() || background == query.trim() {
+        format!("요청: {query}")
+    } else {
+        format!("요청: {query}\n배경: {}", clip(background, 1500))
+    }
+}
+
+fn node_index(nodes: &[Node]) -> BTreeMap<&str, &Node> {
+    nodes.iter().map(|node| (node.id.as_str(), node)).collect()
+}
+
+fn children_of(nodes: &[Node], parent: Option<&str>) -> Vec<String> {
+    let mut ids: Vec<String> = nodes
+        .iter()
+        .filter(|node| node.parent_id.as_deref() == parent)
+        .map(|node| node.id.clone())
+        .collect();
+    ids.sort();
+    ids
+}
+
+fn ancestor_names(nodes: &[Node], id: &str) -> Vec<String> {
+    let by_id = node_index(nodes);
+    let mut chain = Vec::new();
+    let mut cursor = Some(id);
+    let mut guard = 0;
+    while let Some(current) = cursor {
+        guard += 1;
+        if guard > nodes.len() + 1 {
+            break;
+        }
+        let Some(node) = by_id.get(current) else {
+            break;
+        };
+        chain.push(node.name.clone());
+        cursor = node.parent_id.as_deref();
+    }
+    chain.reverse();
+    chain
+}
+
+fn subtree_ids(nodes: &[Node], root: &str) -> Vec<String> {
+    let mut ids = vec![root.to_string()];
+    let mut cursor = 0;
+    while cursor < ids.len() {
+        let parent = ids[cursor].clone();
+        for child in children_of(nodes, Some(parent.as_str())) {
+            if !ids.iter().any(|id| id == &child) {
+                ids.push(child);
+            }
+        }
+        cursor += 1;
+    }
+    ids
+}
+
+/// Top lexical matches inside `root`'s subtree, plus each match's parent when it
+/// is still inside that subtree. Parents stay visible so a specific child cannot
+/// hide the topic the request actually named.
+pub fn llm_shortlist(query: &str, nodes: &[Node], root: &str, k: usize) -> Vec<String> {
+    let inside = subtree_ids(nodes, root);
+    let query_tokens = tokens(query);
+    let mut scored: Vec<(String, f64)> = inside
+        .iter()
+        .map(|id| {
+            let names = ancestor_names(nodes, id).join(" ");
+            let description = node_index(nodes)
+                .get(id.as_str())
+                .map(|node| node.description.clone())
+                .unwrap_or_default();
+            let text = format!("{names} {description}");
+            (id.clone(), overlap_score(&query_tokens, query, &text))
+        })
+        .collect();
+    scored.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    let mut out = Vec::new();
+    let mut seen = BTreeSet::new();
+    for (id, _) in scored.into_iter().take(k.max(1)) {
+        let parent = node_index(nodes)
+            .get(id.as_str())
+            .and_then(|node| node.parent_id.clone());
+        if seen.insert(id.clone()) {
+            out.push(id);
+        }
+        if let Some(parent) = parent {
+            if inside.iter().any(|id| id == &parent) && seen.insert(parent.clone()) {
+                out.push(parent);
+            }
+        }
+    }
+    out
+}
+
+/// Last line must be one allowed id. Scanning the whole reply is unsafe:
+/// `orders` is a substring of `orders_tracking`.
+pub fn parse_final_id(content: &str, allowed: &[String]) -> Option<String> {
+    let last = content.lines().rev().find(|line| !line.trim().is_empty())?;
+    let mut last = last.trim().trim_matches(|c| "`\"'.".contains(c));
+    for prefix in ["ID:", "id:", "ID：", "id："] {
+        if let Some(rest) = last.strip_prefix(prefix) {
+            last = rest.trim();
+        }
+    }
+    if allowed.iter().any(|id| id == last) {
+        return Some(last.to_string());
+    }
+    let hits: Vec<&String> = allowed
+        .iter()
+        .filter(|id| {
+            last.split(|c: char| !c.is_ascii_alphanumeric() && c != '_' && c != '-')
+                .any(|token| token == id.as_str())
+        })
+        .collect();
+    if hits.len() == 1 {
+        return Some(hits[0].clone());
+    }
+    None
+}
+
 /// How far the best child must stand out from its siblings before the heuristic descends.
 ///
 /// Any value above zero is enough to catch a query that matches nothing, which is the
@@ -602,5 +1086,56 @@ mod tests {
     fn parse_empty_or_unknown_shape_is_empty() {
         assert!(parse_model_list(&json!({"object": "list"})).is_empty());
         assert!(parse_model_list(&json!([])).is_empty());
+    }
+
+    #[test]
+    fn parse_final_id_uses_the_last_line_only() {
+        let allowed = vec!["orders".into(), "orders_tracking".into(), "__none__".into()];
+        assert_eq!(
+            parse_final_id("orders is mentioned\norders_tracking", &allowed).as_deref(),
+            Some("orders_tracking")
+        );
+        assert_eq!(
+            parse_final_id("reasoning\nID: __none__", &allowed).as_deref(),
+            Some("__none__")
+        );
+        // `orders` is contained in `orders_tracking`, so a line that only names the
+        // longer id must not resolve to the prefix.
+        assert_eq!(
+            parse_final_id("pick orders_tracking", &allowed).as_deref(),
+            Some("orders_tracking")
+        );
+        assert!(parse_final_id("orders or orders_tracking", &allowed).is_none());
+    }
+
+    #[test]
+    fn shortlist_keeps_the_parent_of_a_specific_match() {
+        let nodes = vec![
+            Node {
+                id: "orders".into(),
+                name: "주문".into(),
+                description: "주문과 배송".into(),
+                examples: vec![],
+                parent_id: None,
+            },
+            Node {
+                id: "orders_tracking".into(),
+                name: "배송 추적".into(),
+                description: "운송장과 통관 지연".into(),
+                examples: vec![],
+                parent_id: Some("orders".into()),
+            },
+            Node {
+                id: "account".into(),
+                name: "계정".into(),
+                description: "로그인과 비밀번호".into(),
+                examples: vec![],
+                parent_id: None,
+            },
+        ];
+        let short = llm_shortlist("통관에서 운송장이 안 보여요", &nodes, "orders", 5);
+        assert_eq!(short.first().map(String::as_str), Some("orders_tracking"));
+        assert!(short.iter().any(|id| id == "orders"));
+        assert!(short.iter().all(|id| id != "account"));
     }
 }

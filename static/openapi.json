@@ -1053,7 +1053,7 @@
     "/api/run": {
       "post": {
         "summary": "Search or ingest (JSON)",
-        "description": "Text 1-8000 chars. search: answer = recommended item. ingest without auto_publish = draft (published_id null).",
+        "description": "Text 1-8000 chars. search: answer = recommended item. ingest without auto_publish = draft (published_id null). When llm_base_url, llm_token, and llm_model are all set, the category is chosen by that model (root, then a shortlist); otherwise the Jev/heuristic beam. Item ranking stays on Jev or the heuristic.",
         "responses": {
           "200": {
             "description": "OK",

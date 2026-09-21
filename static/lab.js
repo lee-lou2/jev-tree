@@ -1042,7 +1042,7 @@ function renderOnboard() {
     $("obDesc").textContent = "You can skip this and change it later in Settings.";
     body.innerHTML =
       fieldHtml({ id: "obBaseUrl", label: "LLM base URL (optional)", placeholder: "https://api.openai.com/v1", value: onboard.data.baseUrl }) +
-      fieldHtml({ id: "obToken", label: "LLM token (optional)", type: "password", placeholder: "for listing models", value: onboard.data.token }) +
+      fieldHtml({ id: "obToken", label: "LLM token (optional)", type: "password", placeholder: "routes search when a model is set", value: onboard.data.token }) +
       `<div class="field"><label for="obModel">Model (optional)</label>` +
       `<div class="row" style="margin-top:0"><select id="obModel" style="flex:1"></select>` +
       `<button id="obFetchModels" type="button" class="ghost">Fetch</button></div>` +
@@ -1291,8 +1291,8 @@ function renderSettings() {
       fieldHtml({ id: "setBaseUrl", label: "LLM base URL", placeholder: "https://api.openai.com/v1", value: d.llm_base_url || "" }) +
       fieldHtml({
         id: "setToken", label: `LLM token${d.llm_token_set ? ` · saved ${esc(d.llm_token_hint || "")}` : ""}`,
-        type: "password", placeholder: d.llm_token_set ? "(enter only to change)" : "for listing models",
-        hint: "Fetches the LLM model list from this URL and token. Search still uses Jev.",
+        type: "password", placeholder: d.llm_token_set ? "(enter only to change)" : "required to route search",
+        hint: "With a base URL and a model, search and ingest route through this LLM. Ranking still uses Jev. Also fetches the model list.",
       }) +
       `<div class="field"><label for="setModel">LLM model</label>` +
       `<div class="row" style="margin-top:0"><select id="setModel" style="flex:1"></select>` +

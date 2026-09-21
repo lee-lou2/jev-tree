@@ -179,7 +179,7 @@ Project-wide. `root` / URL path never scopes them.
 | `site_name` / `site_description` | ≤ 60 / ≤ 200 characters |
 | `site_logo` | PNG/JPEG/SVG/WebP data URL ≤ 500 KB, or `null` to clear |
 | `jev_api_key` | Search/routing model key. `""` clears it and falls back to the heuristic |
-| `llm_base_url` / `llm_token` / `llm_model` | LLM listing only; never used for search |
+| `llm_base_url` / `llm_token` / `llm_model` | When all three are set, search and ingest **route** with this model: one call picks the root topic (`__none__` abstains), a second call picks a node inside that subtree. Clearing the token or the model falls back to Jev, then the heuristic. Item ranking still uses Jev (or the heuristic). The same credentials list models. |
 | `server_key` | Login password, ≥ 6 characters; `""` turns login off (open mode) |
 
 In the UI, Jev and LLM settings live under **Settings → Models**. The login password and
@@ -188,6 +188,7 @@ create a second settings store.
 
 `POST /api/llm/models` probes `{base}/v1/models` then `{base}/models` with the supplied or
 stored LLM credentials and saves nothing. The Jev key is never used for this.
+Routing calls `{base}/chat/completions` (or `{base}/v1/chat/completions`) with the saved model.
 
 ## `POST /api/seed` — destructive
 

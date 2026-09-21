@@ -4,6 +4,11 @@
 
 ### Added
 
+- **LLM routing.** When Settings → Models has an LLM base URL, token, and model,
+  search and ingest choose the category with that model (root, then a shortlist
+  inside the subtree) instead of the Jev/heuristic beam. Out-of-tree requests abstain.
+  Item ranking is unchanged. Clearing the token or model restores the beam.
+
 - **Virtual roots.** `/products` (then `/products/products_stock`, …) makes that
   child the page root. The tree and table show its children; search and ingest walk
   only that subtree. The same value is `root` on `POST /api/run` and on
