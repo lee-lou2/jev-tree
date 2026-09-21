@@ -1,6 +1,6 @@
 [package]
 name = "jev-tree"
-version = "0.2.5"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.89"
 authors = ["lee-lou2 <lee@lou2.kr>"]

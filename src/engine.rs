@@ -2,7 +2,7 @@ use crate::error::Error;
 use crate::models::*;
 use crate::AppState;
 use serde_json::{json, Value};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -19,16 +19,7 @@ pub async fn execute(
 ) -> Result<Value, Error> {
     let mode = request.mode.clone();
     let text = request.text();
-    let (leaf, path, trace) = descend(
-        &state,
-        &text,
-        &request.context,
-        &mode,
-        request.beam_width,
-        request.start_node.as_deref(),
-        sender.clone(),
-    )
-    .await?;
+    let (leaf, path, trace) = descend(&state, &text, &request, sender.clone()).await?;
     if mode == "ingest" {
         let (question, answer) = if !request.question.trim().is_empty() {
             (
@@ -50,6 +41,16 @@ pub async fn execute(
                     .into(),
             ));
         };
+        let scope = resolve_root(&state.taxonomy()?, request.root.as_deref())?;
+        if scope
+            .allowed
+            .as_ref()
+            .is_some_and(|allowed| !allowed.contains(&category_id))
+        {
+            return Err(Error::BadRequest(
+                "ingest target is outside the current root".into(),
+            ));
+        }
         let duplicate_ids: Vec<String> = state
             .store
             .retrieve(&question, std::slice::from_ref(&category_id), 20)?
@@ -94,9 +95,21 @@ pub async fn execute(
         Ok(serde_json::to_value(result)?)
     } else {
         let nodes = state.taxonomy()?;
-        let categories = leaf
+        let scope = resolve_root(&nodes, request.root.as_deref())?;
+        let categories: Vec<String> = leaf
             .as_ref()
-            .map(|id| descendant_ids(&nodes, id))
+            .map(|id| {
+                descendant_ids(&nodes, id)
+                    .into_iter()
+                    .filter(|id| {
+                        scope
+                            .allowed
+                            .as_ref()
+                            .map(|allowed| allowed.contains(id))
+                            .unwrap_or(true)
+                    })
+                    .collect()
+            })
             .unwrap_or_default();
         let mut candidates = state.store.retrieve(&text, &categories, request.limit)?;
         emit(
@@ -141,23 +154,38 @@ pub async fn execute(
 async fn descend(
     state: &AppState,
     query: &str,
-    context: &[Value],
-    mode: &str,
-    beam_width: usize,
-    start_node: Option<&str>,
+    request: &RunRequest,
     sender: Option<mpsc::Sender<Value>>,
 ) -> Result<(Option<String>, Vec<PathPart>, Trace), Error> {
+    let mode = request.mode.as_str();
+    let beam_width = request.beam_width;
     let run_id = Uuid::new_v4().to_string();
-    let conversation = render_context(query, context);
-    let nodes = state.taxonomy()?;
-    let (initial_node, initial_names) = if let Some(id) = start_node {
-        let node = nodes
-            .iter()
-            .find(|node| node.id == id)
-            .ok_or_else(|| Error::BadRequest(format!("start_node not found: {id}")))?;
-        (Some(id.to_string()), vec![node.name.clone()])
-    } else {
-        (None, vec![])
+    let conversation = render_context(query, &request.context);
+    let scope = resolve_root(&state.taxonomy()?, request.root.as_deref())?;
+    let nodes = scope.descent_nodes.clone();
+    let (initial_node, initial_names) = match request.start_node.as_deref() {
+        Some(id) if scope.root.as_ref().is_some_and(|node| node.id == id) => (
+            scope.descent_start.clone(),
+            scope
+                .descent_start
+                .as_deref()
+                .map(|start| vec![node_name(&nodes, start)])
+                .unwrap_or_default(),
+        ),
+        Some(id) => {
+            let node = nodes.iter().find(|node| node.id == id).ok_or_else(|| {
+                Error::BadRequest(format!("start_node not found under the current root: {id}"))
+            })?;
+            (Some(id.to_string()), vec![node.name.clone()])
+        }
+        None => (
+            scope.descent_start.clone(),
+            scope
+                .descent_start
+                .as_deref()
+                .map(|start| vec![node_name(&nodes, start)])
+                .unwrap_or_default(),
+        ),
     };
     let mut beams = vec![Beam {
         node_id: initial_node,
@@ -239,7 +267,7 @@ async fn descend(
                 json!({
                     "conversation":conversation,
                     "current_request":query,
-                    "background":context,
+                    "background":&request.context,
                     "mode":mode,
                     "path":beams.first().map(|beam| beam.names.clone()).unwrap_or_default()
                 }),
@@ -445,6 +473,117 @@ fn near_duplicate(question: &str, existing: &str) -> bool {
     a.intersection(&b).count() as f64 / a.len().min(b.len()) as f64 >= 0.6
 }
 
+/// A URL/API `root` path turned into a virtual taxonomy.
+///
+/// The chosen node is the displayed root. Descent walks its **children** as if
+/// they were the forest (`__none__` = outside this subtree). A childless node
+/// stays the only landing. Settings and keys ignore this; they stay project-wide.
+#[derive(Clone, Debug)]
+pub struct RootScope {
+    pub descent_nodes: Vec<Node>,
+    pub descent_start: Option<String>,
+    pub root: Option<Node>,
+    pub path: Vec<Node>,
+    /// Category ids search/list may use. `None` means the whole forest.
+    pub allowed: Option<HashSet<String>>,
+}
+
+/// Walk `root` as slash-separated child keys (`products`, `products/products_stock`).
+/// Each segment must match a **direct child** of the previous node (forest roots
+/// at the first step) by id, then case-insensitive id, then case-insensitive name.
+pub fn resolve_root(nodes: &[Node], root: Option<&str>) -> Result<RootScope, Error> {
+    let Some(raw) = root.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(RootScope {
+            descent_nodes: nodes.to_vec(),
+            descent_start: None,
+            root: None,
+            path: Vec::new(),
+            allowed: None,
+        });
+    };
+    let mut parent: Option<String> = None;
+    let mut path = Vec::new();
+    for segment in raw.split('/').filter(|value| !value.is_empty()) {
+        if !is_root_segment(segment) {
+            return Err(Error::BadRequest(format!(
+                "invalid root segment: {segment}"
+            )));
+        }
+        let children: Vec<&Node> = nodes
+            .iter()
+            .filter(|node| node.parent_id.as_deref() == parent.as_deref())
+            .collect();
+        let Some(found) = match_child(&children, segment) else {
+            return Err(Error::NotFound(format!("root not found: {raw}")));
+        };
+        parent = Some(found.id.clone());
+        path.push((*found).clone());
+    }
+    if path.is_empty() {
+        return Err(Error::BadRequest("invalid root path".into()));
+    }
+    let root_node = path.last().cloned();
+    let root_id = root_node.as_ref().map(|node| node.id.as_str());
+    let allowed_ids = root_id
+        .map(|id| descendant_ids(nodes, id))
+        .unwrap_or_default();
+    let has_children = nodes
+        .iter()
+        .any(|node| node.parent_id.as_deref() == root_id);
+    let (descent_nodes, descent_start) = match (has_children, root_id) {
+        (true, Some(root_id)) => {
+            let mut scoped: Vec<Node> = nodes
+                .iter()
+                .filter(|node| allowed_ids.iter().any(|id| id == &node.id) && node.id != root_id)
+                .cloned()
+                .collect();
+            for node in &mut scoped {
+                if node.parent_id.as_deref() == Some(root_id) {
+                    node.parent_id = None;
+                }
+            }
+            (scoped, None)
+        }
+        _ => (
+            root_node.iter().cloned().collect(),
+            root_node.as_ref().map(|node| node.id.clone()),
+        ),
+    };
+    Ok(RootScope {
+        descent_nodes,
+        descent_start,
+        root: root_node,
+        path,
+        allowed: Some(allowed_ids.into_iter().collect()),
+    })
+}
+
+fn is_root_segment(segment: &str) -> bool {
+    !segment.is_empty()
+        && segment
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
+fn match_child<'a>(children: &[&'a Node], key: &str) -> Option<&'a Node> {
+    children
+        .iter()
+        .copied()
+        .find(|node| node.id == key)
+        .or_else(|| {
+            children
+                .iter()
+                .copied()
+                .find(|node| node.id.eq_ignore_ascii_case(key))
+        })
+        .or_else(|| {
+            children
+                .iter()
+                .copied()
+                .find(|node| node.name.eq_ignore_ascii_case(key))
+        })
+}
+
 /// Deepest path in the taxonomy; the descent never needs more rounds than that.
 fn tree_depth(nodes: &[Node]) -> usize {
     let parents: HashMap<&str, Option<&str>> = nodes
@@ -494,6 +633,13 @@ pub fn depth(id: &str, nodes: &[Node]) -> usize {
         current = parent;
     }
     depth
+}
+fn node_name(nodes: &[Node], id: &str) -> String {
+    nodes
+        .iter()
+        .find(|node| node.id == id)
+        .map(|node| node.name.clone())
+        .unwrap_or_default()
 }
 fn choice_label(node: &Node) -> String {
     let mut label = format!("{}: {}", node.name, node.description);
@@ -757,6 +903,79 @@ mod tests {
             .list_items(0, 20, None, None, false, "draft")
             .unwrap();
         assert_eq!(after, 0, "archived drafts disappear");
+    }
+
+    #[test]
+    fn resolve_root_scopes_to_direct_children() {
+        let (_dir, state) = fixture_state();
+        let nodes = state.taxonomy().unwrap();
+        let scope = resolve_root(&nodes, Some("orders")).unwrap();
+        assert_eq!(scope.root.as_ref().unwrap().id, "orders");
+        assert!(scope.descent_start.is_none());
+        assert!(scope
+            .descent_nodes
+            .iter()
+            .any(|node| node.id == "orders_tracking" && node.parent_id.is_none()));
+        assert!(scope.descent_nodes.iter().all(|node| node.id != "orders"));
+        assert!(scope.descent_nodes.iter().all(|node| node.id != "account"));
+        assert!(scope.allowed.as_ref().unwrap().contains("orders_tracking"));
+        assert!(!scope.allowed.as_ref().unwrap().contains("account"));
+    }
+
+    #[test]
+    fn resolve_root_nested_and_unknown() {
+        let (_dir, state) = fixture_state();
+        let nodes = state.taxonomy().unwrap();
+        let nested = resolve_root(&nodes, Some("orders/orders_tracking")).unwrap();
+        assert_eq!(nested.root.as_ref().unwrap().id, "orders_tracking");
+        assert_eq!(nested.descent_start.as_deref(), Some("orders_tracking"));
+        assert!(matches!(
+            resolve_root(&nodes, Some("missing")),
+            Err(Error::NotFound(_))
+        ));
+        assert!(matches!(
+            resolve_root(&nodes, Some("orders/../account")),
+            Err(Error::BadRequest(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn scoped_root_descends_from_children() {
+        let (_dir, state) = fixture_state();
+        state.jev.script_choices(vec!["orders_tracking".into()]);
+        let mut request = run_req("해외 배송이 통관에서 멈췄어요");
+        request.root = Some("orders".into());
+        let result = execute(state, request, None).await.unwrap();
+        assert_eq!(result["leaf_id"], "orders_tracking", "{result}");
+        assert_eq!(result["path"].as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn scoped_root_cannot_reach_sibling_forest() {
+        let (_dir, state) = fixture_state();
+        state.jev.script_choices(vec!["__none__".into()]);
+        let mut request = run_req("비밀번호를 재설정하려면?");
+        request.root = Some("orders".into());
+        let result = execute(state, request, None).await.unwrap();
+        assert!(result["leaf_id"].is_null(), "{result}");
+        assert_eq!(result["items"].as_array().unwrap().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn scoped_leaf_root_files_there() {
+        let (_dir, state) = fixture_state();
+        let request = RunRequest {
+            mode: "ingest".into(),
+            question: "비밀번호를 재설정하려면?".into(),
+            answer: "로그인 화면에서 재설정 메일을 요청하세요.".into(),
+            auto_publish: false,
+            beam_width: 3,
+            limit: 8,
+            root: Some("account".into()),
+            ..Default::default()
+        };
+        let result = execute(state, request, None).await.unwrap();
+        assert_eq!(result["category_id"], "account", "{result}");
     }
 
     #[test]

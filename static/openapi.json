@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "jev-tree API",
-    "version": "0.2.5",
-    "description": "Hierarchical knowledge service: model-driven tree descent over SQLite. Search and ingest are the same descent. Human companion: docs/api.md. Browsable: GET /docs."
+    "version": "0.3.0",
+    "description": "Hierarchical knowledge service: model-driven tree descent over SQLite. Search and ingest are the same descent. A `root` path (`products`, `products/products_stock`) makes that node the virtual tree. Settings and keys stay project-wide. Human companion: docs/api.md. Browsable: GET /docs."
   },
   "servers": [
     {
@@ -588,7 +588,7 @@
     "/api/health": {
       "get": {
         "summary": "Health + counts",
-        "description": "Open mode: no token. Key mode: Bearer required.",
+        "description": "Open mode: no token. Key mode: Bearer required. Optional `root` scopes category/item counts to that subtree. Settings and keys stay project-wide.",
         "responses": {
           "200": {
             "description": "OK",
@@ -623,13 +623,23 @@
           {
             "bearer": []
           }
+        ],
+        "parameters": [
+          {
+            "name": "root",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Virtual-tree path. Counts only that subtree."
+          }
         ]
       }
     },
     "/api/items": {
       "get": {
         "summary": "List/search knowledge",
-        "description": "scope=exact (the category itself) or subtree (all descendants). status=active|draft|all. A typo in either -> 400.",
+        "description": "scope=exact (the category itself) or subtree (all descendants). status=active|draft|all. Optional `root` limits the listing to that subtree. A typo in scope/status -> 400. category_id outside the current root -> 400.",
         "responses": {
           "200": {
             "description": "OK",
@@ -677,6 +687,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "root",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Virtual-tree path. Without category_id, lists the subtree under that root."
           },
           {
             "name": "q",
@@ -1113,7 +1131,14 @@
                       "string",
                       "null"
                     ],
-                    "description": "Force descent start. Omit when unsure."
+                    "description": "Force descent start. Omit when unsure. Must sit under `root` when both are set."
+                  },
+                  "root": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Slash-separated child keys that become the virtual tree, e.g. products or products/products_stock. Each segment is a direct child of the previous node (forest roots at the first step). Unknown path → 404. Settings and keys ignore this."
                   },
                   "beam_width": {
                     "type": "integer",
@@ -1225,7 +1250,14 @@
                       "string",
                       "null"
                     ],
-                    "description": "Force descent start. Omit when unsure."
+                    "description": "Force descent start. Omit when unsure. Must sit under `root` when both are set."
+                  },
+                  "root": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Slash-separated child keys that become the virtual tree, e.g. products or products/products_stock. Each segment is a direct child of the previous node (forest roots at the first step). Unknown path → 404. Settings and keys ignore this."
                   },
                   "beam_width": {
                     "type": "integer",
@@ -1325,7 +1357,7 @@
     "/api/seed/stats": {
       "get": {
         "summary": "Seed info",
-        "description": "DB counts and taxonomy depth. No seed-domain metadata.",
+        "description": "DB counts and taxonomy depth. Optional `root` scopes counts to that subtree. No seed-domain metadata.",
         "responses": {
           "200": {
             "description": "OK",
@@ -1361,6 +1393,16 @@
         "security": [
           {
             "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "root",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Virtual-tree path. Counts only that subtree."
           }
         ]
       }
@@ -1569,8 +1611,8 @@
     },
     "/api/tree": {
       "get": {
-        "summary": "Full taxonomy tree",
-        "description": "Nested nodes with item_count. Call once and cache (~604 nodes).",
+        "summary": "Taxonomy tree",
+        "description": "Nested nodes with item_count. Optional `root` returns that node's children as the forest, plus `root` and `path`. Unknown path → 404. Settings and keys stay project-wide.",
         "responses": {
           "200": {
             "description": "OK",
@@ -1580,6 +1622,17 @@
                   "type": "object",
                   "properties": {
                     "tree": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Node"
+                      }
+                    },
+                    "root": {
+                      "description": "The virtual-root node, or null at the forest.",
+                      "nullable": true,
+                      "$ref": "#/components/schemas/Node"
+                    },
+                    "path": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/Node"
@@ -1594,6 +1647,16 @@
         "security": [
           {
             "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "root",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Slash-separated child keys. Unknown path → 404."
           }
         ]
       }

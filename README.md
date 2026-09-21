@@ -19,7 +19,8 @@ model-driven tree descent. **Search and ingest are the same descent.**
 
 ```bash
 cargo run --release      # from the repo root
-# UI    http://127.0.0.1:8768
+# UI    http://127.0.0.1:8768            (forest)
+#        http://127.0.0.1:8768/products  (that child as the page root)
 # Docs  http://127.0.0.1:8768/docs      (spec: /api/openapi.json)
 ```
 
@@ -36,7 +37,9 @@ Two things are optional and both degrade gracefully:
 
 ## How it works
 
-1. Knowledge lives in a taxonomy tree.
+1. Knowledge lives in a taxonomy tree. `/` is the forest; `/products` (then
+   `/products/products_stock`, …) makes that child the page root. Search and ingest
+   stay inside it. Settings and keys do not.
 2. At each node the evaluator compares the **direct children** plus one terminal option
    (`__none__` at the root, `__stop__` deeper) in the light of the full context, and descends.
    Beam search keeps `beam_width` paths, scored by the **geometric mean** of edge probabilities.
@@ -57,6 +60,10 @@ Read a search result by role, never by `items[0]`:
 ```bash
 curl -s localhost:8768/api/run -H 'content-type: application/json' \
   -d '{"mode":"search","query":"my parcel is stuck at customs"}'
+
+# same search, but only under the products subtree
+curl -s localhost:8768/api/run -H 'content-type: application/json' \
+  -d '{"mode":"search","query":"out of stock","root":"products"}'
 
 # ingest files a draft and returns its item_id; publishing is a second, explicit call
 curl -s localhost:8768/api/run -H 'content-type: application/json' \
@@ -99,7 +106,7 @@ The bundled `Dockerfile` follows the same rules. More in
 
 ## Status
 
-`cargo fmt --check`, `cargo test --locked` (29 tests), and
+`cargo fmt --check`, `cargo test --locked`, and
 `cargo clippy --all-targets --locked -- -D warnings` run in CI. They cover the HTTP
 contract, scripted-evaluator descent, taxonomy validation, secret handling, and the
 startup guards.

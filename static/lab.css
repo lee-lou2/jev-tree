@@ -538,6 +538,12 @@ mark {
   color: var(--muted); font-size: 11px; font-weight: 600;
   letter-spacing: .02em; margin: 8px 0 0;
 }
+#openAsRoot {
+  height: 26px; padding: 0 10px; border-radius: 7px;
+  border: 1px solid var(--line); color: var(--ink); font-weight: 650; font-size: 12px;
+  background: var(--soft);
+}
+#openAsRoot:hover { border-color: var(--accent); }
 .draft-actions { display: flex; gap: 8px; margin-top: 12px; }
 .draft-actions #draftPublish {
   height: 34px; padding: 0 14px; border-radius: 9px;

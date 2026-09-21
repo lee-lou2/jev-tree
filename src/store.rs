@@ -504,7 +504,7 @@ impl Store {
         Ok(counts)
     }
 
-    pub fn tree(&self, nodes: &[Node]) -> Result<Value, crate::error::Error> {
+    pub fn tree(&self, nodes: &[Node], parent: Option<&str>) -> Result<Value, crate::error::Error> {
         let counts = self.item_counts()?;
         fn build(
             counts: &std::collections::HashMap<String, i64>,
@@ -513,7 +513,7 @@ impl Store {
         ) -> Result<Vec<Value>, crate::error::Error> {
             nodes.iter().filter(|node| node.parent_id.as_deref() == parent).map(|node| Ok(json::json!({"id":node.id,"name":node.name,"description":node.description,"examples":node.examples,"parent_id":node.parent_id,"item_count":counts.get(&node.id).copied().unwrap_or(0),"children":build(counts,nodes,Some(&node.id))?}))).collect()
         }
-        Ok(json::json!({"tree": build(&counts,nodes,None)?}))
+        Ok(json::json!({"tree": build(&counts, nodes, parent)?}))
     }
 }
 

@@ -23,6 +23,8 @@ const state = {
   tablePath: [],
   history: [],
   draft: null,
+  root: null,
+  rootPath: [],
 };
 
 const esc = (v) =>
@@ -41,7 +43,49 @@ function flatten(nodes, map = new Map(), parent = null, depth = 0) {
 function descendants(n) {
   return (n.children || []).reduce((a, c) => a + 1 + descendants(c), 0);
 }
+function currentRootPath() {
+  const parts = location.pathname.split("/").filter(Boolean);
+  if (!parts.length || ["docs", "api", "static"].includes(parts[0])) return "";
+  return parts.join("/");
+}
+function rootQuery(extra) {
+  const params = new URLSearchParams(extra || "");
+  const root = currentRootPath();
+  if (root) params.set("root", root);
+  const s = params.toString();
+  return s ? `?${s}` : "";
+}
+function rootHref(nodeId) {
+  if (!nodeId || nodeId === "__root__") return "/";
+  if (state.root && nodeId === state.root.id) {
+    return currentRootPath() ? `/${currentRootPath()}` : "/";
+  }
+  const prefix = currentRootPath() ? currentRootPath().split("/") : [];
+  const extra = [];
+  let n = state.flat.get(String(nodeId));
+  const stop = state.root?.id;
+  while (n && n.id !== stop && n.id !== "__root__") {
+    extra.unshift(n.id);
+    n = n.parent_id ? state.flat.get(String(n.parent_id)) : null;
+  }
+  const segs = prefix.concat(extra);
+  return segs.length ? `/${segs.join("/")}` : "/";
+}
+function visualRootId() {
+  return state.root?.id || "__root__";
+}
+function rootLabel() {
+  return state.root?.name || "Knowledge";
+}
 function rootNode() {
+  if (state.root) {
+    return {
+      ...state.root,
+      children: state.tree,
+      item_count: state.root.item_count || 0,
+      depth: -1,
+    };
+  }
   return { id: "__root__", name: "Knowledge", children: state.tree, item_count: 0, depth: -1 };
 }
 const TOKEN_KEY = "jev_tree_token";
@@ -127,10 +171,10 @@ function short(name, max = 16) {
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 function nodeClass(id) {
-  if (id === "__root__") return "root";
+  if (id === "__root__" || id === visualRootId()) return "root";
   if (state.current && id === state.current) return "current";
   if (state.path.includes(id)) return "path";
-  if (state.path.length && !state.path.includes(id) && id !== "__root__") return "dim";
+  if (state.path.length && !state.path.includes(id) && id !== visualRootId()) return "dim";
   return "";
 }
 function focusResult(categoryId, itemId) {
@@ -154,7 +198,7 @@ function focusResult(categoryId, itemId) {
 function renderTree() {
   if (state.view !== "tree") return;
   const root = rootNode();
-  if (!state.tree.length) {
+  if (!state.tree.length && !state.root) {
     $("empty").textContent = "No categories";
     $("empty").classList.remove("hidden");
     $("tree").innerHTML = "";
@@ -165,9 +209,10 @@ function renderTree() {
   const width = Math.max(data.width + 80, 640);
   const height = Math.max(...data.nodes.map((n) => n.y)) + H + 80;
   const pathSet = new Set(state.path);
+  const rootId = visualRootId();
   const edges = data.edges
     .map((e) => {
-      const on = (e.from === "__root__" && pathSet.has(e.to)) || (pathSet.has(e.from) && pathSet.has(e.to));
+      const on = ((e.from === "__root__" || e.from === rootId) && pathSet.has(e.to)) || (pathSet.has(e.from) && pathSet.has(e.to));
       const mid = (e.y1 + e.y2) / 2;
       return `<path class="edge ${on ? "path" : ""}" d="M${e.x1} ${e.y1}V${mid}H${e.x2}V${e.y2}"/>`;
     })
@@ -230,7 +275,7 @@ function collectTableHits(nodes, q, out = []) {
   return out;
 }
 function tableColumns() {
-  const cols = [{ title: "Knowledge", nodes: state.tree, active: state.tablePath[0] || null }];
+  const cols = [{ title: rootLabel(), nodes: state.tree, active: state.tablePath[0] || null }];
   for (let i = 0; i < state.tablePath.length; i++) {
     const n = state.flat.get(String(state.tablePath[i]));
     if (!n) break;
@@ -252,7 +297,7 @@ function renderTableItem(n, q, active) {
 function renderTable() {
   if (state.view !== "table") return;
   if ($("tableQuery") && document.activeElement !== $("tableQuery")) $("tableQuery").value = state.tableQuery;
-  if (!state.tree.length) {
+  if (!state.tree.length && !state.root) {
     $("empty").textContent = "No categories";
     $("empty").classList.remove("hidden");
     $("tableCount").textContent = "";
@@ -276,7 +321,7 @@ function renderTable() {
         const on = state.selected === String(n.id) ? "selected" : "";
         return `<tr class="${on}" data-id="${esc(n.id)}">
           <td class="hit-name">${tableMark(n.name, q)}</td>
-          <td class="hit-path">${esc(categoryPath(n.parent_id) || "Knowledge")}</td>
+          <td class="hit-path">${esc(categoryPath(n.parent_id) || rootLabel())}</td>
           <td class="num">${n.item_count || 0}</td>
           <td class="num">${(n.children || []).length}</td>
         </tr>`;
@@ -289,12 +334,16 @@ function renderTable() {
     return;
   }
   const cols = tableColumns();
-  const crumb = [`<button type="button" data-depth="-1">Knowledge</button>`].concat(
-    state.tablePath.map((id, i) => {
-      const n = state.flat.get(String(id));
-      return `<button type="button" data-depth="${i}">${esc(n?.name || id)}</button>`;
-    })
-  );
+  const ancestors = (state.rootPath || []).slice(0, -1);
+  const crumb = (state.root ? [`<button type="button" data-root="0">Knowledge</button>`] : [])
+    .concat(ancestors.map((n, i) => `<button type="button" data-root="${i + 1}">${esc(n.name || n.id)}</button>`))
+    .concat([`<button type="button" data-depth="-1">${esc(rootLabel())}</button>`])
+    .concat(
+      state.tablePath.map((id, i) => {
+        const n = state.flat.get(String(id));
+        return `<button type="button" data-depth="${i}">${esc(n?.name || id)}</button>`;
+      })
+    );
   $("tableTrail").innerHTML = crumb.join(`<span class="sep">/</span>`);
   $("tableCount").textContent = `${total} categories`;
   $("tableScroll").innerHTML = `<div class="cols">${cols
@@ -321,6 +370,14 @@ function renderTable() {
       }
     };
   });
+  $("tableTrail").querySelectorAll("button[data-root]").forEach((btn) => {
+    btn.onclick = () => {
+      const n = Number(btn.dataset.root);
+      const segs = (state.rootPath || []).slice(0, n).map((p) => p.id);
+      history.pushState({}, "", segs.length ? `/${segs.join("/")}` : "/");
+      loadTree();
+    };
+  });
   requestAnimationFrame(() => {
     const box = $("tableScroll");
     box.scrollLeft = box.scrollWidth;
@@ -332,9 +389,10 @@ async function onTableSelect(id) {
   if (!node) return;
   const path = [];
   let n = node;
-  while (n) {
+  const stop = visualRootId();
+  while (n && String(n.id) !== stop) {
     path.unshift(String(n.id));
-    n = state.flat.get(String(n.parent_id));
+    n = n.parent_id ? state.flat.get(String(n.parent_id)) : null;
   }
   state.tablePath = path;
   state.selected = String(id);
@@ -361,16 +419,40 @@ function setView(view) {
 function expandTo(id) {
   let n = state.flat.get(String(id));
   const ids = [];
-  while (n) {
+  const stop = state.root?.id;
+  while (n && n.id !== stop) {
     ids.unshift(String(n.id));
     state.expanded.add(String(n.id));
-    n = state.flat.get(String(n.parent_id));
+    n = n.parent_id ? state.flat.get(String(n.parent_id)) : null;
   }
+  state.expanded.add(visualRootId());
   state.expanded.add("__root__");
   return ids;
 }
+function applyRootHref(href) {
+  if (href === location.pathname) return false;
+  history.pushState({}, "", href);
+  loadTree().catch((e) => {
+    $("empty").textContent = e.message;
+    $("empty").classList.remove("hidden");
+  });
+  return true;
+}
+function enterRoot(id) {
+  return applyRootHref(rootHref(id));
+}
+function leaveRoot() {
+  const parts = currentRootPath().split("/").filter(Boolean);
+  if (!parts.length) return false;
+  parts.pop();
+  return applyRootHref(parts.length ? `/${parts.join("/")}` : "/");
+}
 async function onNodeClick(id) {
-  if (id === "__root__") {
+  if (id === "__root__" || id === visualRootId()) {
+    if (state.root) {
+      leaveRoot();
+      return;
+    }
     state.selected = null;
     setPanelOpen(false);
     render();
@@ -391,18 +473,22 @@ async function showNode(node) {
   $("panelTitle").textContent = node.name;
   $("panelMeta").textContent = `${(node.children || []).length} children · ${node.item_count || 0} items`;
   $("panelBody").innerHTML = "Loading…";
+  const canEnter = node.id !== visualRootId() && node.id !== "__root__";
+  const open = canEnter
+    ? `<p class="kicker"><button id="openAsRoot" type="button">Use as root</button></p>`
+    : "";
   try {
-    const d = await api(`/api/items?limit=20&scope=exact&category_id=${encodeURIComponent(node.id)}`);
+    const d = await api(`/api/items${rootQuery(`limit=20&scope=exact&category_id=${encodeURIComponent(node.id)}`)}`);
     const items = d.items || [];
-    if (!items.length) {
-      $("panelBody").innerHTML = "<p>No items stored in this category yet.</p>";
-      return;
-    }
-    $("panelBody").innerHTML = items
-      .map((item) => `<div class="item"><b>${esc(item.question)}</b><p>${esc(item.answer)}</p></div>`)
-      .join("");
+    $("panelBody").innerHTML =
+      open +
+      (items.length
+        ? items.map((item) => `<div class="item"><b>${esc(item.question)}</b><p>${esc(item.answer)}</p></div>`).join("")
+        : "<p>No items stored in this category yet.</p>");
+    if (canEnter) $("openAsRoot").onclick = () => enterRoot(node.id);
   } catch (e) {
-    $("panelBody").innerHTML = `<p>${esc(e.message)}</p>`;
+    $("panelBody").innerHTML = open + `<p>${esc(e.message)}</p>`;
+    if (canEnter) $("openAsRoot").onclick = () => enterRoot(node.id);
   }
 }
 
@@ -410,10 +496,12 @@ function categoryPath(id) {
   const names = [];
   let n = state.flat.get(String(id));
   let guard = 0;
-  while (n && guard++ < 20) {
+  const stop = state.root?.id;
+  while (n && n.id !== stop && guard++ < 20) {
     names.unshift(n.name);
-    n = state.flat.get(String(n.parent_id));
+    n = n.parent_id ? state.flat.get(String(n.parent_id)) : null;
   }
+  if (state.root && names.length) names.unshift(state.root.name);
   return names.join(" → ");
 }
 function roleLabel(role) {
@@ -506,7 +594,7 @@ function showEvent(e) {
       const path = expandTo(n.choice_id);
       state.path = path;
       state.current = String(n.choice_id);
-      const label = `${n.node_name || "Knowledge"} → ${n.choice_name || ""}`;
+      const label = `${n.node_name || rootLabel()} → ${n.choice_name || ""}`;
       setProgress(state.mode === "ingest" ? "Ingesting" : "Searching", label, label);
       render();
     } else if (n?.choice_name) {
@@ -595,14 +683,17 @@ async function publishDraft() {
   if (!draft || state.running) return;
   setRunning(true);
   try {
-    await streamRequest({
+    const body = {
       mode: "ingest",
       question: draft.question,
       answer: draft.answer,
       item_id: draft.id,
       expected_version: draft.version,
       auto_publish: true,
-    });
+    };
+    const root = currentRootPath();
+    if (root) body.root = root;
+    await streamRequest(body);
   } catch (err) {
     $("stage").textContent = err.message;
   } finally {
@@ -708,6 +799,8 @@ async function run(ev) {
   if (state.running) return;
   // Ingest always starts as a draft; publishing is a separate, explicit step.
   const body = { mode: state.mode };
+  const root = currentRootPath();
+  if (root) body.root = root;
   state.draft = null;
   if (state.history.length) body.context = state.history.slice(-8);
   if (state.mode === "ingest") {
@@ -755,7 +848,7 @@ function closePanel() {
   state.selected = null;
 }
 function openDefaults() {
-  state.expanded = new Set(["__root__"]);
+  state.expanded = new Set([visualRootId(), "__root__"]);
 }
 function fit() {
   openDefaults();
@@ -765,10 +858,20 @@ function fit() {
   render();
 }
 async function loadTree() {
-  const d = await api("/api/tree");
+  const d = await api(`/api/tree${rootQuery()}`);
   state.tree = d.tree || [];
+  state.root = d.root || null;
+  state.rootPath = d.path || [];
   state.flat = flatten(state.tree);
+  if (state.root) state.flat.set(String(state.root.id), { ...state.root, children: state.tree });
+  state.tablePath = [];
+  state.path = [];
+  state.current = null;
   openDefaults();
+  const trail = (state.rootPath || []).map((n) => n.name).filter(Boolean).join(" → ");
+  $("stage").textContent = trail || "Expand a category or search below";
+  const brand = document.querySelector(".brand");
+  if (brand) brand.setAttribute("href", "/");
   render();
 }
 
@@ -800,6 +903,12 @@ function wire() {
   $("closePanel").onclick = () => {
     closePanel();
   };
+  window.addEventListener("popstate", () => {
+    loadTree().catch((e) => {
+      $("empty").textContent = e.message;
+      $("empty").classList.remove("hidden");
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1328,7 +1437,7 @@ async function saveSettings() {
 
 async function bootMain() {
   try {
-    const h = await api("/api/health");
+    const h = await api(`/api/health${rootQuery()}`);
     $("health").textContent = `${h.items ?? 0} items`;
   } catch (e) {
     if (e.message === "__login_required__") { await requireLogin(auth.status?.site); return; }
