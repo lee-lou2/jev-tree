@@ -6,6 +6,15 @@ Machine-readable contract: `GET /api/openapi.json`. Browsable: `GET /docs`.
 Behavioural caveats that this contract does not express are listed under
 [Known gaps](../AGENTS.md#known-gaps).
 
+## Virtual roots
+
+`/` is the whole forest. `/products` makes the `products` child of the forest the
+page root: the tree and table show that node's children, and search/ingest walk only
+that subtree. `/products/products_stock` goes one level deeper. Each path segment must
+name a **direct child** of the previous node (id first, then name). The same value is
+`root` on `POST /api/run` and on the read endpoints. Login, settings, and API keys are
+not scoped; they belong to the process.
+
 ## Handshake
 
 ```
@@ -13,7 +22,7 @@ Behavioural caveats that this contract does not express are listed under
 2. if has_server_key == false: call anything without a token (open mode)
    if has_server_key == true:  POST /api/auth/login {"server_key": "..."} → {"token": "..."}
 3. send Authorization: Bearer <token> on every other call
-4. POST /api/run {"mode":"search","query":"..."}
+4. POST /api/run {"mode":"search","query":"..."}  (add "root":"products" to stay in a subtree)
 ```
 
 `POST /api/setup/server-key {}` creates the first login password and returns it in plaintext once,
@@ -50,7 +59,8 @@ The only endpoint most integrations need.
 | `query` | string | `""` | Search text. Falls back to `source` |
 | `question` / `answer` | string | `""` | Ingest payload. Falls back to parsing `source` |
 | `context` | array | `[]` | Prior turns, max 32. Strings or `{"role","text"}` objects |
-| `start_node` | string \| null | `null` | Optional forced start; unknown id is 400 |
+| `start_node` | string \| null | `null` | Optional forced start; unknown id is 400. Must sit under `root` when both are set |
+| `root` | string \| null | `null` | Virtual tree: slash-separated child keys (`products`, `products/products_stock`). Each segment is a **direct child** of the previous node (forest roots at the first step), matched by id then name. Unknown path is 404. Settings and keys ignore this |
 | `beam_width` | int | `3` | 1–5 |
 | `limit` | int | `8` | 1–20 ranked items |
 | `auto_publish` | bool | `false` | Ingest only. `false` stores a draft |
@@ -140,18 +150,27 @@ Terminal events are `search_done`, `ingest_saved`, and `ingest_draft`. Do not cl
 |---|---|
 | `GET /api/health` | `{evaluator, categories, items, runtime}` |
 | `GET /api/seed/stats` | `{nodes, items, max_depth, runtime}` |
-| `GET /api/tree` | `{tree: [{id, name, description, examples, parent_id, item_count, children}]}` — cache it |
+| `GET /api/tree` | `{tree, root, path}` — `tree` is the forest, or the chosen node's children when `root` is set |
 | `GET /api/items` | `{items, total, offset, limit, scope}` |
 | `GET /api/site` | `{site_name, site_description, site_logo}` (no token) |
 
-`GET /api/items` accepts `q`, `category_id`, `offset`, `limit` (1–100, default 50),
+`GET /api/health`, `GET /api/seed/stats`, `GET /api/tree`, and `GET /api/items` accept
+`root` (`products`, `products/products_stock`, …). The UI uses the same path as the
+first URL segments (`/products`, `/products/products_stock`). Settings, login, and
+API keys stay project-wide and do not change with `root`.
+
+`GET /api/items` also accepts `q`, `category_id`, `offset`, `limit` (1–100, default 50),
 `scope` (`exact` for the category itself, `subtree` for all descendants), and `status`
 (`active`, `draft`, or `all`; default `active`). Search only ever reads `active` rows.
+A `category_id` outside the current `root` is 400. Without `category_id`, `root` lists
+that subtree.
 
 `DELETE /api/items/{id}` archives an item. Use it to discard a draft or retire a published
 answer; archived rows leave search, listings, and upsert matching.
 
 ## Settings and keys
+
+Project-wide. `root` / URL path never scopes them.
 
 `PATCH /api/settings` takes any subset. Secrets are encrypted at rest and applied without a restart.
 
@@ -164,7 +183,8 @@ answer; archived rows leave search, listings, and upsert matching.
 | `server_key` | Login password, ≥ 6 characters; `""` turns login off (open mode) |
 
 In the UI, Jev and LLM settings live under **Settings → Models**. The login password and
-integration API keys live under **Settings → Server**.
+integration API keys live under **Settings → Server**. Changing the page root does not
+create a second settings store.
 
 `POST /api/llm/models` probes `{base}/v1/models` then `{base}/models` with the supplied or
 stored LLM credentials and saves nothing. The Jev key is never used for this.

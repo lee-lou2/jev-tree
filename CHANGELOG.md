@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0
+
+### Added
+
+- **Virtual roots.** `/products` (then `/products/products_stock`, …) makes that
+  child the page root. The tree and table show its children; search and ingest walk
+  only that subtree. The same value is `root` on `POST /api/run` and on
+  `GET /api/tree`, `/api/items`, `/api/health`, `/api/seed/stats`. Each path segment
+  must be a **direct child** of the previous node. Unknown paths return 404.
+  Settings, login, and API keys stay project-wide.
+
 ## 0.2.5
 
 ### Changed

@@ -16,6 +16,10 @@ There are two operations, and they are the same descent:
 There is no `classify` mode; `search` already returns `leaf_id` and `path`.
 There is no Python. The port is 8768.
 
+The UI path `/products` (and `/products/products_stock`, …) is a **virtual root**.
+Each segment must be a direct child of the previous node. Search and ingest then walk
+only that subtree. Settings, login, and API keys stay project-wide.
+
 ## Run and verify
 
 ```bash
@@ -36,8 +40,8 @@ and `docs/api.md` in the same commit; a test asserts the path set matches the ro
 ## Data flow
 
 ```
-POST /api/run {mode: search|ingest}
-  → engine::descend      root → children, beam (default 3), geometric-mean score
+POST /api/run {mode: search|ingest, root?}
+  → engine::descend      virtual root (or forest) → children, beam (default 3), geometric-mean score
   → leaf, __stop__, or __none__
   → search: retrieve that subtree, rank with Noul/Score, assign roles
   → ingest: upsert as draft, or publish when auto_publish is true
@@ -91,6 +95,8 @@ Domain and product concepts belong in `data/seed.json` or bootstrap fixtures onl
 1. The evaluator receives the **full context** — current request, prior `context` turns,
    ancestor path, and sibling descriptions. Never a bare sentence.
 2. `start_node` is optional. `search` and `ingest` must work with it unset.
+   `root` is optional too. Unset `root` is the whole forest. Set `root` scopes the
+   same descent to that node's children. Settings and keys never take a `root`.
 3. `mode` is `search` or `ingest`. Do not add `classify`.
 4. Terminal choices (`__stop__`, `__none__`) must be able to win and must stop expansion.
 5. A beam that cannot expand — a real leaf, or one that chose a terminal — keeps competing

@@ -120,6 +120,10 @@ pub struct RunRequest {
     #[serde(default)]
     pub context: Vec<Value>,
     pub start_node: Option<String>,
+    /// Slash-separated node ids from the global forest, e.g. `products` or
+    /// `products/products_stock`. Scopes descent to that subtree. Settings
+    /// and keys ignore this; they stay project-wide.
+    pub root: Option<String>,
     #[serde(default = "default_beam")]
     pub beam_width: usize,
     #[serde(default = "default_limit")]
@@ -148,6 +152,7 @@ impl Default for RunRequest {
             source: String::new(),
             context: Vec::new(),
             start_node: None,
+            root: None,
             beam_width: default_beam(),
             limit: default_limit(),
             auto_publish: false,

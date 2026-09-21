@@ -79,8 +79,9 @@ Bottom-up for bootstrap:
 4. Depth 3–5 — only as deep as queries actually separate.
 5. Give every non-leaf node one `article` item so vague questions can stop there.
 
-For graft: read `GET /api/tree`, reuse whatever fits, sharpen sibling descriptions when a
-new topic is close to an existing node, and add nodes only for genuinely new branches.
+For graft: read `GET /api/tree` (add `?root=…` only when working inside a virtual root),
+reuse whatever fits, sharpen sibling descriptions when a new topic is close to an
+existing node, and add nodes only for genuinely new branches.
 Re-run `cargo test` and a real search after editing an existing description.
 
 ### Exchange format

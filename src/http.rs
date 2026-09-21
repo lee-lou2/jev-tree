@@ -1,9 +1,10 @@
-use crate::engine::{depth, execute};
+use crate::engine::{depth, execute, resolve_root};
 use crate::error::Error;
 use crate::models::*;
 use crate::{AppResult, AppState};
 use axum::{
     extract::{Query, State},
+    http::{StatusCode, Uri},
     response::{
         sse::{Event, KeepAlive, Sse},
         IntoResponse, Json, Response,
@@ -111,18 +112,40 @@ pub fn router(state: AppState, static_dir: String) -> Router {
             get(move || async move { openapi_spec_handler(&spec_file).await }),
         )
         .merge(guarded);
+    let index_spa = index_file.clone();
     Router::new()
         .route(
             "/",
-            get(move || async move { index_file_handler(&index_file).await }),
+            get({
+                let index_file = index_file.clone();
+                move || async move { index_file_handler(&index_file).await }
+            }),
         )
         .route(
             "/docs",
             get(move || async move { html_file_handler(&docs_file).await }),
         )
         .nest("/api", api)
-        .nest_service("/static", ServeDir::new(static_dir.clone()))
-        .fallback_service(ServeDir::new(static_dir).append_index_html_on_directories(true))
+        .nest_service("/static", ServeDir::new(static_dir))
+        .fallback(move |uri: Uri| {
+            let index_file = index_spa.clone();
+            async move { spa_fallback(&index_file, uri).await }
+        })
+}
+
+/// UI paths like `/products` or `/products/products_stock` load the same app.
+/// API, static files, and `/docs` stay on their own routes. Settings and keys
+/// are project-wide and do not live under a tree path.
+async fn spa_fallback(index_file: &str, uri: Uri) -> Response {
+    let path = uri.path();
+    if path == "/api" || path.starts_with("/api/") || path.starts_with("/static/") {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({"code": "not_found", "detail": "not found"})),
+        )
+            .into_response();
+    }
+    index_file_handler(index_file).await.into_response()
 }
 
 async fn index_file_handler(path: &str) -> impl IntoResponse {
@@ -137,29 +160,109 @@ async fn html_file_handler(path: &str) -> impl IntoResponse {
     )
 }
 
-async fn health(State(state): State<AppState>) -> AppResult<Value> {
+#[derive(Debug, serde::Deserialize, Default)]
+struct RootQuery {
+    root: Option<String>,
+}
+
+fn root_arg(query: &RootQuery) -> Option<&str> {
+    query
+        .root
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn scoped_nodes(
+    state: &AppState,
+    root: Option<&str>,
+) -> Result<(Vec<Node>, crate::engine::RootScope), Error> {
+    let taxonomy = state.taxonomy()?;
+    let scope = resolve_root(&taxonomy, root)?;
+    Ok((taxonomy, scope))
+}
+
+async fn health(State(state): State<AppState>, Query(query): Query<RootQuery>) -> AppResult<Value> {
     let (categories, items) = state.store.stats()?;
+    let scope = resolve_root(&state.taxonomy()?, root_arg(&query))?;
+    let (categories, items) = match scope.allowed.as_ref() {
+        Some(allowed) => {
+            let categories = allowed.len() as i64;
+            let mut items = 0;
+            for id in allowed {
+                items += state.store.count_for(id)?;
+            }
+            (categories, items)
+        }
+        None => (categories, items),
+    };
     Ok(Json(
         json!({"evaluator":state.jev.label(),"categories":categories,"items":items,"runtime":"rust-axum"}),
     ))
 }
 
-async fn seed_stats(State(state): State<AppState>) -> AppResult<Value> {
+async fn seed_stats(
+    State(state): State<AppState>,
+    Query(query): Query<RootQuery>,
+) -> AppResult<Value> {
     let (nodes, items) = state.store.stats()?;
-    let taxonomy = state.taxonomy()?;
-    let max_depth = taxonomy
-        .iter()
-        .map(|node| depth(&node.id, &taxonomy))
-        .max()
-        .unwrap_or(0);
+    let (taxonomy, scope) = scoped_nodes(&state, root_arg(&query))?;
+    let (nodes, items, max_depth) = match scope.allowed.as_ref() {
+        Some(allowed) => {
+            let nodes = allowed.len() as i64;
+            let mut items = 0;
+            for id in allowed {
+                items += state.store.count_for(id)?;
+            }
+            let max_depth = allowed
+                .iter()
+                .map(|id| depth(id, &taxonomy))
+                .max()
+                .unwrap_or(0);
+            (nodes, items, max_depth)
+        }
+        None => {
+            let max_depth = taxonomy
+                .iter()
+                .map(|node| depth(&node.id, &taxonomy))
+                .max()
+                .unwrap_or(0);
+            (nodes, items, max_depth)
+        }
+    };
     Ok(Json(
         json!({"nodes":nodes,"items":items,"max_depth":max_depth,"runtime":"rust-axum"}),
     ))
 }
 
-async fn tree(State(state): State<AppState>) -> AppResult<Value> {
-    let taxonomy = state.taxonomy()?;
-    Ok(Json(state.store.tree(&taxonomy)?))
+async fn tree(State(state): State<AppState>, Query(query): Query<RootQuery>) -> AppResult<Value> {
+    let (taxonomy, scope) = scoped_nodes(&state, root_arg(&query))?;
+    let mut payload = state
+        .store
+        .tree(&taxonomy, scope.root.as_ref().map(|node| node.id.as_str()))?;
+    if let Some(obj) = payload.as_object_mut() {
+        obj.insert(
+            "root".into(),
+            match scope.root {
+                Some(node) => json!({
+                    "id": node.id,
+                    "name": node.name,
+                    "description": node.description,
+                    "parent_id": node.parent_id,
+                }),
+                None => Value::Null,
+            },
+        );
+        obj.insert(
+            "path".into(),
+            json!(scope
+                .path
+                .iter()
+                .map(|node| json!({"id": node.id, "name": node.name}))
+                .collect::<Vec<_>>()),
+        );
+    }
+    Ok(Json(payload))
 }
 
 // ---------------------------------------------------------------------------
@@ -540,6 +643,7 @@ struct ItemsQuery {
     #[serde(default)]
     q: String,
     category_id: Option<String>,
+    root: Option<String>,
     #[serde(default = "default_items_scope")]
     scope: String,
     #[serde(default = "default_items_status")]
@@ -566,12 +670,43 @@ async fn list_items(
     if !["active", "draft", "all"].contains(&query.status.as_str()) {
         return Err(Error::BadRequest("status must be active|draft|all".into()));
     }
+    let root = query
+        .root
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let taxonomy = state.taxonomy()?;
+    let tree_scope = resolve_root(&taxonomy, root)?;
+    let category = match query
+        .category_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
+        Some(id) => {
+            if tree_scope
+                .allowed
+                .as_ref()
+                .is_some_and(|allowed| !allowed.contains(id))
+            {
+                return Err(Error::BadRequest(
+                    "category_id is outside the current root".into(),
+                ));
+            }
+            Some(id.to_string())
+        }
+        None => tree_scope.root.as_ref().map(|node| node.id.clone()),
+    };
+    let include_descendants = match query.category_id.as_deref() {
+        Some(_) => query.scope == "subtree",
+        None => tree_scope.root.is_some() || query.scope == "subtree",
+    };
     let (items, total) = state.store.list_items(
         query.offset,
         limit,
         Some(&query.q),
-        query.category_id.as_deref(),
-        query.scope == "subtree",
+        category.as_deref(),
+        include_descendants,
         &query.status,
     )?;
     Ok(Json(
@@ -969,6 +1104,90 @@ mod tests {
         .await;
         assert_eq!(status, axum::http::StatusCode::OK, "{seeded}");
         assert_eq!(seeded["seeded"]["nodes"], 3);
+
+        let (status, scoped) = send(
+            &app,
+            axum::http::Request::builder()
+                .uri("/api/tree?root=orders")
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, axum::http::StatusCode::OK, "{scoped}");
+        assert_eq!(scoped["root"]["id"], "orders");
+        let kids = scoped["tree"].as_array().unwrap();
+        assert_eq!(kids.len(), 1);
+        assert_eq!(kids[0]["id"], "orders_tracking");
+
+        let (status, missing) = send(
+            &app,
+            axum::http::Request::builder()
+                .uri("/api/tree?root=missing")
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, axum::http::StatusCode::NOT_FOUND, "{missing}");
+
+        let (status, nested) = send(
+            &app,
+            json_req(
+                "POST",
+                "/api/run",
+                json!({
+                    "mode":"search",
+                    "query":"해외 배송이 통관에서 멈췄어요",
+                    "root":"orders"
+                }),
+                None,
+            ),
+        )
+        .await;
+        assert_eq!(status, axum::http::StatusCode::OK, "{nested}");
+        assert_eq!(nested["leaf_id"], "orders_tracking");
+
+        let (status, scoped_items) = send(
+            &app,
+            axum::http::Request::builder()
+                .uri("/api/items?root=orders&limit=20")
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, axum::http::StatusCode::OK, "{scoped_items}");
+        let scoped_ids: Vec<&str> = scoped_items["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["category_id"].as_str().unwrap())
+            .collect();
+        assert!(scoped_ids.iter().all(|id| *id == "orders_tracking"));
+
+        let (status, outside) = send(
+            &app,
+            axum::http::Request::builder()
+                .uri("/api/items?root=orders&category_id=account")
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, axum::http::StatusCode::BAD_REQUEST, "{outside}");
+
+        let spa = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/orders")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(spa.status(), axum::http::StatusCode::OK);
+        let spa_html =
+            String::from_utf8(spa.into_body().collect().await.unwrap().to_bytes().to_vec())
+                .unwrap();
+        assert!(spa_html.contains("lab.js"));
 
         let spec_paths = spec["paths"]
             .as_object()
