@@ -440,16 +440,24 @@ impl JevClient {
             "max_tokens": 900,
             "messages": messages,
         });
-        match self.post_chat(&url, token, &payload).await {
+        let first = match self.post_chat(&url, token, &payload).await {
             Err(JevError::Status(400)) => {
-                if let Some(map) = payload.as_object_mut() {
-                    map.remove("reasoning_effort");
-                    map.insert("temperature".into(), json!(0));
-                }
-                self.post_chat(&url, token, &payload).await
+                plain_chat_payload(&mut payload);
+                self.post_chat(&url, token, &payload).await?
             }
-            other => other,
+            other => other?,
+        };
+        if !first.is_empty() {
+            return Ok(first);
         }
+        // Some models spend the reply on reasoning and leave content empty.
+        // Ask once more in plain text, then give up so the Jev beam can run.
+        plain_chat_payload(&mut payload);
+        let second = self.post_chat(&url, token, &payload).await?;
+        if second.is_empty() {
+            return Err(JevError::Invalid("LLM returned no content".into()));
+        }
+        Ok(second)
     }
 
     async fn post_chat(&self, url: &str, token: &str, payload: &Value) -> Result<String, JevError> {
@@ -470,16 +478,7 @@ impl JevClient {
             .json()
             .await
             .map_err(|error| JevError::Invalid(format!("llm parse failed: {error}")))?;
-        let content = body
-            .pointer("/choices/0/message/content")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        if content.is_empty() {
-            return Err(JevError::Invalid("LLM returned no content".into()));
-        }
-        Ok(content)
+        Ok(assistant_text(&body))
     }
 
     /// Probe `{base}/v1/models` then `{base}/models`, unless `base` already ends
@@ -973,6 +972,51 @@ pub fn llm_shortlist(query: &str, nodes: &[Node], root: &str, k: usize) -> Vec<S
     out
 }
 
+fn plain_chat_payload(payload: &mut Value) {
+    if let Some(map) = payload.as_object_mut() {
+        map.remove("reasoning_effort");
+        map.insert("temperature".into(), json!(0));
+    }
+}
+
+/// Text the router can parse. Prefer the assistant content. If that is empty,
+/// use a reasoning field or a legacy `choices[0].text`.
+fn assistant_text(body: &Value) -> String {
+    let message = body.pointer("/choices/0/message");
+    if let Some(text) = message_text(message.and_then(|m| m.get("content"))) {
+        return text;
+    }
+    for key in ["reasoning_content", "reasoning"] {
+        if let Some(text) = message_text(message.and_then(|m| m.get(key))) {
+            return text;
+        }
+    }
+    message_text(body.pointer("/choices/0/text")).unwrap_or_default()
+}
+
+fn message_text(value: Option<&Value>) -> Option<String> {
+    let value = value?;
+    let text = match value {
+        Value::String(text) => text.clone(),
+        Value::Array(parts) => parts
+            .iter()
+            .filter_map(|part| {
+                part.as_str()
+                    .map(str::to_string)
+                    .or_else(|| part.get("text").and_then(Value::as_str).map(str::to_string))
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
+        _ => return None,
+    };
+    let text = text.trim().to_string();
+    if text.is_empty() {
+        None
+    } else {
+        Some(text)
+    }
+}
+
 /// Last line must be one allowed id. Scanning the whole reply is unsafe:
 /// `orders` is a substring of `orders_tracking`.
 pub fn parse_final_id(content: &str, allowed: &[String]) -> Option<String> {
@@ -1221,6 +1265,20 @@ mod tests {
     fn parse_empty_or_unknown_shape_is_empty() {
         assert!(parse_model_list(&json!({"object": "list"})).is_empty());
         assert!(parse_model_list(&json!([])).is_empty());
+    }
+
+    #[test]
+    fn assistant_text_reads_content_then_reasoning() {
+        let content = json!({"choices":[{"message":{"content":" orders_tracking "}}]});
+        assert_eq!(assistant_text(&content), "orders_tracking");
+        let parts =
+            json!({"choices":[{"message":{"content":[{"text":"note"},{"text":"orders"}]}}]});
+        assert_eq!(assistant_text(&parts), "note\norders");
+        let reasoning =
+            json!({"choices":[{"message":{"content":null,"reasoning_content":"account"}}]});
+        assert_eq!(assistant_text(&reasoning), "account");
+        let empty = json!({"choices":[{"message":{"content":""}}]});
+        assert_eq!(assistant_text(&empty), "");
     }
 
     #[test]

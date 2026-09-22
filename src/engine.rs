@@ -201,9 +201,8 @@ async fn descend(
         alive: true,
         names: initial_names,
     }];
-    // Optional LLM router. A missing credential is `llm_routing() == false`
-    // and never gets here. A transport or parse failure falls through to the
-    // Jev beam; it must not fall through to a lexical heuristic.
+    // When an LLM is configured it chooses the category. Jev always ranks the
+    // items afterwards. A missing setting or a failed call uses the beam below.
     if state.jev.llm_routing() {
         let restrict = beams[0].node_id.clone();
         let progress = sender.clone();
