@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "jev-tree API",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "description": "Hierarchical knowledge service: model-driven tree descent over SQLite. Search and ingest are the same descent. A `root` path (`products`, `products/products_stock`) makes that node the virtual tree. Settings and keys stay project-wide. Human companion: docs/api.md. Browsable: GET /docs."
   },
   "servers": [

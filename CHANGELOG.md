@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.1
+
+### Changed
+
+- Category choice stays with the configured LLM, and item ranking stays with Jev.
+  A missing LLM setting or a failed call still walks the tree with Jev.
+- An empty LLM reply is read from a reasoning field when that is where the text
+  went, then asked once more without reasoning mode. If it is still empty, the
+  Jev beam runs.
+
 ## 0.4.0
 
 ### Changed
