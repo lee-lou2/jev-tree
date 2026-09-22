@@ -894,7 +894,7 @@ mod tests {
         (guard, dir, db, static_dir)
     }
 
-    fn test_router(db: &std::path::Path, static_dir: &str) -> Router {
+    fn test_router(db: &std::path::Path, static_dir: &str) -> (Router, AppState) {
         let seed = std::env::var("JEV_TREE_SEED").unwrap();
         let store = Store::open(db.to_str().unwrap(), &seed).unwrap();
         let nodes = Arc::new(RwLock::new(store.load_taxonomy().unwrap()));
@@ -902,14 +902,12 @@ mod tests {
         if let Ok(settings) = store.load_settings() {
             config.with_db(&settings);
         }
-        router(
-            AppState {
-                store,
-                jev: JevClient::with_config(config, nodes.clone()).unwrap(),
-                nodes,
-            },
-            static_dir.to_string(),
-        )
+        let state = AppState {
+            store,
+            jev: JevClient::with_config(config, nodes.clone()).unwrap(),
+            nodes,
+        };
+        (router(state.clone(), static_dir.to_string()), state)
     }
 
     async fn send(
@@ -954,7 +952,7 @@ mod tests {
         use http_body_util::BodyExt;
         use tower::ServiceExt as _;
         let (_guard, _dir, db, static_dir) = test_paths();
-        let app = test_router(&db, &static_dir);
+        let (app, state) = test_router(&db, &static_dir);
 
         let (status, spec) = send(
             &app,
@@ -1010,7 +1008,7 @@ mod tests {
         )
         .await;
         assert_eq!(status, axum::http::StatusCode::OK);
-        assert_eq!(health["evaluator"], "heuristic");
+        assert_eq!(health["evaluator"], "unconfigured");
         assert_eq!(health["categories"], 3);
         assert_eq!(health["items"], 2);
 
@@ -1038,8 +1036,29 @@ mod tests {
             ),
         )
         .await;
+        assert_eq!(status, axum::http::StatusCode::BAD_REQUEST, "{search}");
+        assert_eq!(search["code"], "invalid_request");
+        assert!(search["detail"]
+            .as_str()
+            .unwrap_or("")
+            .contains("Jev API key"));
+
+        state
+            .jev
+            .script_choices(vec!["orders".into(), "orders_tracking".into()]);
+        let (status, search) = send(
+            &app,
+            json_req(
+                "POST",
+                "/api/run",
+                json!({"mode":"search","query":"해외 배송이 통관에서 멈췄어요"}),
+                None,
+            ),
+        )
+        .await;
         assert_eq!(status, axum::http::StatusCode::OK, "{search}");
         assert_eq!(search["leaf_id"], "orders_tracking");
+        assert_eq!(search["trace"]["router"], "beam");
         assert!(search["items"].as_array().unwrap().iter().any(|row| {
             row["item"]["answer"]
                 .as_str()
@@ -1228,7 +1247,7 @@ mod tests {
     #[allow(clippy::await_holding_lock)]
     async fn key_mode_session_and_api_key() {
         let (_guard, _dir, db, static_dir) = test_paths();
-        let app = test_router(&db, &static_dir);
+        let (app, _state) = test_router(&db, &static_dir);
 
         let (status, setup) = send(
             &app,
@@ -1344,6 +1363,6 @@ mod tests {
         )
         .await;
         assert_eq!(status, axum::http::StatusCode::OK, "{health}");
-        assert_eq!(health["evaluator"], "heuristic");
+        assert_eq!(health["evaluator"], "unconfigured");
     }
 }

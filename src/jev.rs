@@ -16,6 +16,8 @@ pub enum JevError {
     Status(u16),
     #[error("TypeSafe returned invalid response: {0}")]
     Invalid(String),
+    #[error("Jev API key is required")]
+    Unconfigured,
 }
 
 /// Resolved Jev connection: key/base/model may come from DB settings.
@@ -68,6 +70,8 @@ impl JevConfig {
 pub struct JevClient {
     client: Client,
     config: std::sync::Arc<std::sync::RwLock<JevConfig>>,
+    /// Read by the lexical heuristic, which only the unit tests call.
+    #[cfg(test)]
     nodes: Arc<RwLock<Vec<Node>>>,
     /// Test-only preferred Choice ids. Empty in production.
     script: Arc<Mutex<Vec<String>>>,
@@ -85,11 +89,14 @@ impl JevClient {
             .connect_timeout(Duration::from_secs(5))
             .pool_idle_timeout(Duration::from_secs(60))
             .redirect(reqwest::redirect::Policy::none())
-            .user_agent("jev-tree/0.2")
+            .user_agent("jev-tree/0.4")
             .build()?;
+        #[cfg(not(test))]
+        let _nodes = nodes;
         Ok(Self {
             client,
             config: std::sync::Arc::new(std::sync::RwLock::new(config)),
+            #[cfg(test)]
             nodes,
             script: Arc::new(Mutex::new(Vec::new())),
             llm_script: Arc::new(Mutex::new(None)),
@@ -149,22 +156,34 @@ impl JevClient {
         ))
     }
 
+    pub fn key_set(&self) -> bool {
+        self.snapshot().0.is_some()
+    }
+
+    /// Test pin for [`Self::route`]. Production leaves this empty.
+    pub fn llm_pinned(&self) -> bool {
+        self.llm_script
+            .lock()
+            .map(|guard| guard.is_some())
+            .unwrap_or(false)
+    }
+
     pub fn label(&self) -> &'static str {
-        if self.snapshot().0.is_some() {
+        if self.key_set() {
             "jev"
         } else {
-            "heuristic"
+            "unconfigured"
         }
     }
 
     /// Pick the node a request should be stored under and retrieved from.
     ///
-    /// Two calls when an LLM is configured: the root topic, then one node inside
-    /// that subtree (a lexical shortlist plus each candidate's parent). `__none__`
-    /// abstains. Item ranking is unchanged and still uses [`Self::evaluate`].
-    /// `restrict` limits the walk to that node (a `start_node` or a childless root).
-    /// `note` fires before each model call and again when that call chooses, so a
-    /// client can show the step while the model is still thinking.
+    /// Two calls when an LLM is configured and the walk is the whole forest: the
+    /// root topic, then one node inside that subtree (a lexical shortlist plus
+    /// each candidate's parent). A `restrict` node skips the root call. A failed
+    /// call is the caller's signal to use the Jev beam. `__none__` abstains.
+    /// Item ranking does not use this model. `note` fires before each model call
+    /// and again when that call chooses.
     pub async fn route<F>(
         &self,
         query: &str,
@@ -172,23 +191,27 @@ impl JevClient {
         nodes: &[Node],
         restrict: Option<&str>,
         mut note: F,
-    ) -> Result<Option<String>, JevError>
+    ) -> Result<LlmRoute, JevError>
     where
         F: FnMut(RouteNote),
     {
-        let mut step = Stepper {
-            depth: 0,
-            note: &mut note,
-        };
         if let Ok(guard) = self.llm_script.lock() {
             if let Some(leaf) = guard.as_ref() {
-                return Ok(if leaf == "__none__" || leaf.trim().is_empty() {
-                    None
-                } else {
-                    Some(leaf.clone())
+                return Ok(LlmRoute {
+                    leaf: if leaf == "__none__" || leaf.trim().is_empty() {
+                        None
+                    } else {
+                        Some(leaf.clone())
+                    },
+                    steps: vec![],
                 });
             }
         }
+        let mut step = Stepper {
+            depth: 0,
+            note: &mut note,
+            steps: Vec::new(),
+        };
         let (base, token, model) = {
             let config = self
                 .config
@@ -209,9 +232,12 @@ impl JevClient {
                 return Err(JevError::Invalid(format!("restrict not in scope: {start}")));
             }
             if children_of(nodes, Some(start)).is_empty() {
-                return Ok(Some(start.to_string()));
+                return Ok(LlmRoute {
+                    leaf: Some(start.to_string()),
+                    steps: step.steps,
+                });
             }
-            return self
+            let leaf = self
                 .route_within(
                     &LlmCreds { base, token, model },
                     query,
@@ -220,14 +246,24 @@ impl JevClient {
                     start,
                     &mut step,
                 )
-                .await;
+                .await?;
+            return Ok(LlmRoute {
+                leaf,
+                steps: step.steps,
+            });
         }
         let roots = children_of(nodes, None);
         if roots.is_empty() {
-            return Ok(None);
+            return Ok(LlmRoute {
+                leaf: None,
+                steps: step.steps,
+            });
         }
         if roots.len() == 1 && children_of(nodes, Some(roots[0].as_str())).is_empty() {
-            return Ok(Some(roots[0].clone()));
+            return Ok(LlmRoute {
+                leaf: Some(roots[0].clone()),
+                steps: step.steps,
+            });
         }
         let mut allowed = roots.to_vec();
         allowed.push("__none__".into());
@@ -247,6 +283,11 @@ impl JevClient {
             ));
         }
         lines.push("__none__\t없음\t어느 주제에도 속하지 않는다.\t아래:".into());
+        let mut options: Vec<(String, String)> = roots
+            .iter()
+            .map(|id| (id.clone(), by_id[id.as_str()].name.clone()))
+            .collect();
+        options.push(("__none__".into(), "no matching topic".into()));
         step.ask("the knowledge root");
         let root = self
             .complete_id(
@@ -263,23 +304,36 @@ impl JevClient {
             )
             .await?;
         if root == "__none__" {
-            step.chose("the knowledge root", None, "no matching topic".into());
-            return Ok(None);
+            step.chose(
+                "the knowledge root",
+                options,
+                None,
+                "no matching topic".into(),
+            );
+            return Ok(LlmRoute {
+                leaf: None,
+                steps: step.steps,
+            });
         }
         let root_name = by_id
             .get(root.as_str())
             .map(|node| node.name.clone())
             .unwrap_or_else(|| root.clone());
-        step.chose("the knowledge root", Some(root.clone()), root_name);
-        self.route_within(
-            &LlmCreds { base, token, model },
-            query,
-            background,
-            nodes,
-            &root,
-            &mut step,
-        )
-        .await
+        step.chose("the knowledge root", options, Some(root.clone()), root_name);
+        let leaf = self
+            .route_within(
+                &LlmCreds { base, token, model },
+                query,
+                background,
+                nodes,
+                &root,
+                &mut step,
+            )
+            .await?;
+        Ok(LlmRoute {
+            leaf,
+            steps: step.steps,
+        })
     }
 
     async fn route_within<F>(
@@ -306,9 +360,19 @@ impl JevClient {
         if short.len() == 1 {
             return Ok(Some(short[0].clone()));
         }
-        let lines = short
+        let options: Vec<(String, String)> = short
             .iter()
-            .filter_map(|id| by_id.get(id.as_str()).map(|node| (id, node)))
+            .map(|id| {
+                let name = by_id
+                    .get(id.as_str())
+                    .map(|node| node.name.clone())
+                    .unwrap_or_else(|| id.clone());
+                (id.clone(), name)
+            })
+            .collect();
+        let lines = options
+            .iter()
+            .filter_map(|(id, _)| by_id.get(id.as_str()).map(|node| (id, node)))
             .map(|(id, node)| {
                 format!(
                     "{id}\t{}\t{}",
@@ -332,9 +396,9 @@ impl JevClient {
             .map(|node| node.name.clone())
             .unwrap_or_else(|| picked.clone());
         if picked == root {
-            step.chose(&root_name, None, "stay here".into());
+            step.chose(&root_name, options, None, "stay here".into());
         } else {
-            step.chose(&root_name, Some(picked.clone()), picked_name);
+            step.chose(&root_name, options, Some(picked.clone()), picked_name);
         }
         Ok(Some(picked))
     }
@@ -418,8 +482,8 @@ impl JevClient {
         Ok(content)
     }
 
-    /// Probe `{base}/models` (OpenAI) or `{base}/v1/models` (TypeSafe) with the
-    /// given credentials. Does not fall back to the Jev key.
+    /// Probe `{base}/v1/models` then `{base}/models`, unless `base` already ends
+    /// in `/v1` (then `{base}/models` only). Does not fall back to the Jev key.
     /// Returns `(models, used_base)` on success.
     pub async fn list_models(
         &self,
@@ -467,9 +531,14 @@ impl JevClient {
                 return Ok(scripted(&questions, &script));
             }
         }
+        // A pinned router is a test. Rank with the same fixed scores so the
+        // rest of the run does not need a live key.
+        if self.llm_pinned() {
+            return Ok(scripted(&questions, &[]));
+        }
         let (key, base_url, model) = self.snapshot();
         let Some(key) = key else {
-            return Ok(self.heuristic(&state, &questions));
+            return Err(JevError::Unconfigured);
         };
         let body = json!({"state": state, "model": model, "questions": questions});
         let mut attempt = 0;
@@ -508,6 +577,7 @@ impl JevClient {
         }
     }
 
+    #[cfg(test)]
     fn heuristic(&self, state: &Value, questions: &BTreeMap<String, Question>) -> Judgment {
         let text = state
             .get("current_request")
@@ -730,9 +800,27 @@ pub struct RouteNote {
     pub choice_name: String,
 }
 
+/// One LLM routing call and the options it was shown. Probabilities are absent:
+/// the model returns an id, not a distribution.
+#[derive(Clone, Debug)]
+pub struct LlmRouteStep {
+    pub depth: usize,
+    pub parent_name: String,
+    pub candidates: Vec<(String, String)>,
+    pub choice_id: Option<String>,
+    pub choice_name: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct LlmRoute {
+    pub leaf: Option<String>,
+    pub steps: Vec<LlmRouteStep>,
+}
+
 struct Stepper<'a, F> {
     depth: usize,
     note: &'a mut F,
+    steps: Vec<LlmRouteStep>,
 }
 
 impl<F: FnMut(RouteNote)> Stepper<'_, F> {
@@ -746,7 +834,20 @@ impl<F: FnMut(RouteNote)> Stepper<'_, F> {
         });
     }
 
-    fn chose(&mut self, parent: &str, choice_id: Option<String>, choice_name: String) {
+    fn chose(
+        &mut self,
+        parent: &str,
+        candidates: Vec<(String, String)>,
+        choice_id: Option<String>,
+        choice_name: String,
+    ) {
+        self.steps.push(LlmRouteStep {
+            depth: self.depth,
+            parent_name: parent.to_string(),
+            candidates,
+            choice_id: choice_id.clone(),
+            choice_name: choice_name.clone(),
+        });
         (self.note)(RouteNote {
             depth: self.depth,
             asking: false,
@@ -905,6 +1006,7 @@ pub fn parse_final_id(content: &str, allowed: &[String]) -> Option<String> {
 /// leaves, 0.20 -> 104, 0.35 -> 98 (too eager to stop at broad root descriptions).
 /// 0.20 sits in the flat part of that curve with the most headroom against a single
 /// accidental bigram, which is worth 0.35 on its own.
+#[cfg(test)]
 const TERMINAL_MARGIN: f64 = 0.20;
 
 /// Score the terminal option (`__stop__` / `__none__`) without reading its wording.
@@ -914,11 +1016,13 @@ const TERMINAL_MARGIN: f64 = 0.20;
 /// wordy a taxonomy happens to be. What travels across seeds and languages is whether one
 /// child *stands out* from its siblings. If they all look equally (un)related, staying put
 /// is the honest answer.
+#[cfg(test)]
 fn terminal_bar(children: &BTreeMap<String, f64>) -> f64 {
     if children.len() < 2 {
-        // Nothing to choose between. Descend unless the child shows no evidence at all;
-        // on an exact tie the terminal sorts first and wins.
-        return 0.0;
+        let only = children.values().copied().next().unwrap_or(0.0);
+        // No sibling to compare. Stay put unless this child has some evidence.
+        // A tie used to fall through to the child, so a single root could never abstain.
+        return if only > 0.0 { 0.0 } else { 1.0 };
     }
     let mut values: Vec<f64> = children.values().copied().collect();
     values.sort_by(|a, b| a.total_cmp(b));
@@ -1033,6 +1137,37 @@ mod tests {
                 }
                 other => panic!("unexpected answer: {other:?}"),
             }
+        }
+    }
+
+    #[test]
+    fn single_child_with_no_overlap_abstains() {
+        let nodes = Arc::new(RwLock::new(Vec::new()));
+        let client = JevClient::with_config(JevConfig::default(), nodes).unwrap();
+        let mut questions = BTreeMap::new();
+        questions.insert(
+            "q".to_string(),
+            Question {
+                kind: "choice".into(),
+                instructions: String::new(),
+                criteria: Some(json!({
+                    "products": "상품: 재고와 품질",
+                    "__none__": "No root topic fits; choose no matching topic.",
+                })),
+            },
+        );
+        let miss = client.heuristic(
+            &json!({ "current_request": "안드로메다 은하까지의 거리" }),
+            &questions,
+        );
+        match miss.answers.get("q") {
+            Some(Answer::Choice { choice, .. }) => assert_eq!(choice, "__none__"),
+            other => panic!("unexpected answer: {other:?}"),
+        }
+        let hit = client.heuristic(&json!({ "current_request": "재고 없는 상품" }), &questions);
+        match hit.answers.get("q") {
+            Some(Answer::Choice { choice, .. }) => assert_eq!(choice, "products"),
+            other => panic!("unexpected answer: {other:?}"),
         }
     }
 

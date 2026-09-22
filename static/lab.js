@@ -764,7 +764,14 @@ async function streamRequest(body) {
     await requireLogin(auth.status?.site);
     throw Error("login required");
   }
-  if (!response.ok || !response.body) throw Error(`server error ${response.status}`);
+  if (!response.ok || !response.body) {
+    let detail = `server error ${response.status}`;
+    try {
+      const data = await response.json();
+      if (data && data.detail) detail = data.detail;
+    } catch { /* status line is enough */ }
+    throw Error(detail);
+  }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   const parser = parseSSE();
@@ -1031,11 +1038,11 @@ function renderOnboard() {
     body.innerHTML = fieldHtml({ id: "obLoginKey", label: "Password", type: "password" });
   } else if (kind === "jev") {
     $("obTitle").textContent = "Connect a Jev key";
-    $("obDesc").textContent = "TypeSafe Jev key used for search and routing. Leave blank to fall back to lexical overlap (heuristic).";
+    $("obDesc").textContent = "Search and ingest need a TypeSafe Jev key. Ranking always uses Jev. An LLM, configured later, only chooses the category.";
     body.innerHTML = fieldHtml({
-      id: "obJevKey", label: "Jev API key (optional)", type: "password",
+      id: "obJevKey", label: "Jev API key", type: "password",
       placeholder: "typesafe key", value: onboard.data.jevKey,
-      hint: "Without a key the heuristic runs. It does not catch synonyms. The key is encrypted in the database.",
+      hint: "Required. The key is encrypted in the database. Search and ingest return an error until it is saved.",
     });
   } else {
     $("obTitle").textContent = "Optional settings";
@@ -1150,13 +1157,15 @@ async function submitOnboard() {
       return true;
     }
     if (kind === "jev") {
-      if (onboard.data.jevKey) {
-        await api("/api/settings", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jev_api_key: onboard.data.jevKey }),
-        });
+      if (!onboard.data.jevKey) {
+        showObError("A Jev API key is required.");
+        return false;
       }
+      await api("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jev_api_key: onboard.data.jevKey }),
+      });
       return true;
     }
     // optional step
@@ -1284,15 +1293,15 @@ function renderSettings() {
   } else if (settingsUI.tab === "models") {
     body.innerHTML =
       fieldHtml({
-        id: "setJevKey", label: `Jev API key (${d.jev_api_key_set ? `saved ${esc(d.jev_api_key_hint || "")}` : "heuristic if empty"})`,
+        id: "setJevKey", label: `Jev API key (${d.jev_api_key_set ? `saved ${esc(d.jev_api_key_hint || "")}` : "required"})`,
         type: "password", placeholder: d.jev_api_key_set ? "(enter only to change)" : "typesafe key",
-        hint: "Used for search and routing. Empty falls back to the lexical heuristic.",
+        hint: "Required for search, ingest, and ranking. Clearing it stops runs until a key is saved. Encrypted in the database.",
       }) +
       fieldHtml({ id: "setBaseUrl", label: "LLM base URL", placeholder: "https://api.openai.com/v1", value: d.llm_base_url || "" }) +
       fieldHtml({
         id: "setToken", label: `LLM token${d.llm_token_set ? ` · saved ${esc(d.llm_token_hint || "")}` : ""}`,
-        type: "password", placeholder: d.llm_token_set ? "(enter only to change)" : "required to route search",
-        hint: "With a base URL and a model, search and ingest route through this LLM. Ranking still uses Jev. Also fetches the model list.",
+        type: "password", placeholder: d.llm_token_set ? "(enter only to change)" : "optional",
+        hint: "Optional. With a base URL and a model, this LLM chooses the category. If the token is missing or the call fails, Jev walks the tree instead. Ranking always uses Jev.",
       }) +
       `<div class="field"><label for="setModel">LLM model</label>` +
       `<div class="row" style="margin-top:0"><select id="setModel" style="flex:1"></select>` +

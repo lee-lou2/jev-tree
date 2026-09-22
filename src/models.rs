@@ -41,14 +41,18 @@ pub struct RankedItem {
 pub struct PathPart {
     pub id: String,
     pub name: String,
-    pub probability: f64,
+    /// Edge probability from the Jev beam. `None` when the optional LLM router
+    /// chose this node and did not produce a probability.
+    pub probability: Option<f64>,
     pub confidence: Option<f64>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Candidate {
     pub id: Option<String>,
     pub name: String,
-    pub probability: f64,
+    /// `None` for an LLM routing step, which lists the options it was shown
+    /// and does not score them.
+    pub probability: Option<f64>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceStep {
@@ -66,17 +70,25 @@ pub struct TraceStep {
 pub struct FinalBeam {
     pub node_id: Option<String>,
     pub path: Vec<PathPart>,
-    pub score: f64,
+    /// Geometric mean of edge probabilities. `None` for an LLM route.
+    pub score: Option<f64>,
     pub alive: bool,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Trace {
     pub run_id: String,
     pub mode: String,
+    /// `beam` when Jev walked the tree, `llm` when the optional model picked the node.
+    #[serde(default = "default_router")]
+    pub router: String,
     pub steps: Vec<TraceStep>,
     pub leaf_id: Option<String>,
-    pub score: f64,
+    /// `None` for an LLM route. The beam stores the geometric mean.
+    pub score: Option<f64>,
     pub final_beams: Vec<FinalBeam>,
+}
+fn default_router() -> String {
+    "beam".into()
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResult {
@@ -219,7 +231,7 @@ pub struct AppSettings {
     /// Optional logo image (data URL, PNG/JPEG/SVG/WebP, <= 500 KB).
     #[serde(default)]
     pub site_logo: String,
-    /// Jev API key (TypeSafe System One). Required before any run.
+    /// Jev API key (TypeSafe System One). Required. Search and ingest fail until it is set.
     #[serde(default)]
     pub jev_api_key: String,
     /// OpenAI-compatible base URL. With `llm_token` and `llm_model`, search and

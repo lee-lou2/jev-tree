@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "jev-tree API",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "description": "Hierarchical knowledge service: model-driven tree descent over SQLite. Search and ingest are the same descent. A `root` path (`products`, `products/products_stock`) makes that node the virtual tree. Settings and keys stay project-wide. Human companion: docs/api.md. Browsable: GET /docs."
   },
   "servers": [
@@ -58,7 +58,7 @@
             "type": "string",
             "enum": [
               "jev",
-              "heuristic"
+              "unconfigured"
             ]
           },
           "site": {
@@ -153,7 +153,8 @@
             "type": "string"
           },
           "probability": {
-            "type": "number"
+            "type": ["number", "null"],
+            "description": "Beam edge probability. Null on an LLM route."
           },
           "confidence": {
             "type": [
@@ -176,7 +177,8 @@
             "type": "string"
           },
           "probability": {
-            "type": "number"
+            "type": ["number", "null"],
+            "description": "Null on an LLM route, which lists options and does not score them."
           }
         }
       },
@@ -246,7 +248,8 @@
             }
           },
           "score": {
-            "type": "number"
+            "type": ["number", "null"],
+            "description": "Geometric mean along a beam. Null on an LLM route."
           }
         }
       },
@@ -258,6 +261,11 @@
           },
           "mode": {
             "type": "string"
+          },
+          "router": {
+            "type": "string",
+            "enum": ["beam", "llm"],
+            "description": "beam: Jev walked the tree. llm: the optional model picked the node."
           },
           "steps": {
             "type": "array",
@@ -272,7 +280,8 @@
             ]
           },
           "score": {
-            "type": "number"
+            "type": ["number", "null"],
+            "description": "Null on an LLM route."
           },
           "final_beams": {
             "type": "array",
@@ -604,7 +613,7 @@
                       "type": "string",
                       "enum": [
                         "jev",
-                        "heuristic"
+                        "unconfigured"
                       ]
                     },
                     "items": {
@@ -1053,7 +1062,7 @@
     "/api/run": {
       "post": {
         "summary": "Search or ingest (JSON)",
-        "description": "Text 1-8000 chars. search: answer = recommended item. ingest without auto_publish = draft (published_id null). When llm_base_url, llm_token, and llm_model are all set, the category is chosen by that model (root, then a shortlist); otherwise the Jev/heuristic beam. Item ranking stays on Jev or the heuristic.",
+        "description": "Text 1-8000 chars. A Jev API key is required (400 invalid_request without one). search: read role, not position. ingest without auto_publish = draft (published_id null, kind qa). When llm_base_url, llm_token, and llm_model are all set, that model chooses the category; a missing setting or a failed call uses the Jev beam. Ranking always uses Jev, over every active item in the landed subtree.",
         "responses": {
           "200": {
             "description": "OK",
@@ -1157,10 +1166,6 @@
                     "default": false,
                     "description": "ingest: save immediately"
                   },
-                  "upsert": {
-                    "type": "boolean",
-                    "default": false
-                  },
                   "item_id": {
                     "type": [
                       "string",
@@ -1192,7 +1197,7 @@
         "description": "Same request as /api/run. Events as `data: {...}\\\\n\\\\n`. Terminal: search_done | ingest_saved | ingest_draft. Do not close before terminal.",
         "responses": {
           "200": {
-            "description": "text/event-stream of descent_step(asking/answered), retrieval_completed, candidate_evaluated, descent_done, search_done, ingest_saved, error",
+            "description": "text/event-stream of descent_step(asking/answered), retrieval_completed, candidate_evaluated, descent_done, search_done, ingest_saved, ingest_draft, error",
             "content": {
               "text/event-stream": {
                 "schema": {
@@ -1275,10 +1280,6 @@
                     "type": "boolean",
                     "default": false,
                     "description": "ingest: save immediately"
-                  },
-                  "upsert": {
-                    "type": "boolean",
-                    "default": false
                   },
                   "item_id": {
                     "type": [

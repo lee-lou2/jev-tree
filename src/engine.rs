@@ -17,6 +17,13 @@ pub async fn execute(
     request: RunRequest,
     sender: Option<mpsc::Sender<Value>>,
 ) -> Result<Value, Error> {
+    // Tests pin the router or the beam. A real run needs a Jev key: the lexical
+    // heuristic is not a stand-in, and the optional LLM is only a router on top.
+    if !state.jev.choice_scripted() && !state.jev.llm_pinned() && !state.jev.key_set() {
+        return Err(Error::BadRequest(
+            "Jev API key is required. Add it in Settings → Models.".into(),
+        ));
+    }
     let mode = request.mode.clone();
     let text = request.text();
     let (leaf, path, trace) = descend(&state, &text, &request, sender.clone()).await?;
@@ -53,7 +60,7 @@ pub async fn execute(
         }
         let duplicate_ids: Vec<String> = state
             .store
-            .retrieve(&question, std::slice::from_ref(&category_id), 20)?
+            .active_in(std::slice::from_ref(&category_id))?
             .into_iter()
             .filter(|existing| near_duplicate(&question, &existing.question))
             .take(5)
@@ -111,7 +118,7 @@ pub async fn execute(
                     .collect()
             })
             .unwrap_or_default();
-        let mut candidates = state.store.retrieve(&text, &categories, request.limit)?;
+        let candidates = state.store.active_in(&categories)?;
         emit(
             &sender,
             json!({"type":"retrieval_completed","count":candidates.len(),"category_id":leaf}),
@@ -121,7 +128,7 @@ pub async fn execute(
             &state,
             &text,
             &request.context,
-            &mut candidates,
+            candidates,
             request.limit,
             sender.clone(),
         )
@@ -194,11 +201,10 @@ async fn descend(
         alive: true,
         names: initial_names,
     }];
-    // A configured LLM routes the whole request in two calls (root, then a
-    // shortlist inside that subtree). Scripted choice tests keep the beam.
-    // A transport or parse failure falls back to the beam so a bad reply
-    // cannot do worse than the Jev/heuristic walk.
-    if !state.jev.choice_scripted() && state.jev.llm_routing() {
+    // Optional LLM router. A missing credential is `llm_routing() == false`
+    // and never gets here. A transport or parse failure falls through to the
+    // Jev beam; it must not fall through to a lexical heuristic.
+    if state.jev.llm_routing() {
         let restrict = beams[0].node_id.clone();
         let progress = sender.clone();
         match state
@@ -229,8 +235,8 @@ async fn descend(
             })
             .await
         {
-            Ok(leaf) => {
-                return Ok(llm_route_result(&nodes, leaf, mode, query, &run_id, &sender).await);
+            Ok(route) => {
+                return Ok(llm_route_result(&nodes, route, mode, query, &run_id, &sender).await);
             }
             Err(error) => {
                 tracing::warn!("llm route failed, using beam descent: {error}");
@@ -389,7 +395,7 @@ async fn descend(
                         } else {
                             valid[id].name.clone()
                         },
-                        probability: *probability,
+                        probability: Some(*probability),
                     })
                     .collect(),
                 choice_id: if stayed {
@@ -425,7 +431,7 @@ async fn descend(
                     path.push(PathPart {
                         id: child.id.clone(),
                         name: child.name.clone(),
-                        probability,
+                        probability: Some(probability),
                         confidence: Some(confidence),
                     });
                     let mut probs = beams[index].probs.clone();
@@ -459,15 +465,16 @@ async fn descend(
     let trace = Trace {
         run_id: run_id.clone(),
         mode: mode.to_string(),
+        router: "beam".into(),
         steps,
         leaf_id: winner.node_id.clone(),
-        score,
+        score: Some(score),
         final_beams: beams
             .iter()
             .map(|beam| FinalBeam {
                 node_id: beam.node_id.clone(),
                 path: beam.path.clone(),
-                score: path_score(&beam.probs),
+                score: Some(path_score(&beam.probs)),
                 alive: beam.alive,
             })
             .collect(),
@@ -486,14 +493,14 @@ struct Beam {
 }
 async fn llm_route_result(
     nodes: &[Node],
-    leaf: Option<String>,
+    route: crate::jev::LlmRoute,
     mode: &str,
     query: &str,
     run_id: &str,
     sender: &Option<mpsc::Sender<Value>>,
 ) -> (Option<String>, Vec<PathPart>, Trace) {
     let by_id: HashMap<&str, &Node> = nodes.iter().map(|node| (node.id.as_str(), node)).collect();
-    let leaf = leaf.filter(|id| by_id.contains_key(id.as_str()));
+    let leaf = route.leaf.filter(|id| by_id.contains_key(id.as_str()));
     let mut chain: Vec<&Node> = Vec::new();
     if let Some(id) = leaf.as_deref() {
         let mut cursor = Some(id);
@@ -511,54 +518,60 @@ async fn llm_route_result(
         }
         chain.reverse();
     }
-    let mut path = Vec::new();
-    let mut steps = Vec::new();
-    for (depth, node) in chain.iter().enumerate() {
-        let parent = if depth == 0 {
-            None
-        } else {
-            Some(chain[depth - 1].id.clone())
-        };
-        let part = PathPart {
+    let path: Vec<PathPart> = chain
+        .iter()
+        .map(|node| PathPart {
             id: node.id.clone(),
             name: node.name.clone(),
-            probability: 1.0,
-            confidence: Some(0.9),
-        };
-        steps.push(TraceStep {
-            depth,
-            node_id: parent,
-            node_name: if depth == 0 {
-                "the knowledge root".into()
-            } else {
-                chain[depth - 1].name.clone()
-            },
-            path: path.clone(),
-            candidates: vec![],
-            choice_id: Some(node.id.clone()),
-            choice_name: node.name.clone(),
-            confidence: Some(0.9),
+            probability: None,
+            confidence: None,
+        })
+        .collect();
+    // Steps are the model calls, not one invented edge per ancestor. A test pin
+    // has no call, so the step list is empty and the path above is only ids.
+    let steps = route
+        .steps
+        .into_iter()
+        .map(|step| TraceStep {
+            depth: step.depth,
+            node_id: None,
+            node_name: step.parent_name,
+            path: vec![],
+            candidates: step
+                .candidates
+                .into_iter()
+                .map(|(id, name)| {
+                    let terminal = id == "__none__" || id == "__stop__";
+                    Candidate {
+                        id: if terminal { None } else { Some(id) },
+                        name,
+                        probability: None,
+                    }
+                })
+                .collect(),
+            choice_id: step.choice_id,
+            choice_name: step.choice_name,
+            confidence: None,
             reason: format!("llm: {mode}: {query}"),
-        });
-        path.push(part);
-    }
-    let score = if leaf.is_some() { 1.0 } else { 0.0 };
+        })
+        .collect();
     let trace = Trace {
         run_id: run_id.to_string(),
         mode: mode.to_string(),
+        router: "llm".into(),
         steps,
         leaf_id: leaf.clone(),
-        score,
+        score: None,
         final_beams: vec![FinalBeam {
             node_id: leaf.clone(),
             path: path.clone(),
-            score,
+            score: None,
             alive: false,
         }],
     };
     emit(
         sender,
-        json!({"type":"descent_done","run_id":run_id,"leaf_id":leaf,"path":path,"score":score,"trace":trace}),
+        json!({"type":"descent_done","run_id":run_id,"leaf_id":leaf,"path":path,"score":trace.score,"trace":trace}),
     )
     .await;
     (leaf, path, trace)
@@ -815,82 +828,96 @@ pub fn normalize(source: &str) -> (String, String) {
         )
     }
 }
+/// Items scored in one Jev call. Each item asks two questions, Noul and Score.
+const RANK_BATCH: usize = 32;
+
 async fn rank(
     state: &AppState,
     query: &str,
     context: &[Value],
-    items: &mut Vec<Item>,
+    items: Vec<Item>,
     limit: usize,
     sender: Option<mpsc::Sender<Value>>,
 ) -> Result<Vec<RankedItem>, Error> {
     if items.is_empty() {
         return Ok(vec![]);
     }
-    let questions = items
-        .iter()
-        .flat_map(|item| {
-            [
-                (
-                    format!("use_{}", item.id),
-                    Question {
-                        kind: "noul".into(),
-                        instructions: format!(
-                            "Could item {} be sent directly as a reply?",
-                            item.id
-                        ),
-                        criteria: None,
-                    },
-                ),
-                (
-                    format!("direct_{}", item.id),
-                    Question {
-                        kind: "score".into(),
-                        instructions: format!(
-                            "How directly does item {} answer the request?",
-                            item.id
-                        ),
-                        criteria: Some(json!(["unrelated", "useful", "direct"])),
-                    },
-                ),
-            ]
-        })
-        .collect();
-    let judgment = state.jev.evaluate(json!({"conversation":render_context(query, context),"current_request":query,"items":items}), questions).await?;
-    let mut ranked = vec![];
-    for item in items.drain(..) {
-        let relevance = match judgment.answers.get(&format!("use_{}", item.id)) {
-            Some(Answer::Noul { noul }) => *noul,
-            _ => 0.0,
-        };
-        let directness = match judgment.answers.get(&format!("direct_{}", item.id)) {
-            Some(Answer::Score { score, confidence }) => {
-                let _ = confidence;
-                *score
-            }
-            _ => 0.0,
-        };
-        let score = relevance * 0.7 + (directness / 2.0) * 0.3;
-        let role = if score >= 0.65 {
-            "recommended"
-        } else if score >= 0.4 {
-            "alternative"
-        } else {
-            "reference"
-        };
-        ranked.push(RankedItem {
-            item,
-            relevance,
-            directness,
-            confidence: None,
-            role: role.into(),
-            score,
-        });
+    let mut ranked = Vec::with_capacity(items.len());
+    for chunk in items.chunks(RANK_BATCH) {
+        let questions = chunk
+            .iter()
+            .flat_map(|item| {
+                [
+                    (
+                        format!("use_{}", item.id),
+                        Question {
+                            kind: "noul".into(),
+                            instructions: format!(
+                                "Could item {} be sent directly as a reply?",
+                                item.id
+                            ),
+                            criteria: None,
+                        },
+                    ),
+                    (
+                        format!("direct_{}", item.id),
+                        Question {
+                            kind: "score".into(),
+                            instructions: format!(
+                                "How directly does item {} answer the request?",
+                                item.id
+                            ),
+                            criteria: Some(json!(["unrelated", "useful", "direct"])),
+                        },
+                    ),
+                ]
+            })
+            .collect();
+        let judgment = state
+            .jev
+            .evaluate(
+                json!({"conversation":render_context(query, context),"current_request":query,"items":chunk}),
+                questions,
+            )
+            .await?;
+        for item in chunk {
+            let relevance = match judgment.answers.get(&format!("use_{}", item.id)) {
+                Some(Answer::Noul { noul }) => *noul,
+                _ => 0.0,
+            };
+            let directness = match judgment.answers.get(&format!("direct_{}", item.id)) {
+                Some(Answer::Score { score, confidence }) => {
+                    let _ = confidence;
+                    *score
+                }
+                _ => 0.0,
+            };
+            let score = relevance * 0.7 + (directness / 2.0) * 0.3;
+            let role = if score >= 0.65 {
+                "recommended"
+            } else if score >= 0.4 {
+                "alternative"
+            } else {
+                "reference"
+            };
+            let ranked_item = RankedItem {
+                item: item.clone(),
+                relevance,
+                directness,
+                confidence: None,
+                role: role.into(),
+                score,
+            };
+            emit(&sender, json!({"type":"candidate_evaluated","item_id":ranked_item.item.id,"score":ranked_item.score,"role":ranked_item.role})).await;
+            ranked.push(ranked_item);
+        }
     }
-    ranked.sort_by(|a, b| b.score.total_cmp(&a.score));
+    ranked.sort_by(|a, b| {
+        b.score
+            .total_cmp(&a.score)
+            .then_with(|| a.item.id.cmp(&b.item.id))
+    });
     ranked.truncate(limit);
-    for item in &ranked {
-        emit(&sender, json!({"type":"candidate_evaluated","item_id":item.item.id,"score":item.score,"role":item.role})).await;
-    }
     Ok(ranked)
 }
 
@@ -943,6 +970,9 @@ mod tests {
         let path = result["path"].as_array().unwrap();
         assert_eq!(path[0]["id"], "orders");
         assert_eq!(path.last().unwrap()["id"], "orders_tracking");
+        assert!(path[0]["probability"].is_null(), "{result}");
+        assert!(result["trace"]["score"].is_null(), "{result}");
+        assert_eq!(result["trace"]["router"], "llm");
     }
 
     #[tokio::test]
@@ -1111,6 +1141,9 @@ mod tests {
     #[tokio::test]
     async fn scoped_leaf_root_files_there() {
         let (_dir, state) = fixture_state();
+        // The root is already a leaf, so descent does not ask Jev. The key gate
+        // still applies; a scripted client stands in for a configured key.
+        state.jev.script_choices(vec!["__stop__".into()]);
         let request = RunRequest {
             mode: "ingest".into(),
             question: "비밀번호를 재설정하려면?".into(),
@@ -1123,6 +1156,74 @@ mod tests {
         };
         let result = execute(state, request, None).await.unwrap();
         assert_eq!(result["category_id"], "account", "{result}");
+    }
+
+    #[tokio::test]
+    async fn missing_jev_key_is_a_client_error() {
+        let (_dir, state) = fixture_state();
+        let error = execute(state, run_req("통관"), None).await.unwrap_err();
+        assert!(matches!(error, Error::BadRequest(_)), "{error}");
+        assert!(error.to_string().contains("Jev API key"));
+    }
+
+    #[tokio::test]
+    async fn llm_failure_falls_back_to_the_jev_beam() {
+        let (_dir, state) = fixture_state();
+        state.jev.reconfigure(crate::jev::JevConfig {
+            llm_base_url: "http://127.0.0.1:9".into(),
+            llm_token: Some("not-a-real-token".into()),
+            llm_model: "unused".into(),
+            ..crate::jev::JevConfig::default()
+        });
+        state
+            .jev
+            .script_choices(vec!["orders".into(), "orders_tracking".into()]);
+        let result = execute(state, run_req("해외 배송이 통관에서 멈췄어요"), None)
+            .await
+            .unwrap();
+        assert_eq!(result["leaf_id"], "orders_tracking", "{result}");
+        assert_eq!(result["trace"]["router"], "beam");
+        assert!(result["trace"]["score"].as_f64().is_some(), "{result}");
+    }
+
+    #[tokio::test]
+    async fn search_ranks_every_item_in_the_subtree() {
+        let (_dir, state) = fixture_state();
+        state
+            .jev
+            .script_choices(vec!["orders".into(), "orders_tracking".into()]);
+        for n in 0..9 {
+            state
+                .store
+                .upsert(
+                    "orders_tracking",
+                    &format!("해외 배송 조회 {n}"),
+                    "앱의 주문내역에서 운송장을 누르세요.",
+                    "qa",
+                    None,
+                    None,
+                    true,
+                )
+                .unwrap();
+        }
+        let (tx, mut rx) = mpsc::channel(64);
+        let mut request = run_req("관세 미납으로 보세창고에 묶였습니다");
+        request.limit = 2;
+        let result = execute(state, request, Some(tx)).await.unwrap();
+        assert_eq!(result["items"].as_array().unwrap().len(), 2, "{result}");
+        let mut considered = 0;
+        let mut scored = 0;
+        while let Some(event) = rx.recv().await {
+            if event["type"] == "retrieval_completed" {
+                considered = event["count"].as_u64().unwrap();
+            }
+            if event["type"] == "candidate_evaluated" {
+                scored += 1;
+            }
+        }
+        // The seed item plus nine more. The display limit must not be the candidate pool.
+        assert_eq!(considered, 10, "retrieval dropped rows before ranking");
+        assert_eq!(scored, 10, "Jev did not score the whole subtree");
     }
 
     #[test]

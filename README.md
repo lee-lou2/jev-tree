@@ -28,12 +28,12 @@ Default paths are relative (`data/demo.db`, `data/seed.json`, `static/`), so the
 must be the working directory. The bundled seed is fictional: 604 categories, 1,312 items,
 max depth 10.
 
-Two things are optional and both degrade gracefully:
+A Jev API key is required. The LLM is optional.
 
 | Missing | Effect |
 |---|---|
-| Jev API key | Falls back to a lexical heuristic. Check `GET /api/health` → `evaluator` |
-| LLM base, token, and model | Routing uses the beam above instead of the LLM |
+| Jev API key | Search and ingest return 400. `GET /api/health` → `evaluator` is `unconfigured` |
+| LLM base, token, or model | Routing stays on the Jev beam. A failed LLM call does the same |
 | Login password | Open mode: every endpoint is reachable without a token |
 
 ## How it works
@@ -41,15 +41,17 @@ Two things are optional and both degrade gracefully:
 1. Knowledge lives in a taxonomy tree. `/` is the forest; `/products` (then
    `/products/products_stock`, …) makes that child the page root. Search and ingest
    stay inside it. Settings and keys do not.
-2. At each node the evaluator compares the **direct children** plus one terminal option
+2. At each node Jev compares the **direct children** plus one terminal option
    (`__none__` at the root, `__stop__` deeper) in the light of the full context, and descends.
    Beam search keeps `beam_width` paths, scored by the **geometric mean** of edge probabilities.
-   When an LLM base URL, token, and model are all set, this beam is replaced by two calls
-   to that model: the root topic, then one node inside it. `__none__` abstains. Ranking
-   still uses Jev or the heuristic.
-3. `search` ranks items from the selected node and its descendants.
-   `ingest` routes a new Q&A through the same descent.
-4. Every run returns a `trace` with per-depth candidates and probabilities.
+   When an LLM base URL, token, and model are all set, routing uses that model instead:
+   the root topic, then one node in a shortlist of that subtree. `__none__` abstains.
+   If any of the three is missing, or the call fails, the Jev beam runs.
+3. `search` ranks **every active item** under the selected node with Jev (Noul and Score),
+   in batches of 32, then keeps `limit`. `ingest` routes a new Q&A through the same descent
+   and stores it as `qa`.
+4. A beam `trace` has per-depth candidates and probabilities. An LLM route lists the options
+   it was shown and leaves `probability` and `trace.score` null. It does not write `1.0`.
 
 Read a search result by role, never by `items[0]`:
 
@@ -116,9 +118,8 @@ contract, scripted-evaluator descent, taxonomy validation, secret handling, and 
 startup guards.
 
 The UI and `/docs` make no external requests: no CDN, no web fonts, no analytics.
-
-One live-model run over the bundled seed averaged 0.973 across 204 cases. That number is a
-record of a single run, not a CI guarantee, and it is not reproducible from this repo alone.
+CI does not call Jev. Scripted tests cover descent, the full-subtree ranking pool,
+the missing-key error, and an LLM failure falling back to the beam.
 
 Known gaps are tracked in [`AGENTS.md`](AGENTS.md#known-gaps). Read them before trusting a result.
 
