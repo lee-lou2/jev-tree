@@ -54,24 +54,20 @@ One descent step:
 - The terminal option competes on score. When it wins, that beam stops and its children
   are not expanded. A beam that lands on a childless node settles the same way.
 - Path score is the geometric mean of edge probabilities, so depth is not penalised.
-- With `llm_base_url`, `llm_token`, and `llm_model` all set, **routing** (which node a
-  search or ingest lands on) is two LLM calls in `src/jev.rs`: the root topic, then one
-  node in a lexical shortlist of that subtree. `__none__` abstains. A failed call falls
-  back to the beam below. Item **ranking** does not use this model.
-- With a Jev API key the ranker (and the router, when no LLM is set) is TypeSafe
-  `POST /v1/systemone` (`src/jev.rs`). Without one it is a lexical-overlap heuristic in
-  the same file. `GET /api/health` → `evaluator` reports `jev` or `heuristic` for that
-  ranker, not which router ran.
-- The heuristic never scores the terminal option's own wording — that text is fixed
-  English and would make the outcome depend on the query's alphabet. It descends only
-  when one child stands out from its siblings (`terminal_bar` in `src/jev.rs`).
+- A Jev API key is required. Search and ingest return 400 without one.
+  `GET /api/health` → `evaluator` is `jev` or `unconfigured`. That field is the ranker,
+  not which router ran.
+- With `llm_base_url`, `llm_token`, and `llm_model` all set, **routing** is one or two
+  LLM calls in `src/jev.rs`: the root topic (skipped when the walk is already inside a
+  node), then one node in a lexical shortlist of that subtree. `__none__` abstains.
+  A missing setting or a failed call uses the Jev beam. Item **ranking** always uses Jev,
+  over every active item in the landed subtree, in batches of 32.
+- The lexical heuristic in `src/jev.rs` is test-only. It is not a runtime fallback.
+  It never scores the terminal option's own wording, and a single child with no overlap
+  abstains (`terminal_bar`).
 
 Result roles: `recommended` ≥ 0.65, `alternative` ≥ 0.40, else `reference`.
 Top score < 0.30 sets `abstained: true`. `leaf_id: null` means outside the tree.
-
-Heuristic baseline on the bundled seed, 150 sampled questions: 104 exact leaves,
-108 on-path, 4 abstains, and 5/5 on out-of-tree queries. Treat that as the floor a change
-must not drop below; a Jev key does considerably better.
 
 ## Where code goes
 
@@ -82,7 +78,7 @@ draft with `DELETE /api/items/{id}`.
 | Change | File | Do not put it in |
 |---|---|---|
 | Descent, beam, ranking, abstain | `src/engine.rs` | HTTP handlers, UI |
-| Evaluator HTTP and heuristic scoring | `src/jev.rs` | Anywhere else — this is the only network call |
+| Jev calls, optional LLM routing | `src/jev.rs` | Anywhere else — this is the only network call |
 | Routes, auth, OpenAPI serving | `src/http.rs` | `src/engine.rs` |
 | SQLite schema and queries | `src/store.rs` | |
 | Secret encryption, key hashing, sessions | `src/secret.rs` | |
@@ -123,9 +119,10 @@ Domain and product concepts belong in `data/seed.json` or bootstrap fixtures onl
    `TYPESAFE_API_KEY` fill **empty slots at boot only**.
 
 The Jev API key and the LLM token are different things, and both belong with models.
-The login password and integration API keys belong with the server. The LLM base URL,
-token, and model route search/ingest when all three are set, and they list models.
-Item ranking still posts to TypeSafe System One (or the heuristic).
+The login password and integration API keys belong with the server. The Jev key is
+required. The LLM base URL, token, and model route search/ingest when all three are
+set, and they list models. If any of them is missing, or the call fails, the Jev beam
+runs. Item ranking always posts to TypeSafe System One.
 
 ## Deployment safety
 
@@ -144,16 +141,15 @@ Verified against the current code. Do not assume the rest of this document hides
 
 | Severity | Issue |
 |---|---|
-| Medium | The heuristic has no synonyms and no morphology: `VPN` never matches `브이피엔`, and `인쇄` never matches `프린터`. A node whose description misses the words its readers use is unreachable without a Jev key. Write drill queries that share at least one keyword with the taxonomy. |
-| Medium | With a single-root taxonomy there are no siblings to compare at depth 0, so `__none__` at the root rests entirely on the root description's vocabulary. Root descriptions should name their child topics. |
-| Low | `retrieve` loads a subtree's active rows and ranks them in memory. Fine at seed scale (1,312 items), not beyond it. |
-| Low | A degraded evaluator still costs up to three retries per depth before the run deadline trips. |
+| Medium | The optional LLM router only sees a lexical shortlist of 20 nodes plus their parents. A node whose description shares no tokens with the request can be skipped. A failed or unconfigured LLM call uses the Jev beam, which scores every sibling. |
+| Low | Ranking loads every active row in the landed subtree and scores it with Jev in batches of 32. Fine at seed scale (largest subtree 187 items). Not a plan for tens of thousands of rows under one node. |
+| Low | A degraded Jev call still makes up to three attempts (the first try and two retries) before the run deadline trips. |
 
 ## Common mistakes
 
 1. Trusting `items[0]`. Read `role` and `abstained`.
-2. Reading `evaluator: "heuristic"` as a Jev failure — it means no key is set.
-   The heuristic matches tokens, so `VPN` never matches `브이피엔`.
+2. Reading `evaluator: "unconfigured"` as a Jev outage. It means no key is saved,
+   and `/api/run` will return 400 until one is.
 3. Treating `ingest` as a save. The default is a draft.
 4. Editing a route without updating `static/openapi.json` and `docs/api.md`.
 5. Growing the seed without describing siblings. Siblings must be mutually exclusive,

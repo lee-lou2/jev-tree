@@ -156,12 +156,9 @@ impl Store {
         )?)
     }
 
-    pub fn retrieve(
-        &self,
-        query: &str,
-        categories: &[String],
-        limit: usize,
-    ) -> Result<Vec<Item>, crate::error::Error> {
+    /// Active rows in these categories, in id order. Ranking is Jev's job;
+    /// this does not drop rows that fail a lexical overlap check.
+    pub fn active_in(&self, categories: &[String]) -> Result<Vec<Item>, crate::error::Error> {
         if categories.is_empty() {
             return Ok(Vec::new());
         }
@@ -171,26 +168,9 @@ impl Store {
             "SELECT id,category_id,question,answer,kind,status,version FROM knowledge_items \
              WHERE status='active' AND category_id IN ({placeholders}) ORDER BY CAST(id AS INTEGER), id"
         ))?;
-        let mut items: Vec<Item> = statement
+        let items = statement
             .query_map(rusqlite::params_from_iter(categories), item_from_row)?
             .collect::<Result<Vec<_>, _>>()?;
-        let terms: Vec<String> = query
-            .to_lowercase()
-            .split_whitespace()
-            .filter(|term| term.chars().count() > 1)
-            .take(20)
-            .map(str::to_string)
-            .collect();
-        items.sort_by_key(|item| {
-            let text = format!("{} {}", item.question, item.answer).to_lowercase();
-            std::cmp::Reverse(
-                terms
-                    .iter()
-                    .filter(|term| text.contains(term.as_str()))
-                    .count(),
-            )
-        });
-        items.truncate(limit);
         Ok(items)
     }
 

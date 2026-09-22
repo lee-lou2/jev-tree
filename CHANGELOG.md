@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.0
+
+### Changed
+
+- A Jev API key is required. Search and ingest return 400 `invalid_request` without
+  one. `GET /api/health` reports `evaluator: "unconfigured"` instead of `"heuristic"`.
+  The lexical heuristic remains in unit tests only.
+- The optional LLM router is unchanged in role: all three settings route the category,
+  and a missing setting or a failed call uses the Jev beam. Ranking never uses the LLM.
+- Search scores every active item in the landed subtree with Jev, in batches of 32,
+  then applies `limit`. It no longer keeps a lexical shortlist of size `limit`.
+- An LLM trace no longer writes probability `1.0` and confidence `0.9`. `probability`
+  and `trace.score` are null, and `trace.router` is `llm` or `beam`.
+- Removed the unused `upsert` field from the OpenAPI request bodies.
+
+### Fixed
+
+- A single-child heuristic step abstains when that child has no lexical overlap.
+  This path is not used at runtime.
+
 ## 0.3.0
 
 ### Added

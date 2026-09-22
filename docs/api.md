@@ -101,6 +101,11 @@ Pick the answer by `role`, not by position. When `abstained` is true every item 
 to `reference` — do not answer from them. A `candidate` with `id: null` is the terminal
 choice (`__stop__` / `__none__`).
 
+Jev scores every active item in the landed subtree, 32 items per call, then `limit` is
+applied. A beam trace fills `probability` and `trace.score`. An LLM route
+(`trace.router` is `llm`) lists the options that call was shown and leaves
+`probability`, `confidence`, and `trace.score` null.
+
 ### `mode: "ingest"`
 
 ```jsonc
@@ -148,7 +153,7 @@ Terminal events are `search_done`, `ingest_saved`, and `ingest_draft`. Do not cl
 
 | Endpoint | Returns |
 |---|---|
-| `GET /api/health` | `{evaluator, categories, items, runtime}` |
+| `GET /api/health` | `{evaluator, categories, items, runtime}` — `evaluator` is `jev` or `unconfigured` |
 | `GET /api/seed/stats` | `{nodes, items, max_depth, runtime}` |
 | `GET /api/tree` | `{tree, root, path}` — `tree` is the forest, or the chosen node's children when `root` is set |
 | `GET /api/items` | `{items, total, offset, limit, scope}` |
@@ -178,8 +183,8 @@ Project-wide. `root` / URL path never scopes them.
 |---|---|
 | `site_name` / `site_description` | ≤ 60 / ≤ 200 characters |
 | `site_logo` | PNG/JPEG/SVG/WebP data URL ≤ 500 KB, or `null` to clear |
-| `jev_api_key` | Search/routing model key. `""` clears it and falls back to the heuristic |
-| `llm_base_url` / `llm_token` / `llm_model` | When all three are set, search and ingest **route** with this model: one call picks the root topic (`__none__` abstains), a second call picks a node inside that subtree. Clearing the token or the model falls back to Jev, then the heuristic. Item ranking still uses Jev (or the heuristic). The same credentials list models. |
+| `jev_api_key` | Required. Search, ingest, and ranking use it. `""` clears it; runs then return 400 and `evaluator` becomes `unconfigured` |
+| `llm_base_url` / `llm_token` / `llm_model` | Optional. When all three are set, search and ingest **route** with this model: one call picks the root topic (`__none__` abstains), a second call picks a node inside that subtree. A `start_node` or a walk that is already inside one node skips the first call. Clearing any of the three, or any failed call, uses the Jev beam. Item ranking always uses Jev. The same credentials list models. |
 | `server_key` | Login password, ≥ 6 characters; `""` turns login off (open mode) |
 
 In the UI, Jev and LLM settings live under **Settings → Models**. The login password and

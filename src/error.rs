@@ -40,6 +40,7 @@ impl Error {
             Self::Conflict(_) => "conflict",
             Self::NotFound(_) => "not_found",
             Self::Unauthorized(_) => "unauthorized",
+            Self::Upstream(crate::jev::JevError::Unconfigured) => "invalid_request",
             Self::Upstream(_) => "upstream_error",
             Self::Cancelled => "cancelled",
             Self::Timeout => "timeout",
@@ -49,6 +50,9 @@ impl Error {
     pub fn public_message(&self) -> String {
         match self {
             Self::Storage(_) | Self::Io(_) | Self::Json(_) => "storage request failed".into(),
+            Self::Upstream(crate::jev::JevError::Unconfigured) => {
+                "Jev API key is required. Add it in Settings → Models.".into()
+            }
             Self::Upstream(e) => match e {
                 crate::jev::JevError::Status(401) => {
                     "Jev key rejected (401). Check the Jev API key in Settings → Models.".into()
@@ -72,6 +76,7 @@ impl IntoResponse for Error {
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
+            Self::Upstream(crate::jev::JevError::Unconfigured) => StatusCode::BAD_REQUEST,
             Self::Upstream(_) => StatusCode::BAD_GATEWAY,
             Self::Cancelled => StatusCode::from_u16(499).unwrap_or(StatusCode::BAD_REQUEST),
             Self::Timeout => StatusCode::GATEWAY_TIMEOUT,

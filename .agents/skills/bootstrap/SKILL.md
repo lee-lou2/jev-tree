@@ -75,7 +75,9 @@ Bottom-up for bootstrap:
    - `name`: label in the reader's language, distinct from its siblings.
    - `description`: one sentence saying how this node differs from its siblings.
      A parent description lists its children.
-   - `examples`: 1–3 real phrasings. They are sent to the evaluator verbatim.
+   - `examples`: 1–3 real phrasings. Jev receives them in the choice label, after the
+     name and description. The optional LLM router does not: it sees names, descriptions
+     clipped to 180 characters, and a lexical shortlist.
 4. Depth 3–5 — only as deep as queries actually separate.
 5. Give every non-leaf node one `article` item so vague questions can stop there.
 
@@ -115,13 +117,15 @@ cargo run --release
 # POST /api/run {"mode":"search","query":"..."} and check leaf_id against the intended node
 ```
 
-Write the drill as paraphrases, not copied source text. With no Jev key the evaluator is a
-lexical heuristic: it will not match `VPN` to `브이피엔` or tolerate heavy inflection, so keep
-at least one shared keyword per drill query. If routing is wrong, fix the tree — not the model.
+Write the drill as paraphrases, not copied source text. A run needs a Jev key; without one
+the server returns 400. If routing is wrong, fix the tree — not the model.
 
 ## 5. Load and report
 
-Load with `POST /api/run` ingest and `auto_publish: true`. The same question in the same
+Install the tree by booting an empty database with `JEV_TREE_SEED`, or with
+`POST /api/seed` and `{"confirm":"RESET"}`. That load keeps each item's `kind`.
+`POST /api/run` ingest does not create nodes and always stores `kind: "qa"`. Use it to
+file one reviewed Q&A into a tree that already exists. The same question in the same
 category upserts. Promote to the real database only after verification and approval.
 
 Leave behind `fixtures/<dataset>/` with the seed files, the drill, and a short `REPORT.md`
