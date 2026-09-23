@@ -5,10 +5,12 @@
 </p>
 
 <p align="center">
-  <video src="static/demo.mp4" width="880" controls playsinline>
-    <img src="static/og.png" alt="jev-tree search demo: a query descends the taxonomy to the matching leaf">
-  </video>
+  <a href="static/demo.mp4">
+    <img src="static/demo-preview.gif" alt="jev-tree search demo: a query descends the taxonomy to the matching leaf" width="880">
+  </a>
 </p>
+
+<p align="center"><sub>▶ <a href="static/demo.mp4">Full demo video</a></sub></p>
 
 People do not pick folders. A model carries the context down a tree and finds or files knowledge.
 
