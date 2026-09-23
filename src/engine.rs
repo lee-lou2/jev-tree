@@ -1,7 +1,7 @@
+use crate::AppState;
 use crate::error::Error;
 use crate::models::*;
-use crate::AppState;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -923,9 +923,9 @@ async fn rank(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::AppState;
     use crate::jev::{JevClient, JevConfig};
     use crate::store::Store;
-    use crate::AppState;
     use std::sync::{Arc, RwLock};
 
     fn fixture_state() -> (tempfile::TempDir, AppState) {
@@ -933,11 +933,14 @@ mod tests {
         let db = dir.path().join("t.db");
         let seed =
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/mini-seed.json");
-        std::env::set_var("JEV_TREE_DB", db.to_str().unwrap());
-        std::env::set_var(
-            "JEV_TREE_SECRET_KEY",
-            "test-secret-material-for-jev-tree-engine",
-        );
+        // SAFETY: test-only bootstrap, called before this fixture's store opens.
+        unsafe {
+            std::env::set_var("JEV_TREE_DB", db.to_str().unwrap());
+            std::env::set_var(
+                "JEV_TREE_SECRET_KEY",
+                "test-secret-material-for-jev-tree-engine",
+            );
+        }
         let store = Store::open(db.to_str().unwrap(), seed.to_str().unwrap()).unwrap();
         let nodes = Arc::new(RwLock::new(store.load_taxonomy().unwrap()));
         let state = AppState {
@@ -1007,9 +1010,11 @@ mod tests {
             .unwrap();
         assert_eq!(result["leaf_id"], "orders", "{result}");
         let steps = result["trace"]["steps"].as_array().unwrap();
-        assert!(steps
-            .iter()
-            .any(|step| { step["choice_name"] == "stay here" && step["node_id"] == "orders" }));
+        assert!(
+            steps
+                .iter()
+                .any(|step| { step["choice_name"] == "stay here" && step["node_id"] == "orders" })
+        );
     }
 
     #[tokio::test]
@@ -1088,10 +1093,12 @@ mod tests {
         let scope = resolve_root(&nodes, Some("orders")).unwrap();
         assert_eq!(scope.root.as_ref().unwrap().id, "orders");
         assert!(scope.descent_start.is_none());
-        assert!(scope
-            .descent_nodes
-            .iter()
-            .any(|node| node.id == "orders_tracking" && node.parent_id.is_none()));
+        assert!(
+            scope
+                .descent_nodes
+                .iter()
+                .any(|node| node.id == "orders_tracking" && node.parent_id.is_none())
+        );
         assert!(scope.descent_nodes.iter().all(|node| node.id != "orders"));
         assert!(scope.descent_nodes.iter().all(|node| node.id != "account"));
         assert!(scope.allowed.as_ref().unwrap().contains("orders_tracking"));

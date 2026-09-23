@@ -1,6 +1,6 @@
 use crate::models::{Answer, Judgment, Node, Question};
-use reqwest::{header, Client};
-use serde_json::{json, Value};
+use reqwest::{Client, header};
+use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex, RwLock},
@@ -195,17 +195,17 @@ impl JevClient {
     where
         F: FnMut(RouteNote),
     {
-        if let Ok(guard) = self.llm_script.lock() {
-            if let Some(leaf) = guard.as_ref() {
-                return Ok(LlmRoute {
-                    leaf: if leaf == "__none__" || leaf.trim().is_empty() {
-                        None
-                    } else {
-                        Some(leaf.clone())
-                    },
-                    steps: vec![],
-                });
-            }
+        if let Ok(guard) = self.llm_script.lock()
+            && let Some(leaf) = guard.as_ref()
+        {
+            return Ok(LlmRoute {
+                leaf: if leaf == "__none__" || leaf.trim().is_empty() {
+                    None
+                } else {
+                    Some(leaf.clone())
+                },
+                steps: vec![],
+            });
         }
         let mut step = Stepper {
             depth: 0,
@@ -525,10 +525,10 @@ impl JevClient {
         state: Value,
         questions: BTreeMap<String, Question>,
     ) -> Result<Judgment, JevError> {
-        if let Ok(script) = self.script.lock() {
-            if !script.is_empty() {
-                return Ok(scripted(&questions, &script));
-            }
+        if let Ok(script) = self.script.lock()
+            && !script.is_empty()
+        {
+            return Ok(scripted(&questions, &script));
         }
         // A pinned router is a test. Rank with the same fixed scores so the
         // rest of the run does not need a live key.
@@ -605,10 +605,10 @@ impl JevClient {
                         // Score only this choice's label/description. Descendant names
                         // must not steal a shallower sibling match.
                         let mut contents = desc.as_str().unwrap_or("").to_string();
-                        if let Ok(nodes) = self.nodes.read() {
-                            if let Some(node) = nodes.iter().find(|n| n.id == *cid) {
-                                contents.push_str(&format!(" {} {}", node.name, node.description));
-                            }
+                        if let Ok(nodes) = self.nodes.read()
+                            && let Some(node) = nodes.iter().find(|n| n.id == *cid)
+                        {
+                            contents.push_str(&format!(" {} {}", node.name, node.description));
                         }
                         children.insert(cid.clone(), overlap_score(&query_tokens, text, &contents));
                     }
@@ -963,10 +963,11 @@ pub fn llm_shortlist(query: &str, nodes: &[Node], root: &str, k: usize) -> Vec<S
         if seen.insert(id.clone()) {
             out.push(id);
         }
-        if let Some(parent) = parent {
-            if inside.iter().any(|id| id == &parent) && seen.insert(parent.clone()) {
-                out.push(parent);
-            }
+        if let Some(parent) = parent
+            && inside.iter().any(|id| id == &parent)
+            && seen.insert(parent.clone())
+        {
+            out.push(parent);
         }
     }
     out
@@ -1010,11 +1011,7 @@ fn message_text(value: Option<&Value>) -> Option<String> {
         _ => return None,
     };
     let text = text.trim().to_string();
-    if text.is_empty() {
-        None
-    } else {
-        Some(text)
-    }
+    if text.is_empty() { None } else { Some(text) }
 }
 
 /// Last line must be one allowed id. Scanning the whole reply is unsafe:

@@ -8,11 +8,11 @@
 //! - Runtime never reads key material from env: env seeds the DB once at
 //!   boot, then the DB is the single source of truth.
 
-use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
+use aes_gcm::{Aes256Gcm, KeyInit, Nonce, aead::Aead};
 use argon2::Argon2;
 use base64::{
-    engine::general_purpose::{STANDARD as B64, URL_SAFE_NO_PAD as B64URL},
     Engine,
+    engine::general_purpose::{STANDARD as B64, URL_SAFE_NO_PAD as B64URL},
 };
 use rand::Rng;
 use sha2::{Digest, Sha256};
@@ -32,26 +32,25 @@ fn hex(bytes: &[u8]) -> String {
 /// Raw key material. Priority: explicit file > explicit env > per-machine
 /// file (auto-created next to the DB). Never stored in the database.
 fn key_material(db_path: &str) -> Vec<u8> {
-    if let Ok(path) = std::env::var("JEV_TREE_SECRET_KEY_FILE") {
-        if let Ok(raw) = std::fs::read(&path) {
-            if !raw.is_empty() {
-                return raw;
-            }
-        }
+    if let Ok(path) = std::env::var("JEV_TREE_SECRET_KEY_FILE")
+        && let Ok(raw) = std::fs::read(&path)
+        && !raw.is_empty()
+    {
+        return raw;
     }
-    if let Ok(raw) = std::env::var("JEV_TREE_SECRET_KEY") {
-        if !raw.trim().is_empty() {
-            return raw.trim().as_bytes().to_vec();
-        }
+    if let Ok(raw) = std::env::var("JEV_TREE_SECRET_KEY")
+        && !raw.trim().is_empty()
+    {
+        return raw.trim().as_bytes().to_vec();
     }
     let sibling = std::path::Path::new(db_path)
         .parent()
         .map(|p| p.join(".jev-tree.key"))
         .unwrap_or_else(|| std::path::PathBuf::from(".jev-tree.key"));
-    if let Ok(raw) = std::fs::read(&sibling) {
-        if !raw.is_empty() {
-            return raw;
-        }
+    if let Ok(raw) = std::fs::read(&sibling)
+        && !raw.is_empty()
+    {
+        return raw;
     }
     let mut buf = vec![0u8; 32];
     fill_random(&mut buf);
@@ -253,7 +252,10 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("jev-tree-sectest-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let path = dir.join("test.db").to_string_lossy().to_string();
-        std::env::set_var("JEV_TREE_DB", &path);
+        // SAFETY: test-only isolation, set before any key derivation reads it.
+        unsafe {
+            std::env::set_var("JEV_TREE_DB", &path);
+        }
         let k1 = aes_key(&path);
         let k2 = aes_key(&path);
         assert_eq!(k1, k2, "aes_key must be stable for the same db path");

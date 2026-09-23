@@ -3,17 +3,17 @@ use crate::error::Error;
 use crate::models::*;
 use crate::{AppResult, AppState};
 use axum::{
+    Router,
     extract::{Query, State},
     http::{StatusCode, Uri},
     response::{
-        sse::{Event, KeepAlive, Sse},
         IntoResponse, Json, Response,
+        sse::{Event, KeepAlive, Sse},
     },
     routing::{get, post},
-    Router,
 };
 use futures_core::Stream;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{convert::Infallible, env};
 use tokio::sync::mpsc;
 use tower_http::services::ServeDir;
@@ -148,11 +148,11 @@ async fn spa_fallback(index_file: &str, uri: Uri) -> Response {
     index_file_handler(index_file).await.into_response()
 }
 
-async fn index_file_handler(path: &str) -> impl IntoResponse {
+async fn index_file_handler(path: &str) -> impl IntoResponse + use<> {
     html_file_handler(path).await
 }
 
-async fn html_file_handler(path: &str) -> impl IntoResponse {
+async fn html_file_handler(path: &str) -> impl IntoResponse + use<> {
     let body = std::fs::read(path).unwrap_or_default();
     (
         [(axum::http::header::CACHE_CONTROL, "no-store")],
@@ -255,11 +255,13 @@ async fn tree(State(state): State<AppState>, Query(query): Query<RootQuery>) -> 
         );
         obj.insert(
             "path".into(),
-            json!(scope
-                .path
-                .iter()
-                .map(|node| json!({"id": node.id, "name": node.name}))
-                .collect::<Vec<_>>()),
+            json!(
+                scope
+                    .path
+                    .iter()
+                    .map(|node| json!({"id": node.id, "name": node.name}))
+                    .collect::<Vec<_>>()
+            ),
         );
     }
     Ok(Json(payload))
@@ -288,7 +290,7 @@ async fn setup_status(State(state): State<AppState>) -> AppResult<Value> {
 /// Machine-readable API contract (static/openapi.json). Served under /api so
 /// agents can fetch it straight from a running server. Human companion:
 /// docs/api.md in the repo.
-async fn openapi_spec_handler(path: &str) -> impl IntoResponse {
+async fn openapi_spec_handler(path: &str) -> impl IntoResponse + use<> {
     let body = std::fs::read(path).unwrap_or_else(|_| b"{}".to_vec());
     (
         [(axum::http::header::CONTENT_TYPE, "application/json")],
@@ -800,9 +802,9 @@ async fn run_stream(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::AppState;
     use crate::jev::{JevClient, JevConfig};
     use crate::store::Store;
-    use crate::AppState;
     use std::sync::{Arc, RwLock};
 
     #[test]
@@ -885,12 +887,15 @@ mod tests {
             .unwrap()
             .to_string_lossy()
             .into_owned();
-        std::env::set_var("JEV_TREE_DB", db.to_str().unwrap());
-        std::env::set_var("JEV_TREE_SEED", seed.to_str().unwrap());
-        std::env::set_var(
-            "JEV_TREE_SECRET_KEY",
-            "test-secret-material-for-jev-tree-http",
-        );
+        // SAFETY: test-only bootstrap, called before this fixture's server starts.
+        unsafe {
+            std::env::set_var("JEV_TREE_DB", db.to_str().unwrap());
+            std::env::set_var("JEV_TREE_SEED", seed.to_str().unwrap());
+            std::env::set_var(
+                "JEV_TREE_SECRET_KEY",
+                "test-secret-material-for-jev-tree-http",
+            );
+        }
         (guard, dir, db, static_dir)
     }
 
@@ -1038,10 +1043,12 @@ mod tests {
         .await;
         assert_eq!(status, axum::http::StatusCode::BAD_REQUEST, "{search}");
         assert_eq!(search["code"], "invalid_request");
-        assert!(search["detail"]
-            .as_str()
-            .unwrap_or("")
-            .contains("Jev API key"));
+        assert!(
+            search["detail"]
+                .as_str()
+                .unwrap_or("")
+                .contains("Jev API key")
+        );
 
         state
             .jev
