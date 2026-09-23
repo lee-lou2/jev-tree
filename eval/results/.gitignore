@@ -1,0 +1,4 @@
+# Raw per-case records are large (~0.8 MB per cell). Keep them locally;
+# force-add them only for runs you keep as a baseline for `compare`:
+#   git add -f eval/results/runs/<run_id>/cells
+runs/*/cells/
