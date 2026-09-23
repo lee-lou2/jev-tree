@@ -1,0 +1,27 @@
+{
+  "name": "kb",
+  "title": "범용 생활·업무 지식베이스",
+  "version": "1.0.0",
+  "language": "ko",
+  "description": "IT·생활·금융·건강·여행·요리·직장·쇼핑 8개 영역의 일반 지식과 가상의 회사·쇼핑몰 규정. 답변 내용은 평가용 합성 데이터이며 사실 여부가 아니라 라우팅·랭킹을 평가한다.",
+  "domains": {
+    "it": "IT",
+    "life": "LIFE",
+    "money": "MONEY",
+    "health": "HEALTH",
+    "travel": "TRAVEL",
+    "food": "FOOD",
+    "work": "WORK",
+    "shop": "SHOP"
+  },
+  "variants": {
+    "deep": {"keep_tiers": ["core", "fine"], "keep_roots": true, "description": "원본 그대로. 최대 깊이 7"},
+    "standard": {"keep_tiers": ["core"], "keep_roots": true, "description": "fine 단계를 걷어낸 표준형. 최대 깊이 4"},
+    "shallow": {"keep_tiers": [], "keep_roots": true, "description": "중간 단계를 모두 걷어낸 2단 구조(영역 → 리프)"},
+    "flat": {"keep_tiers": [], "keep_roots": false, "description": "리프만 남긴 1단 구조(147개 최상위 분류)"},
+    "sparse": {"keep_tiers": ["core"], "keep_roots": true, "leaf_items": 1, "description": "standard 트리에서 리프마다 첫 qa 1개만 남김. 정답이 빠진 질문은 보류가 정답"}
+  },
+  "default_variant": "standard",
+  "empty_leaves": ["life_home_pest", "health_sym_skin", "travel_local_taxi"],
+  "dense_leaves": ["it_pc_win_keys", "it_office_excel_func", "food_store_item"]
+}

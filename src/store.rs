@@ -1,5 +1,5 @@
 use crate::models::{AppSettings, Item, Node};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde::Deserialize;
 use serde_json::Value;
 use std::{
@@ -266,12 +266,12 @@ impl Store {
         };
         let updated = existing.is_some();
         let id = if let Some((id, version)) = existing {
-            if let Some(expected) = expected_version {
-                if expected != version {
-                    return Err(crate::error::Error::Conflict(format!(
-                        "item version changed; current version is {version}"
-                    )));
-                }
+            if let Some(expected) = expected_version
+                && expected != version
+            {
+                return Err(crate::error::Error::Conflict(format!(
+                    "item version changed; current version is {version}"
+                )));
             }
             transaction.execute("UPDATE knowledge_items SET category_id=?,question=?,answer=?,kind=?,status=?,version=version+1 WHERE id=?", params![category,question,answer,kind,status,id])?;
             id
@@ -561,11 +561,13 @@ mod tests {
 
     #[test]
     fn taxonomy_rejects_duplicates_cycles_and_missing_parents() {
-        assert!(validate_taxonomy(&[
-            node("root", "Root", None),
-            node("child", "Child", Some("root")),
-        ])
-        .is_ok());
+        assert!(
+            validate_taxonomy(&[
+                node("root", "Root", None),
+                node("child", "Child", Some("root")),
+            ])
+            .is_ok()
+        );
         assert!(
             validate_taxonomy(&[node("root", "Root", None), node("root", "Other", None),]).is_err()
         );
@@ -573,12 +575,14 @@ mod tests {
         assert!(
             validate_taxonomy(&[node("a", "A", Some("b")), node("b", "B", Some("a")),]).is_err()
         );
-        assert!(validate_taxonomy(&[
-            node("root", "Root", None),
-            node("x", "Same", Some("root")),
-            node("y", "Same", Some("root")),
-        ])
-        .is_err());
+        assert!(
+            validate_taxonomy(&[
+                node("root", "Root", None),
+                node("x", "Same", Some("root")),
+                node("y", "Same", Some("root")),
+            ])
+            .is_err()
+        );
     }
 }
 

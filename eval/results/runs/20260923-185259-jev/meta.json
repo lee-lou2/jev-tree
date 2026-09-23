@@ -1,0 +1,45 @@
+{
+  "beam_width": "case/default",
+  "cases": 120,
+  "command": "run --router jev --sample 120 --repeat 3 --concurrency 6 --timeout 300 --note stability --no-history",
+  "concurrency": 6,
+  "dataset": {
+    "cases_hash": "11b27f3d7b79",
+    "kb_hash": "489e5fca3c7c",
+    "name": "kb",
+    "version": "1.0.0"
+  },
+  "filter": "--sample 120",
+  "finished_at": "2026-09-23T18:55:02Z",
+  "git": {
+    "dirty": true,
+    "sha": "17eedcd"
+  },
+  "limit": "case/default",
+  "mock": "off",
+  "models": {
+    "jev": {
+      "credentials": "env",
+      "jev_base_url": "https://api.typesafe.ai",
+      "jev_model": "jev-latest",
+      "llm_base_url": null,
+      "llm_model": null
+    }
+  },
+  "note": "stability",
+  "repeat": 3,
+  "routers": [
+    "jev"
+  ],
+  "run_id": "20260923-185259-jev",
+  "split": "all",
+  "started_at": "2026-09-23T18:52:59Z",
+  "suites": [
+    "all"
+  ],
+  "timeout_secs": 300,
+  "variants": [
+    "standard"
+  ],
+  "verify_draft_search": false
+}

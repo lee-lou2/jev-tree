@@ -35,6 +35,11 @@ tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 tempfile = "3"
 
+# Golden-set evaluation runner. Not part of the server binary; see eval/README.md.
+[[example]]
+name = "eval"
+path = "eval/runner/main.rs"
+
 [profile.release]
 opt-level = 3
 lto = "thin"
