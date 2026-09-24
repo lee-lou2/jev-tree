@@ -129,6 +129,7 @@ pub async fn execute(
             &text,
             &request.context,
             candidates,
+            leaf.as_deref(),
             request.limit,
             sender.clone(),
         )
@@ -830,17 +831,35 @@ pub fn normalize(source: &str) -> (String, String) {
 /// Items scored in one Jev call. Each item asks two questions, Noul and Score.
 const RANK_BATCH: usize = 32;
 
+/// Break near-ties upward when the walk stops at a node.
+///
+/// A descent that stops at `X` has already decided `X` is the right level of
+/// specificity, and `X`'s own items sit there; everything below it is more
+/// specific than the request asked for. Jev's scores routinely put a deeper item
+/// a hair above `X`'s overview item (measured gaps 0.015-0.021), which is enough
+/// to lose the answer to a vague question. Applied only where deeper items are
+/// actually competing: a leaf's lone item beats nothing and must not be inflated.
+const LEVEL_BONUS: f64 = 0.10;
+
 async fn rank(
     state: &AppState,
     query: &str,
     context: &[Value],
     items: Vec<Item>,
+    // The node the walk stopped at, if any. Its own items sit at the specificity
+    // the request asked for, so they win near-ties against deeper ones.
+    prefer: Option<&str>,
     limit: usize,
     sender: Option<mpsc::Sender<Value>>,
 ) -> Result<Vec<RankedItem>, Error> {
     if items.is_empty() {
         return Ok(vec![]);
     }
+    // Only worth a nudge when deeper candidates are in the pool to nudge against.
+    let nested = prefer.is_some_and(|node| {
+        let own = items.iter().filter(|item| item.category_id == node).count();
+        items.len() > own
+    });
     let mut ranked = Vec::with_capacity(items.len());
     for chunk in items.chunks(RANK_BATCH) {
         let questions = chunk
@@ -891,7 +910,13 @@ async fn rank(
                 }
                 _ => 0.0,
             };
-            let score = relevance * 0.7 + (directness / 2.0) * 0.3;
+            let score = relevance * 0.7
+                + (directness / 2.0) * 0.3
+                + if nested && prefer == Some(item.category_id.as_str()) {
+                    LEVEL_BONUS
+                } else {
+                    0.0
+                };
             let role = if score >= 0.65 {
                 "recommended"
             } else if score >= 0.4 {
@@ -1240,5 +1265,85 @@ mod tests {
         );
         assert!(rendered.contains("통관이 멈췄어요"));
         assert!(rendered.contains("지금 뭐 해야 하나요?"));
+    }
+
+    /// 내부 노드에 개요 항목 1개, 그 아래 리프에 구체 항목 1개를 둔 작은 지식베이스.
+    fn nested_state() -> (tempfile::TempDir, AppState) {
+        let dir = tempfile::tempdir().unwrap();
+        let seed = dir.path().join("seed.json");
+        std::fs::write(
+            &seed,
+            serde_json::json!({
+                "nodes": [
+                    {"id": "topic", "name": "주제", "description": "상위 주제. 하위: 세부 사례.",
+                     "examples": [], "parent_id": null},
+                    {"id": "topic_case", "name": "세부 사례", "description": "구체적 조건의 사례.",
+                     "examples": [], "parent_id": "topic"},
+                ],
+                "items": [
+                    {"category_id": "topic", "kind": "article",
+                     "question": "주제 문제는 어떻게 구분하나요?", "answer": "세부 사례로 나뉩니다."},
+                    {"category_id": "topic_case", "kind": "qa",
+                     "question": "세부 사례 하나를 어떻게 처리하나요?", "answer": "구체적 절차."},
+                ],
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let db = dir.path().join("t.db");
+        // SAFETY: test-only bootstrap, called before this fixture's store opens.
+        unsafe {
+            std::env::set_var("JEV_TREE_DB", db.to_str().unwrap());
+            std::env::set_var(
+                "JEV_TREE_SECRET_KEY",
+                "test-secret-material-for-jev-tree-engine",
+            );
+        }
+        let store = Store::open(db.to_str().unwrap(), seed.to_str().unwrap()).unwrap();
+        let nodes = Arc::new(RwLock::new(store.load_taxonomy().unwrap()));
+        let state = AppState {
+            jev: JevClient::with_config(JevConfig::default(), nodes.clone()).unwrap(),
+            store,
+            nodes,
+        };
+        (dir, state)
+    }
+
+    #[tokio::test]
+    async fn stopping_at_a_node_prefers_its_own_item_over_deeper_ones() {
+        // 하강이 `topic`에서 멈추면(막연한 질문) 개요 항목이 리프의 구체 항목보다 위여야 한다.
+        let (_dir, state) = nested_state();
+        state
+            .jev
+            .script_choices(vec!["topic".into(), "__stop__".into()]);
+        let result = execute(state, run_req("이 주제가 어떻게 되는지 궁금해요"), None)
+            .await
+            .unwrap();
+        assert_eq!(result["leaf_id"], "topic", "{result}");
+        let items = result["items"].as_array().unwrap();
+        assert_eq!(
+            items[0]["item"]["category_id"].as_str().unwrap(),
+            "topic",
+            "착지 노드의 자기 아이템이 2위 이하입니다: {result}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_leaf_item_gets_no_bonus_because_nothing_competes() {
+        // 리프에 아이템이 하나뿐이면 가산할 대상이 없다. 점수를 부풀리면 안 된다.
+        let (_dir, state) = nested_state();
+        state
+            .jev
+            .script_choices(vec!["topic".into(), "topic_case".into()]);
+        let result = execute(state, run_req("세부 사례 하나를 어떻게 처리하나요"), None)
+            .await
+            .unwrap();
+        let items = result["items"].as_array().unwrap();
+        assert_eq!(items.len(), 1, "{result}");
+        // 스크립트 점수(noul 0.8, score 1.6) = 0.8*0.7 + 0.8*0.3 = 0.8. 가산 없음.
+        assert!(
+            (items[0]["score"].as_f64().unwrap() - 0.8).abs() < 1e-9,
+            "{result}"
+        );
     }
 }
