@@ -232,10 +232,13 @@ impl JevClient {
         // nothing with the request (AGENTS.md, Known gaps). One call removes both
         // and halves the round trips. `None` means the menu is too large here and
         // the stepped walk below handles it.
+        let creds = LlmCreds {
+            base: base.clone(),
+            token: token.clone(),
+            model: model.clone(),
+        };
         if let Some(route) = self
-            .route_once(
-                &base, &token, &model, query, background, nodes, restrict, &mut step,
-            )
+            .route_once(&creds, query, background, nodes, restrict, &mut step)
             .await?
         {
             return Ok(route);
@@ -358,9 +361,7 @@ impl JevClient {
     /// `__none__` for "this belongs nowhere".
     async fn route_once<F>(
         &self,
-        base: &str,
-        token: &str,
-        model: &str,
+        creds: &LlmCreds,
         query: &str,
         background: &str,
         nodes: &[Node],
@@ -417,7 +418,7 @@ impl JevClient {
         );
         step.ask(&parent);
         let picked = self
-            .complete_id(base, token, model, &prompt, &allowed)
+            .complete_id(&creds.base, &creds.token, &creds.model, &prompt, &allowed)
             .await?;
         if picked == "__none__" {
             step.chose(&parent, options, None, "no matching topic".into());
