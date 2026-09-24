@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.5.0
+
+### Changed
+
+- **LLM routing is one call over every node in scope**, not "the root topic, then a lexical
+  shortlist of 20 nodes below it". Two calls compounded errors — a wrong root was
+  unrecoverable — and the shortlist could drop a node whose wording shares nothing with the
+  request. One call removes both and halves the round trips. `__none__` now competes with
+  every node, so an out-of-scope request can abstain at any depth instead of only at the
+  root. Above `ONE_SHOT_MAX_NODES` (800) nodes in scope the previous stepped walk runs.
+
+### Fixed
+
+- An out-of-scope request that merely looked like a covered topic ("cancel my YouTube
+  Premium subscription") used to be filed into the tree, because abstaining was only on
+  offer at the root choice.
+- A request in a different script from the node descriptions ("Someone is clutching their
+  throat and cannot breathe" against `목에 걸려 숨을 못 쉴 때`) used to land one or more
+  levels too high: no shared tokens meant the lexical shortlist ranked the real target out.
+
+On the golden set's routing-blind-spot cases (12) this moves routing accuracy from 50.0%
+to 83.3% and halves the time to an answer (p50 39.2s -> 12.5s). Details in `eval/`.
+
 ## 0.4.1
 
 ### Changed

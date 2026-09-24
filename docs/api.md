@@ -184,7 +184,7 @@ Project-wide. `root` / URL path never scopes them.
 | `site_name` / `site_description` | ≤ 60 / ≤ 200 characters |
 | `site_logo` | PNG/JPEG/SVG/WebP data URL ≤ 500 KB, or `null` to clear |
 | `jev_api_key` | Required. Search, ingest, and ranking use it. `""` clears it; runs then return 400 and `evaluator` becomes `unconfigured` |
-| `llm_base_url` / `llm_token` / `llm_model` | Optional. When all three are set, search and ingest **route** with this model: one call picks the root topic (`__none__` abstains), a second call picks a node inside that subtree. A `start_node` or a walk that is already inside one node skips the first call. Clearing any of the three, or any failed call, uses the Jev beam. Item ranking always uses Jev. The same credentials list models. |
+| `llm_base_url` / `llm_token` / `llm_model` | Optional. When all three are set, search and ingest **route** with this model: one call picks a node from every node in scope (`__none__` abstains). A `root` or `start_node` keeps the walk inside that subtree, where it must land on a node and cannot abstain. Above 800 nodes in scope it falls back to two calls: the root topic, then a node inside that subtree. Clearing any of the three, or any failed call, uses the Jev beam. Item ranking always uses Jev. The same credentials list models. |
 | `server_key` | Login password, ≥ 6 characters; `""` turns login off (open mode) |
 
 In the UI, Jev and LLM settings live under **Settings → Models**. The login password and

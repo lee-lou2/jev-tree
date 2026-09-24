@@ -935,7 +935,7 @@ pub fn validate_cases(kb: &Kb, cases: &[Case], out: &mut Findings) {
         .domains
         .values()
         .map(String::as_str)
-        .chain(["XD", "OOS", "API"])
+        .chain(["XD", "OOS", "API", "GAP"])
         .collect();
     for case in cases {
         let at = format!("{} ({})", case.source, case.id);
@@ -959,7 +959,7 @@ pub fn validate_cases(kb: &Kb, cases: &[Case], out: &mut Findings) {
             || !parts[2].chars().all(|c| c.is_ascii_digit())
         {
             out.error(format!(
-                "{at}: id must be {prefix}-<DOMAIN|XD|OOS|API>-<NNN>"
+                "{at}: id must be {prefix}-<DOMAIN|XD|OOS|API|GAP>-<NNN>"
             ));
         }
         if let Some(split) = &case.split

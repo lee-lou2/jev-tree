@@ -57,9 +57,11 @@ One descent step:
 - A Jev API key is required. Search and ingest return 400 without one.
   `GET /api/health` → `evaluator` is `jev` or `unconfigured`. That field is the ranker,
   not which router ran.
-- With `llm_base_url`, `llm_token`, and `llm_model` all set, **routing** is one or two
-  LLM calls in `src/jev.rs`: the root topic (skipped when the walk is already inside a
-  node), then one node in a lexical shortlist of that subtree. `__none__` abstains.
+- With `llm_base_url`, `llm_token`, and `llm_model` all set, **routing** is **one LLM call
+  in `src/jev.rs` naming every node in scope**. `__none__` abstains (outside the tree);
+  under a `root`/`start_node` the walk stays in that subtree and must land on a node there.
+  Above `ONE_SHOT_MAX_NODES` (800) nodes in scope it falls back to the stepped walk: the
+  root topic, then one node in a lexical shortlist of that subtree.
   A missing setting or a failed call uses the Jev beam. Item **ranking** always uses Jev,
   over every active item in the landed subtree, in batches of 32.
 - The lexical heuristic in `src/jev.rs` is test-only. It is not a runtime fallback.
@@ -141,7 +143,7 @@ Verified against the current code. Do not assume the rest of this document hides
 
 | Severity | Issue |
 |---|---|
-| Medium | The optional LLM router only sees a lexical shortlist of 20 nodes plus their parents. A node whose description shares no tokens with the request can be skipped. A failed or unconfigured LLM call uses the Jev beam, which scores every sibling. |
+| Low | Above 800 nodes in scope the LLM router falls back to a stepped walk over a lexical shortlist of 20 nodes plus their parents, where a node whose wording shares nothing with the request can be skipped. Smaller scopes pick from every node in one call. A failed or unconfigured LLM call uses the Jev beam, which scores every sibling. |
 | Low | Ranking loads every active row in the landed subtree and scores it with Jev in batches of 32. Fine at seed scale (largest subtree 187 items). Not a plan for tens of thousands of rows under one node. |
 | Low | A degraded Jev call still makes up to three attempts (the first try and two retries) before the run deadline trips. |
 
