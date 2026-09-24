@@ -1,0 +1,57 @@
+{
+  "beam_width": "case/default",
+  "cases": 513,
+  "command": "run --router both --variant all --concurrency 10 --timeout 300 --note both routers; jev_llm=gpt-6-luna via proxy.zvzo.ai --settings-db /Users/jake/dev/ai/jev-tree/data/demo.db",
+  "concurrency": 10,
+  "dataset": {
+    "cases_hash": "11b27f3d7b79",
+    "kb_hash": "489e5fca3c7c",
+    "name": "kb",
+    "version": "1.0.0"
+  },
+  "filter": "",
+  "finished_at": "2026-09-24T01:17:29Z",
+  "git": {
+    "dirty": false,
+    "sha": "eafd27a"
+  },
+  "limit": "case/default",
+  "mock": "off",
+  "models": {
+    "jev": {
+      "credentials": "db:/Users/jake/dev/ai/jev-tree/data/demo.db",
+      "jev_base_url": "https://api.typesafe.ai",
+      "jev_model": "jev-latest",
+      "llm_base_url": null,
+      "llm_model": null
+    },
+    "jev_llm": {
+      "credentials": "db:/Users/jake/dev/ai/jev-tree/data/demo.db",
+      "jev_base_url": "https://api.typesafe.ai",
+      "jev_model": "jev-latest",
+      "llm_base_url": "https://proxy.zvzo.ai/v1",
+      "llm_model": "gpt-6-luna"
+    }
+  },
+  "note": "both routers; jev_llm=gpt-6-luna via proxy.zvzo.ai",
+  "repeat": 1,
+  "routers": [
+    "jev",
+    "jev_llm"
+  ],
+  "run_id": "20260923-234841-jev+jev_llm",
+  "split": "all",
+  "started_at": "2026-09-23T23:48:41Z",
+  "suites": [
+    "all"
+  ],
+  "timeout_secs": 300,
+  "variants": [
+    "deep",
+    "standard",
+    "shallow",
+    "flat",
+    "sparse"
+  ],
+  "verify_draft_search": false
+}
