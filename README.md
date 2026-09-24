@@ -125,6 +125,37 @@ the missing-key error, and an LLM failure falling back to the beam.
 
 Known gaps are tracked in [`AGENTS.md`](AGENTS.md#known-gaps). Read them before trusting a result.
 
+## Evaluation
+
+`eval/` holds a Korean golden dataset (8 general-purpose domains, 219 nodes / 669 items,
+513 cases) and a runner that measures how well search and ingest file and find knowledge.
+It runs in-process through `engine::execute` — no server started, nothing written to the
+working tree's database.
+
+```bash
+cargo run --release --example eval -- validate --strict        # dataset check, no key needed
+cargo run --release --example eval -- run --router both --variant all
+```
+
+Measured baseline (`jev-latest`; `gpt-6-luna` routes the category in `jev_llm`) over 5 tree
+shapes:
+
+| routing | E2E | Hit@1 | ingest | latency p50 |
+|---|---:|---:|---:|---:|
+| Jev beam | 92.1% | 91.3% | 86.8% | **1.7s** |
+| LLM + Jev ranking | **94.0%** | **93.2%** | **94.1%** | 15.1s |
+
+Two things worth knowing before trusting a result:
+
+- **Depth hurts the Jev beam** — flat 97.5% → deep 88.7% routing accuracy, at twice the cost.
+  The LLM router is nearly depth-insensitive.
+- **Where it misses matters more than how often.** The beam misses into a sibling branch and
+  drops the answer out of the candidate pool; the LLM misses by stopping one level too shallow
+  and leaves the answer ranked under an ancestor. Only the first is unrecoverable.
+
+Dataset schema, metric definitions, and nine improvement proposals: [`eval/README.md`](eval/README.md).
+
+
 ## Documents
 
 | File | Contents |
@@ -132,6 +163,7 @@ Known gaps are tracked in [`AGENTS.md`](AGENTS.md#known-gaps). Read them before 
 | [`AGENTS.md`](AGENTS.md) | Operating manual for agents and contributors — start here |
 | [`docs/api.md`](docs/api.md) | HTTP contract |
 | [`static/openapi.json`](static/openapi.json) | Machine-readable contract (hand-maintained) |
+| [`eval/README.md`](eval/README.md) | Golden-set evaluation: dataset, runner, measured results |
 | [`.agents/skills/bootstrap/SKILL.md`](.agents/skills/bootstrap/SKILL.md) | Building a taxonomy from raw data |
 
 ## Security
