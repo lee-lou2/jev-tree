@@ -144,17 +144,20 @@ shapes:
 
 | routing | E2E | Hit@1 | ingest | latency p50 |
 |---|---:|---:|---:|---:|
-| Jev beam | 91.9% | 91.2% | 86.8% | **1.7s** |
-| LLM + Jev ranking | **96.6%** | **96.5%** | **97.1%** | 12.6s |
+| Jev beam | 92.1% | 91.5% | 86.8% | **1.7s** |
+| LLM + Jev ranking | **98.2%** | **97.9%** | **94.1%** | 12.6s |
 
-Two things worth knowing before trusting a result:
+Three things worth knowing before trusting a result:
 
-- **Depth hurts the Jev beam** — flat 97.5% → deep 88.3% routing accuracy, at twice the cost.
-  The LLM router now picks from every node in one call and is nearly depth-insensitive
-  (95.1–98.9% across 1–7 levels).
+- **Depth hurts the Jev beam** — flat 97.0% → 88.7–89.2% routing accuracy across 2–7 levels,
+  at twice the cost. The LLM router picks from every node in one call and is nearly
+  depth-insensitive (95.1–97.8%).
 - **Where it misses matters more than how often.** A miss sideways (sibling branch) drops the
   answer out of the candidate pool; a miss upward leaves it ranked under an ancestor and
   recoverable. Routing accuracy alone does not show this.
+- **Stopping at a node prefers that node's own items.** A vague question that stops at a topic
+  node is answered by that node's overview item, not something more specific from below it.
+  Worth +21.7pp on vague questions (73.9% → 95.7%).
 
 Dataset schema, metric definitions, and nine improvement proposals: [`eval/README.md`](eval/README.md).
 
