@@ -226,6 +226,20 @@ impl JevClient {
         if token.trim().is_empty() || model.trim().is_empty() || base.trim().is_empty() {
             return Err(JevError::Invalid("LLM route is not configured".into()));
         }
+        // One pick over every node in scope beats "the root, then a lexical
+        // shortlist inside it". Two separate calls compound errors (a wrong root
+        // is unrecoverable) and the shortlist can skip a node whose wording shares
+        // nothing with the request (AGENTS.md, Known gaps). One call removes both
+        // and halves the round trips. `None` means the menu is too large here and
+        // the stepped walk below handles it.
+        if let Some(route) = self
+            .route_once(
+                &base, &token, &model, query, background, nodes, restrict, &mut step,
+            )
+            .await?
+        {
+            return Ok(route);
+        }
         let by_id = node_index(nodes);
         if let Some(start) = restrict {
             if !by_id.contains_key(start) {
@@ -334,6 +348,93 @@ impl JevClient {
             leaf,
             steps: step.steps,
         })
+    }
+
+    /// One model call naming every node in scope. `None` when that menu is too
+    /// large to stay cheap, which hands routing back to the stepped walk.
+    ///
+    /// Under `root`/`start_node` the walk stays inside one subtree and cannot
+    /// abstain, so the model must land on a node in scope; the whole forest adds
+    /// `__none__` for "this belongs nowhere".
+    async fn route_once<F>(
+        &self,
+        base: &str,
+        token: &str,
+        model: &str,
+        query: &str,
+        background: &str,
+        nodes: &[Node],
+        restrict: Option<&str>,
+        step: &mut Stepper<'_, F>,
+    ) -> Result<Option<LlmRoute>, JevError>
+    where
+        F: FnMut(RouteNote),
+    {
+        let by_id = node_index(nodes);
+        let scope: Vec<String> = match restrict {
+            Some(start) => {
+                if !by_id.contains_key(start) {
+                    return Err(JevError::Invalid(format!("restrict not in scope: {start}")));
+                }
+                subtree_ids(nodes, start)
+            }
+            None => nodes.iter().map(|node| node.id.clone()).collect(),
+        };
+        if scope.len() > ONE_SHOT_MAX_NODES {
+            return Ok(None);
+        }
+        // Nothing to choose between: land on it without paying for a call.
+        if scope.len() == 1 {
+            return Ok(Some(LlmRoute {
+                leaf: Some(scope[0].clone()),
+                steps: std::mem::take(&mut step.steps),
+            }));
+        }
+        let abstain = restrict.is_none();
+        let (menu, options, allowed) = llm_menu(nodes, &scope, abstain);
+        let parent = match restrict {
+            Some(start) => by_id
+                .get(start)
+                .map(|node| node.name.clone())
+                .unwrap_or_else(|| start.to_string()),
+            None => "the knowledge tree".into(),
+        };
+        let head = if abstain {
+            "요청을 가장 정확히 다루는 노드 하나를 고르세요. \
+             자식이 남아 있으면 더 구체적인 자식 노드를 고르고, 주제만 묻고 하위 사례를 특정하지 않으면 그 노드에 머무세요. \
+             어느 노드에도 속하지 않으면 __none__."
+        } else {
+            "요청을 가장 정확히 다루는 노드 하나를 고르세요. \
+             자식이 남아 있으면 더 구체적인 자식 노드를 고르고, 주제만 묻고 하위 사례를 특정하지 않으면 그 노드에 머무세요. \
+             범위를 벗어나는 주제에는 시작 노드 자신을 고르세요."
+        };
+        let prompt = format!(
+            "{head}\n노드 설명이 겹치면 더 구체적인 쪽을 고르세요. 경로는 위치를 알려 줄 뿐이고, \
+판단은 현재 요청과 각 설명으로 하세요.\n허용된 id: {}\n\n{}\n\n{}\n\n마지막 줄에 id 하나만.",
+            allowed.join(", "),
+            request_block(query, background),
+            menu.join("\n")
+        );
+        step.ask(&parent);
+        let picked = self
+            .complete_id(base, token, model, &prompt, &allowed)
+            .await?;
+        if picked == "__none__" {
+            step.chose(&parent, options, None, "no matching topic".into());
+            return Ok(Some(LlmRoute {
+                leaf: None,
+                steps: std::mem::take(&mut step.steps),
+            }));
+        }
+        let name = by_id
+            .get(picked.as_str())
+            .map(|node| node.name.clone())
+            .unwrap_or_else(|| picked.clone());
+        step.chose(&parent, options, Some(picked.clone()), name);
+        Ok(Some(LlmRoute {
+            leaf: Some(picked),
+            steps: std::mem::take(&mut step.steps),
+        }))
     }
 
     async fn route_within<F>(
@@ -461,10 +562,14 @@ impl JevClient {
     }
 
     async fn post_chat(&self, url: &str, token: &str, payload: &Value) -> Result<String, JevError> {
+        // 90s, not the 20s the client defaults to: the route call now names every
+        // node in scope, and a reasoning model deliberates over that menu for a
+        // while. Still under the run deadline (JEV_TREE_RUN_TIMEOUT_SECS, 120s)
+        // so a hung call cannot outlive the request it belongs to.
         let response = self
             .client
             .post(url)
-            .timeout(Duration::from_secs(45))
+            .timeout(Duration::from_secs(90))
             .bearer_auth(token)
             .header(header::CONTENT_TYPE, "application/json")
             .json(payload)
@@ -935,6 +1040,42 @@ fn subtree_ids(nodes: &[Node], root: &str) -> Vec<String> {
     ids
 }
 
+/// One row per node in scope, in tree order, plus `__none__` when the walk may
+/// abstain. Returns the menu text, the (id, name) options for the trace, and the
+/// allowed ids the model may answer with.
+pub fn llm_menu(
+    nodes: &[Node],
+    scope: &[String],
+    abstain: bool,
+) -> (Vec<String>, Vec<(String, String)>, Vec<String>) {
+    let by_id = node_index(nodes);
+    let mut menu = Vec::with_capacity(scope.len() + 1);
+    let mut options = Vec::with_capacity(scope.len() + 1);
+    let mut allowed = Vec::with_capacity(scope.len() + 1);
+    for id in scope {
+        let Some(node) = by_id.get(id.as_str()) else {
+            continue;
+        };
+        menu.push(format!(
+            "{id}\t{}\t{}",
+            ancestor_names(nodes, id).join(" / "),
+            clip(&node.description, 180)
+        ));
+        options.push((id.clone(), node.name.clone()));
+        allowed.push(id.clone());
+    }
+    if abstain {
+        menu.push("__none__\t없음\t어느 주제에도 속하지 않는다.".into());
+        options.push(("__none__".into(), "no matching topic".into()));
+        allowed.push("__none__".into());
+    }
+    (menu, options, allowed)
+}
+
+/// Above this many nodes in scope the one-shot menu stops being cheap, and the
+/// stepped walk (root topic, then a lexical shortlist below it) takes over.
+const ONE_SHOT_MAX_NODES: usize = 800;
+
 /// Top lexical matches inside `root`'s subtree, plus each match's parent when it
 /// is still inside that subtree. Parents stay visible so a specific child cannot
 /// hide the topic the request actually named.
@@ -1327,5 +1468,95 @@ mod tests {
         assert_eq!(short.first().map(String::as_str), Some("orders_tracking"));
         assert!(short.iter().any(|id| id == "orders"));
         assert!(short.iter().all(|id| id != "account"));
+    }
+
+    fn menu_fixture() -> Vec<Node> {
+        vec![
+            Node {
+                id: "it".into(),
+                name: "IT".into(),
+                description: "기기 문제".into(),
+                examples: vec![],
+                parent_id: None,
+            },
+            Node {
+                id: "it_net".into(),
+                name: "네트워크".into(),
+                description: "연결 문제".into(),
+                examples: vec![],
+                parent_id: Some("it".into()),
+            },
+            Node {
+                id: "it_net_wifi".into(),
+                name: "와이파이".into(),
+                description: "무선 연결".into(),
+                examples: vec![],
+                parent_id: Some("it_net".into()),
+            },
+            Node {
+                id: "it_net_wifi_drop".into(),
+                name: "끊김".into(),
+                description: "주기적 단절".into(),
+                examples: vec![],
+                parent_id: Some("it_net_wifi".into()),
+            },
+        ]
+    }
+
+    #[test]
+    fn one_shot_menu_names_the_whole_path_and_caps_at_180() {
+        let nodes = menu_fixture();
+        let long = "가".repeat(400);
+        let mut nodes = nodes;
+        nodes[3].description = long;
+        let scope: Vec<String> = nodes.iter().map(|n| n.id.clone()).collect();
+        let (menu, options, allowed) = llm_menu(&nodes, &scope, false);
+        assert_eq!(menu.len(), 4);
+        // 심층 노드는 조상 경로를 함께 보여 준다. 라우터가 위치만 보고 헷갈리지 않게.
+        assert!(
+            menu[3].starts_with("it_net_wifi_drop\tIT / 네트워크 / 와이파이 / 끊김\t"),
+            "{}",
+            menu[3]
+        );
+        // 설명은 180자에서 잘린다. 메뉴가 트리 크기만큼 커지지 않게.
+        assert_eq!(
+            menu[3].chars().count(),
+            "it_net_wifi_drop\tIT / 네트워크 / 와이파이 / 끊김\t"
+                .chars()
+                .count()
+                + 180
+        );
+        assert_eq!(options.len(), 4);
+        assert_eq!(allowed.len(), 4);
+        assert!(
+            !allowed.iter().any(|id| id == "__none__"),
+            "start_node 아래에서는 보류할 수 없다"
+        );
+    }
+
+    #[test]
+    fn one_shot_menu_offers_none_only_for_the_whole_forest() {
+        let nodes = menu_fixture();
+        let scope: Vec<String> = nodes.iter().map(|n| n.id.clone()).collect();
+        let (menu, options, allowed) = llm_menu(&nodes, &scope, true);
+        assert_eq!(
+            menu.last().unwrap(),
+            "__none__\t없음\t어느 주제에도 속하지 않는다."
+        );
+        assert_eq!(
+            options.last().unwrap(),
+            &("__none__".to_string(), "no matching topic".to_string())
+        );
+        assert!(allowed.iter().any(|id| id == "__none__"));
+    }
+
+    #[test]
+    fn one_shot_menu_skips_ids_that_left_the_scope() {
+        let nodes = menu_fixture();
+        let scope = vec!["it_net_wifi_drop".to_string(), "없는노드".to_string()];
+        let (menu, options, allowed) = llm_menu(&nodes, &scope, false);
+        assert_eq!(menu.len(), 1);
+        assert_eq!(options.len(), 1);
+        assert_eq!(allowed, vec!["it_net_wifi_drop".to_string()]);
     }
 }

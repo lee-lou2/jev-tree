@@ -47,8 +47,10 @@ A Jev API key is required. The LLM is optional.
    (`__none__` at the root, `__stop__` deeper) in the light of the full context, and descends.
    Beam search keeps `beam_width` paths, scored by the **geometric mean** of edge probabilities.
    When an LLM base URL, token, and model are all set, routing uses that model instead:
-   the root topic, then one node in a shortlist of that subtree. `__none__` abstains.
-   If any of the three is missing, or the call fails, the Jev beam runs.
+   **one call naming every node in scope**, so no choice is made blind to the rest of the
+   tree. `__none__` abstains; under a `root`/`start_node` the walk stays in that subtree and
+   cannot. Above 800 nodes in scope it falls back to the stepped walk (root topic, then a
+   shortlist below it). If any of the three is missing, or the call fails, the Jev beam runs.
 3. `search` ranks **every active item** under the selected node with Jev (Noul and Score),
    in batches of 32, then keeps `limit`. `ingest` routes a new Q&A through the same descent
    and stores it as `qa`.
@@ -142,16 +144,17 @@ shapes:
 
 | routing | E2E | Hit@1 | ingest | latency p50 |
 |---|---:|---:|---:|---:|
-| Jev beam | 92.1% | 91.3% | 86.8% | **1.7s** |
-| LLM + Jev ranking | **94.0%** | **93.2%** | **94.1%** | 15.1s |
+| Jev beam | 91.9% | 91.2% | 86.8% | **1.7s** |
+| LLM + Jev ranking | **96.6%** | **96.5%** | **97.1%** | 12.6s |
 
 Two things worth knowing before trusting a result:
 
-- **Depth hurts the Jev beam** — flat 97.5% → deep 88.7% routing accuracy, at twice the cost.
-  The LLM router is nearly depth-insensitive.
-- **Where it misses matters more than how often.** The beam misses into a sibling branch and
-  drops the answer out of the candidate pool; the LLM misses by stopping one level too shallow
-  and leaves the answer ranked under an ancestor. Only the first is unrecoverable.
+- **Depth hurts the Jev beam** — flat 97.5% → deep 88.3% routing accuracy, at twice the cost.
+  The LLM router now picks from every node in one call and is nearly depth-insensitive
+  (95.1–98.9% across 1–7 levels).
+- **Where it misses matters more than how often.** A miss sideways (sibling branch) drops the
+  answer out of the candidate pool; a miss upward leaves it ranked under an ancestor and
+  recoverable. Routing accuracy alone does not show this.
 
 Dataset schema, metric definitions, and nine improvement proposals: [`eval/README.md`](eval/README.md).
 
