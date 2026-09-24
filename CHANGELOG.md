@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.0
+
+### Changed
+
+- **Stopping at a node now prefers that node's own items.** A descent that stops at `X` has
+  already decided `X` is the right level of specificity, so `X`'s items win near-ties against
+  items deeper in the subtree (score bonus `LEVEL_BONUS`, only when deeper candidates are
+  actually in the pool). Jev's scores routinely put a deep item 0.015-0.021 above the node's
+  overview item, which was enough to lose the answer to a vague question.
+
+### Fixed
+
+- A vague question that correctly stops at a topic node used to be answered by a more specific
+  item from below it instead of that node's overview. This is the gap the golden set measured
+  as `internal` targets: 56.5% (Jev beam) / 73.9% (LLM routing).
+
 ## 0.5.0
 
 ### Changed
