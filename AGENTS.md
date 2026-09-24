@@ -44,6 +44,8 @@ POST /api/run {mode: search|ingest, root?}
   → engine::descend      virtual root (or forest) → children, beam (default 3), geometric-mean score
   → leaf, __stop__, or __none__
   → search: retrieve that subtree, rank with Noul/Score, assign roles
+        (items ON the chosen node win near-ties against deeper ones — the walk already
+        picked that level of specificity; `LEVEL_BONUS` in `src/engine.rs`)
   → ingest: upsert as draft, or publish when auto_publish is true
 ```
 
