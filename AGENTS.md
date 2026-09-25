@@ -27,6 +27,8 @@ cargo run --release                              # repo root, http://127.0.0.1:8
 cargo test
 cargo clippy --all-targets -- -D warnings
 cargo fmt
+# harness self-check, no key, no cost: scripted evaluator must route and file 100%
+cargo run --release --example eval -- run --mock oracle --router both --variant all
 ```
 
 Working directory must be the repo root: `JEV_TREE_DB`, `JEV_TREE_SEED`, and
@@ -66,9 +68,10 @@ One descent step:
   root topic, then one node in a lexical shortlist of that subtree.
   A missing setting or a failed call uses the Jev beam. Item **ranking** always uses Jev,
   over every active item in the landed subtree, in batches of 32.
-- The lexical heuristic in `src/jev.rs` is test-only. It is not a runtime fallback.
-  It never scores the terminal option's own wording, and a single child with no overlap
-  abstains (`terminal_bar`).
+- The lexical heuristic that pre-0.4 runs fell back to is **gone** (0.6.1). Nothing routes by
+  word overlap at runtime: an unconfigured or failed evaluator call returns an error and the
+  LLM router failing uses the Jev beam. `llm_shortlist` in `src/jev.rs` is lexical, but only
+  builds the candidate menu for the stepped LLM walk above `ONE_SHOT_MAX_NODES`.
 
 Result roles: `recommended` ≥ 0.65, `alternative` ≥ 0.40, else `reference`.
 Top score < 0.30 sets `abstained: true`. `leaf_id: null` means outside the tree.
@@ -110,6 +113,8 @@ Domain and product concepts belong in `data/seed.json` or bootstrap fixtures onl
 7. The taxonomy lives in SQLite. `AppState.nodes` is a cache that `reload_taxonomy` refreshes.
 8. Never commit secrets: `data/.jev-tree.key`, `data/.jev-tree.salt`, `.env`, `data/*.db`.
 9. Keep the UI out of the core and the core out of the UI.
+10. `JevClient::script_choices` and `script_llm` exist for unit tests and the `eval` example's
+    mock router. They are compiled into the binary but unreachable over HTTP. Keep them that way.
 
 ## Auth
 

@@ -69,35 +69,26 @@ impl JevConfig {
 #[derive(Clone)]
 pub struct JevClient {
     client: Client,
-    config: std::sync::Arc<std::sync::RwLock<JevConfig>>,
-    /// Read by the lexical heuristic, which only the unit tests call.
-    #[cfg(test)]
-    nodes: Arc<RwLock<Vec<Node>>>,
-    /// Test-only preferred Choice ids. Empty in production.
+    config: Arc<RwLock<JevConfig>>,
+    /// Test-only preferred Choice ids. Empty in production. Compiled in for the
+    /// `eval` example's mock router; never reachable over HTTP.
     script: Arc<Mutex<Vec<String>>>,
     /// Test-only leaf for [`Self::route`]. `None` means "use the model".
     llm_script: Arc<Mutex<Option<String>>>,
 }
 
 impl JevClient {
-    pub fn with_config(
-        config: JevConfig,
-        nodes: Arc<RwLock<Vec<Node>>>,
-    ) -> Result<Self, reqwest::Error> {
+    pub fn with_config(config: JevConfig) -> Result<Self, reqwest::Error> {
         let client = Client::builder()
             .timeout(Duration::from_secs(20))
             .connect_timeout(Duration::from_secs(5))
             .pool_idle_timeout(Duration::from_secs(60))
             .redirect(reqwest::redirect::Policy::none())
-            .user_agent("jev-tree/0.4")
+            .user_agent(concat!("jev-tree/", env!("CARGO_PKG_VERSION")))
             .build()?;
-        #[cfg(not(test))]
-        let _nodes = nodes;
         Ok(Self {
             client,
-            config: std::sync::Arc::new(std::sync::RwLock::new(config)),
-            #[cfg(test)]
-            nodes,
+            config: Arc::new(RwLock::new(config)),
             script: Arc::new(Mutex::new(Vec::new())),
             llm_script: Arc::new(Mutex::new(None)),
         })
@@ -681,109 +672,6 @@ impl JevClient {
             attempt += 1;
         }
     }
-
-    #[cfg(test)]
-    fn heuristic(&self, state: &Value, questions: &BTreeMap<String, Question>) -> Judgment {
-        let text = state
-            .get("current_request")
-            .or_else(|| state.get("document"))
-            .or_else(|| state.get("conversation"))
-            .and_then(Value::as_str)
-            .unwrap_or("");
-        let query_tokens = tokens(text);
-        let mut answers = BTreeMap::new();
-        for (id, question) in questions {
-            let answer = match question.kind.as_str() {
-                "choice" => {
-                    let criteria = question
-                        .criteria
-                        .as_ref()
-                        .and_then(Value::as_object)
-                        .cloned()
-                        .unwrap_or_default();
-                    let mut children = BTreeMap::new();
-                    let mut terminals = Vec::new();
-                    for (cid, desc) in &criteria {
-                        if cid.starts_with("__") {
-                            terminals.push(cid.clone());
-                            continue;
-                        }
-                        // Score only this choice's label/description. Descendant names
-                        // must not steal a shallower sibling match.
-                        let mut contents = desc.as_str().unwrap_or("").to_string();
-                        if let Ok(nodes) = self.nodes.read()
-                            && let Some(node) = nodes.iter().find(|n| n.id == *cid)
-                        {
-                            contents.push_str(&format!(" {} {}", node.name, node.description));
-                        }
-                        children.insert(cid.clone(), overlap_score(&query_tokens, text, &contents));
-                    }
-                    let bar = terminal_bar(&children);
-                    let mut weights: BTreeMap<String, f64> = children
-                        .into_iter()
-                        .map(|(cid, overlap)| (cid, overlap.exp()))
-                        .collect();
-                    for cid in terminals {
-                        weights.insert(cid, bar.exp());
-                    }
-                    let total: f64 = weights.values().sum();
-                    let probabilities: BTreeMap<String, f64> = weights
-                        .into_iter()
-                        .map(|(k, v)| (k, v / total.max(1e-9)))
-                        .collect();
-                    let choice = probabilities
-                        .iter()
-                        .max_by(|a, b| a.1.total_cmp(b.1))
-                        .map(|(id, _)| id.clone())
-                        .unwrap_or_default();
-                    Answer::Choice {
-                        choice,
-                        probabilities,
-                        confidence: 0.6,
-                    }
-                }
-                kind => {
-                    let item_id = id
-                        .strip_prefix("use_")
-                        .or_else(|| id.strip_prefix("direct_"))
-                        .unwrap_or(id);
-                    let item_text = state
-                        .get("items")
-                        .and_then(Value::as_array)
-                        .and_then(|items| {
-                            items
-                                .iter()
-                                .find(|i| i.get("id").and_then(Value::as_str) == Some(item_id))
-                        })
-                        .map(|item| {
-                            format!(
-                                "{} {}",
-                                item.get("question").and_then(Value::as_str).unwrap_or(""),
-                                item.get("answer").and_then(Value::as_str).unwrap_or("")
-                            )
-                        })
-                        .unwrap_or_default();
-                    let overlap = overlap_score(&query_tokens, text, &item_text);
-                    if kind == "noul" {
-                        Answer::Noul {
-                            noul: (0.25 + 0.18 * overlap).min(0.96),
-                        }
-                    } else {
-                        Answer::Score {
-                            score: (0.4 + 0.4 * overlap).min(2.0),
-                            confidence: 0.6,
-                        }
-                    }
-                }
-            };
-            answers.insert(id.clone(), answer);
-        }
-        Judgment {
-            answers,
-            _model: "heuristic".into(),
-            _usage: Default::default(),
-        }
-    }
 }
 
 fn scripted(questions: &BTreeMap<String, Question>, preferred: &[String]) -> Judgment {
@@ -1182,37 +1070,6 @@ pub fn parse_final_id(content: &str, allowed: &[String]) -> Option<String> {
     None
 }
 
-/// How far the best child must stand out from its siblings before the heuristic descends.
-///
-/// Any value above zero is enough to catch a query that matches nothing, which is the
-/// case that matters most. Swept over 150 sampled seed questions: 0.05/0.10 -> 105 exact
-/// leaves, 0.20 -> 104, 0.35 -> 98 (too eager to stop at broad root descriptions).
-/// 0.20 sits in the flat part of that curve with the most headroom against a single
-/// accidental bigram, which is worth 0.35 on its own.
-#[cfg(test)]
-const TERMINAL_MARGIN: f64 = 0.20;
-
-/// Score the terminal option (`__stop__` / `__none__`) without reading its wording.
-///
-/// It carries a fixed English sentence, so a lexical score would tie the outcome to the
-/// query's alphabet. An absolute threshold fails too: overlap magnitude depends on how
-/// wordy a taxonomy happens to be. What travels across seeds and languages is whether one
-/// child *stands out* from its siblings. If they all look equally (un)related, staying put
-/// is the honest answer.
-#[cfg(test)]
-fn terminal_bar(children: &BTreeMap<String, f64>) -> f64 {
-    if children.len() < 2 {
-        let only = children.values().copied().next().unwrap_or(0.0);
-        // No sibling to compare. Stay put unless this child has some evidence.
-        // A tie used to fall through to the child, so a single root could never abstain.
-        return if only > 0.0 { 0.0 } else { 1.0 };
-    }
-    let mut values: Vec<f64> = children.values().copied().collect();
-    values.sort_by(|a, b| a.total_cmp(b));
-    values.pop();
-    values.iter().sum::<f64>() / values.len() as f64 + TERMINAL_MARGIN
-}
-
 pub fn tokens(text: &str) -> BTreeSet<String> {
     text.to_lowercase()
         .split(|c: char| !c.is_alphanumeric())
@@ -1293,65 +1150,27 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// DB settings are the source of truth; a config built from env is overwritten by them.
     #[test]
-    fn terminal_choice_is_language_neutral() {
-        // The same "nothing fits" query must behave the same in either alphabet: the
-        // terminal option is scored against sibling spread, never on its English wording.
-        let nodes = Arc::new(RwLock::new(Vec::new()));
-        let client = JevClient::with_config(JevConfig::default(), nodes).unwrap();
-        let mut questions = BTreeMap::new();
-        questions.insert(
-            "q".to_string(),
-            Question {
-                kind: "choice".into(),
-                instructions: String::new(),
-                criteria: Some(json!({
-                    "orders": "주문: 배송과 주문 상태",
-                    "account": "계정: 로그인과 비밀번호",
-                    "__none__": "No root topic fits; choose no matching topic.",
-                })),
-            },
-        );
-        for query in ["quantum chromodynamics lattice", "안드로메다 은하까지 거리"] {
-            let judgment = client.heuristic(&json!({ "current_request": query }), &questions);
-            match judgment.answers.get("q") {
-                Some(Answer::Choice { choice, .. }) => {
-                    assert_eq!(choice, "__none__", "{query}")
-                }
-                other => panic!("unexpected answer: {other:?}"),
-            }
-        }
-    }
-
-    #[test]
-    fn single_child_with_no_overlap_abstains() {
-        let nodes = Arc::new(RwLock::new(Vec::new()));
-        let client = JevClient::with_config(JevConfig::default(), nodes).unwrap();
-        let mut questions = BTreeMap::new();
-        questions.insert(
-            "q".to_string(),
-            Question {
-                kind: "choice".into(),
-                instructions: String::new(),
-                criteria: Some(json!({
-                    "products": "상품: 재고와 품질",
-                    "__none__": "No root topic fits; choose no matching topic.",
-                })),
-            },
-        );
-        let miss = client.heuristic(
-            &json!({ "current_request": "안드로메다 은하까지의 거리" }),
-            &questions,
-        );
-        match miss.answers.get("q") {
-            Some(Answer::Choice { choice, .. }) => assert_eq!(choice, "__none__"),
-            other => panic!("unexpected answer: {other:?}"),
-        }
-        let hit = client.heuristic(&json!({ "current_request": "재고 없는 상품" }), &questions);
-        match hit.answers.get("q") {
-            Some(Answer::Choice { choice, .. }) => assert_eq!(choice, "products"),
-            other => panic!("unexpected answer: {other:?}"),
-        }
+    fn db_settings_override_the_config() {
+        let mut config = JevConfig {
+            key: Some("env-key".into()),
+            base_url: "https://api.typesafe.ai".into(),
+            model: "jev-latest".into(),
+            ..JevConfig::default()
+        };
+        config.with_db(&crate::models::AppSettings {
+            jev_api_key: "db-key".into(),
+            llm_base_url: "https://api.openai.com/v1".into(),
+            llm_model: "gpt-4o-mini".into(),
+            ..Default::default()
+        });
+        let (key, base, model) = config.normalized();
+        assert_eq!(key.as_deref(), Some("db-key"));
+        assert_eq!(base, "https://api.typesafe.ai");
+        assert_eq!(model, "jev-latest");
+        assert_eq!(config.llm_model, "gpt-4o-mini");
+        assert_eq!(config.llm_base_url, "https://api.openai.com/v1");
     }
 
     #[test]

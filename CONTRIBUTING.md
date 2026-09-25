@@ -20,7 +20,7 @@ The default bind is loopback — use `JEV_TREE_BIND=0.0.0.0` only on purpose.
 - Descent, stay, and ranking belong in `src/engine.rs`. Cover them with a test that
   drives `JevClient::script_choices`, not a live key.
 - Jev and the optional LLM are called only from `src/jev.rs`. A run without a Jev key
-  returns 400. Do not route that case through the lexical heuristic.
+  returns 400. Do not add a lexical fallback for that case.
 - A route change must update `static/openapi.json` and `docs/api.md` in the same commit.
   A test compares the spec's path set with the router.
 - `POST /api/seed` keeps its `{"confirm":"RESET"}` guard.

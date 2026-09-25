@@ -134,7 +134,7 @@ pub fn build_state(
         jev_config.with_db(&settings);
     }
     Ok(AppState {
-        jev: JevClient::with_config(jev_config, nodes.clone())?,
+        jev: JevClient::with_config(jev_config)?,
         store,
         nodes,
     })

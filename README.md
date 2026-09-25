@@ -111,8 +111,9 @@ JEV_TREE_BIND=0.0.0.0 JEV_TREE_INIT_SERVER_KEY=<6+ chars> cargo run --release
 ```
 
 `POST /api/seed` deletes every category and item. Never point it at a live database.
-The bundled `Dockerfile` follows the same rules. More in
-[`AGENTS.md`](AGENTS.md#deployment-safety).
+The bundled `Dockerfile` follows the same rules: non-root user, `ca-certificates` installed
+so outbound TLS verifies against the system trust store, and `SIGTERM` (`docker stop`) drains
+in-flight runs the same way Ctrl-C does. More in [`AGENTS.md`](AGENTS.md#deployment-safety).
 
 ## Status
 
