@@ -1,8 +1,8 @@
 [package]
 name = "jev-tree"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2024"
-rust-version = "1.89"
+rust-version = "1.98"
 authors = ["lee-lou2 <lee@lou2.kr>"]
 description = "Hierarchical knowledge service: Jev-driven tree descent over SQLite"
 license = "MIT"

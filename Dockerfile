@@ -1,11 +1,16 @@
-FROM rust:1.89-bookworm AS build
+FROM rust:1.98-bookworm AS build
 WORKDIR /src
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY src ./src
 RUN cargo build --release --locked
 
 FROM debian:bookworm-slim
-RUN useradd --system --home /var/lib/jev-tree --create-home jev
+# ca-certificates is not in slim, and the server verifies TLS to TypeSafe and the
+# optional LLM host with the system trust store (rustls-native-certs).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --home /var/lib/jev-tree --create-home jev
 WORKDIR /var/lib/jev-tree
 COPY --from=build /src/target/release/jev-tree /usr/local/bin/jev-tree
 COPY data/seed.json /opt/jev-tree/data/seed.json

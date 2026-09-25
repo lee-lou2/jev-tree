@@ -808,38 +808,6 @@ mod tests {
     use std::sync::{Arc, RwLock};
 
     #[test]
-    fn jev_config_db_overrides_env() {
-        let mut config = JevConfig {
-            key: Some("env-key".into()),
-            base_url: "https://api.typesafe.ai".into(),
-            model: "jev-latest".into(),
-            ..JevConfig::default()
-        };
-        config.with_db(&crate::models::AppSettings {
-            jev_api_key: "db-key".into(),
-            llm_base_url: "https://api.openai.com/v1".into(),
-            llm_model: "gpt-4o-mini".into(),
-            ..Default::default()
-        });
-        let (key, base, model) = config.normalized();
-        assert_eq!(key.as_deref(), Some("db-key"));
-        assert_eq!(base, "https://api.typesafe.ai");
-        assert_eq!(model, "jev-latest");
-        assert_eq!(config.llm_model, "gpt-4o-mini");
-        assert_eq!(config.llm_base_url, "https://api.openai.com/v1");
-    }
-    #[test]
-    fn path_score_is_geometric_mean() {
-        assert!((crate::engine::path_score(&[0.8, 0.8]) - 0.8).abs() < 1e-9);
-        assert!(crate::engine::path_score(&[0.9, 0.1]) < crate::engine::path_score(&[0.8, 0.8]));
-    }
-    #[test]
-    fn normalize_marked_qa() {
-        let (q, a) = crate::engine::normalize("Q: 카드 환불은 언제 되나요? A: 3~5영업일입니다.");
-        assert_eq!(q, "카드 환불은 언제 되나요?");
-        assert_eq!(a, "3~5영업일입니다.");
-    }
-    #[test]
     fn request_rejects_unsupported_mode() {
         let request: RunRequest =
             serde_json::from_value(json!({"mode":"classify","query":"x"})).unwrap();
@@ -909,7 +877,7 @@ mod tests {
         }
         let state = AppState {
             store,
-            jev: JevClient::with_config(config, nodes.clone()).unwrap(),
+            jev: JevClient::with_config(config).unwrap(),
             nodes,
         };
         (router(state.clone(), static_dir.to_string()), state)

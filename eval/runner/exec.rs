@@ -553,9 +553,8 @@ impl Engine {
         let nodes = Arc::new(RwLock::new(
             store.load_taxonomy().map_err(|e| e.to_string())?,
         ));
-        let shared =
-            JevClient::with_config(settings.creds.jev_config(settings.router), nodes.clone())
-                .map_err(|e| e.to_string())?;
+        let shared = JevClient::with_config(settings.creds.jev_config(settings.router))
+            .map_err(|e| e.to_string())?;
         Ok(Engine {
             store,
             nodes,
@@ -574,8 +573,8 @@ impl Engine {
         let jev = match settings.mock {
             Mock::Off => self.shared.clone(),
             mock => {
-                let client = JevClient::with_config(JevConfig::default(), self.nodes.clone())
-                    .map_err(|e| e.to_string())?;
+                let client =
+                    JevClient::with_config(JevConfig::default()).map_err(|e| e.to_string())?;
                 if kind == "contract" {
                     // Pass the key gate; contract errors happen before any evaluator call.
                     client.script_choices(vec!["__none__".into()]);

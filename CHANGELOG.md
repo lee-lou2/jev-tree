@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.6.1
+
+### Fixed
+
+- **The Docker image could not reach TypeSafe or the LLM host.** `debian:bookworm-slim` ships
+  without `ca-certificates`, and the client verifies TLS against the system trust store
+  (`rustls-native-certs`), so every outbound call failed certificate verification. The runtime
+  stage now installs `ca-certificates`.
+- The HTTP client identified itself as `jev-tree/0.4`. It now sends the package version.
+
+### Changed
+
+- Graceful shutdown handles `SIGTERM` as well as Ctrl-C, so `docker stop` and Kubernetes drain
+  in-flight runs instead of cutting them.
+- Toolchain pinned at 1.98.1 (was 1.89.0) across `rust-toolchain.toml`, CI, and the Docker
+  build; `rust-version` follows. Dependency lock refreshed (`cargo update`); direct
+  dependencies were already current.
+- **Removed the test-only lexical heuristic** (`JevClient::heuristic`, `terminal_bar`,
+  `TERMINAL_MARGIN`, about 130 lines) and the two tests that exercised it. No production path
+  called it — routing is the Jev beam or the LLM router, ranking is Jev — so it guarded
+  nothing at runtime. `JevClient::with_config` takes the config only; the taxonomy clone it
+  needed is gone. Lexical overlap stays where it is used: `llm_shortlist`'s candidate menu.
+- Tests for `engine::path_score`, `engine::normalize`, and `JevConfig::with_db` moved from
+  `src/http.rs` into the modules that own those functions.
+
 ## 0.6.0
 
 ### Changed

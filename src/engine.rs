@@ -17,8 +17,8 @@ pub async fn execute(
     request: RunRequest,
     sender: Option<mpsc::Sender<Value>>,
 ) -> Result<Value, Error> {
-    // Tests pin the router or the beam. A real run needs a Jev key: the lexical
-    // heuristic is not a stand-in, and the optional LLM is only a router on top.
+    // Tests pin the router or the beam. A real run needs a Jev key: nothing is
+    // routed without one, and the optional LLM is only a router on top.
     if !state.jev.choice_scripted() && !state.jev.llm_pinned() && !state.jev.key_set() {
         return Err(Error::BadRequest(
             "Jev API key is required. Add it in Settings → Models.".into(),
@@ -969,7 +969,7 @@ mod tests {
         let store = Store::open(db.to_str().unwrap(), seed.to_str().unwrap()).unwrap();
         let nodes = Arc::new(RwLock::new(store.load_taxonomy().unwrap()));
         let state = AppState {
-            jev: JevClient::with_config(JevConfig::default(), nodes.clone()).unwrap(),
+            jev: JevClient::with_config(JevConfig::default()).unwrap(),
             store,
             nodes,
         };
@@ -1258,6 +1258,21 @@ mod tests {
     }
 
     #[test]
+    fn path_score_is_geometric_mean() {
+        // Two edges at 0.8 stay at 0.8; one bad edge must drag the path below a
+        // steady one. Depth itself must not change the scale.
+        assert!((path_score(&[0.8, 0.8]) - 0.8).abs() < 1e-9);
+        assert!(path_score(&[0.9, 0.1]) < path_score(&[0.8, 0.8]));
+    }
+
+    #[test]
+    fn normalize_marked_qa() {
+        let (q, a) = normalize("Q: 카드 환불은 언제 되나요? A: 3~5영업일입니다.");
+        assert_eq!(q, "카드 환불은 언제 되나요?");
+        assert_eq!(a, "3~5영업일입니다.");
+    }
+
+    #[test]
     fn context_keeps_object_turns() {
         let rendered = render_context(
             "지금 뭐 해야 하나요?",
@@ -1302,7 +1317,7 @@ mod tests {
         let store = Store::open(db.to_str().unwrap(), seed.to_str().unwrap()).unwrap();
         let nodes = Arc::new(RwLock::new(store.load_taxonomy().unwrap()));
         let state = AppState {
-            jev: JevClient::with_config(JevConfig::default(), nodes.clone()).unwrap(),
+            jev: JevClient::with_config(JevConfig::default()).unwrap(),
             store,
             nodes,
         };
