@@ -35,7 +35,7 @@ A Jev API key is required. The LLM is optional.
 | Missing | Effect |
 |---|---|
 | Jev API key | Search and ingest return 400. `GET /api/health` → `evaluator` is `unconfigured` |
-| LLM base, token, or model | Routing stays on the Jev beam. A failed LLM call does the same |
+| LLM base, token, or model | Routing stays on Jev: one flat choice over every node in scope. A failed LLM call does the same |
 | Login password | Open mode: every endpoint is reachable without a token |
 
 ## How it works
@@ -43,18 +43,22 @@ A Jev API key is required. The LLM is optional.
 1. Knowledge lives in a taxonomy tree. `/` is the forest; `/products` (then
    `/products/products_stock`, …) makes that child the page root. Search and ingest
    stay inside it. Settings and keys do not.
-2. At each node Jev compares the **direct children** plus one terminal option
-   (`__none__` at the root, `__stop__` deeper) in the light of the full context, and descends.
-   Beam search keeps `beam_width` paths, scored by the **geometric mean** of edge probabilities.
-   When an LLM base URL, token, and model are all set, routing uses that model instead:
-   **one call naming every node in scope**, so no choice is made blind to the rest of the
-   tree. `__none__` abstains; under a `root`/`start_node` the walk stays in that subtree and
-   cannot. Above 800 nodes in scope it falls back to the stepped walk (root topic, then a
-   shortlist below it). If any of the three is missing, or the call fails, the Jev beam runs.
+2. Routing is **one Jev choice over every node in scope** — no level-by-level guessing,
+   so no choice is made blind to the rest of the tree and one wrong level cannot lose the
+   leaf. `__none__` abstains; under a `root`/`start_node` the walk stays in that subtree
+   and cannot. Above 800 nodes in scope the menu falls back to lexical recall and, without
+   lexical evidence, to the **beam**: direct children plus one terminal option (`__none__`
+   at the root, `__stop__` deeper), `beam_width` paths scored by the **geometric mean** of
+   edge probabilities. When an LLM base URL, token, and model are all set, routing uses
+   that model instead — also **one call naming every node in scope**. Above 800 nodes it
+   falls back to the stepped walk (root topic, then a shortlist below it). If any of the
+   three is missing, or the call fails, Jev routes.
 3. `search` ranks **every active item** under the selected node with Jev (Noul and Score),
    in batches of 32, then keeps `limit`. `ingest` routes a new Q&A through the same descent
    and stores it as `qa`.
-4. A beam `trace` has per-depth candidates and probabilities. An LLM route lists the options
+4. A flat `trace` lists the candidates with probabilities; `trace.score` is the chosen
+   probability and per-edge `probability` is null. A beam `trace` has per-depth candidates
+   and probabilities. An LLM route lists the options
    it was shown and leaves `probability` and `trace.score` null. It does not write `1.0`.
 
 Read a search result by role, never by `items[0]`:
@@ -123,8 +127,8 @@ contract, scripted-evaluator descent, taxonomy validation, secret handling, and 
 startup guards.
 
 The UI and `/docs` make no external requests: no CDN, no web fonts, no analytics.
-CI does not call Jev. Scripted tests cover descent, the full-subtree ranking pool,
-the missing-key error, and an LLM failure falling back to the beam.
+CI does not call Jev. Scripted tests cover routing, descent, the full-subtree ranking pool,
+the missing-key error, and an LLM failure falling back to Jev routing.
 
 Known gaps are tracked in [`AGENTS.md`](AGENTS.md#known-gaps). Read them before trusting a result.
 
@@ -140,19 +144,22 @@ cargo run --release --example eval -- validate --strict        # dataset check, 
 cargo run --release --example eval -- run --router both --variant all
 ```
 
-Measured baseline (`jev-latest`; `gpt-6-luna` routes the category in `jev_llm`) over 5 tree
-shapes:
+Measured on the `standard` tree (`jev-latest`; `gpt-6-luna` routes the category in
+`jev_llm`. `jev` row: run `20260926-215730-jev`. `jev_llm` row: `20260924-073815`):
 
 | routing | E2E | Hit@1 | ingest | latency p50 |
 |---|---:|---:|---:|---:|
-| Jev beam | 92.1% | 91.5% | 86.8% | **1.7s** |
+| Jev, one flat choice | 96.8% | 97.1% | 91.2% | **0.5s** |
 | LLM + Jev ranking | **98.2%** | **97.9%** | **94.1%** | 12.6s |
 
 Three things worth knowing before trusting a result:
 
-- **Depth hurts the Jev beam** — flat 97.0% → 88.7–89.2% routing accuracy across 2–7 levels,
-  at twice the cost. The LLM router picks from every node in one call and is nearly
-  depth-insensitive (95.1–97.8%).
+- **Routing is one Jev choice over every node in scope, not a level-by-level beam.** The
+  beam lost a leaf as soon as one level guessed wrong, and the loss grew with depth
+  (routing accuracy 88.7–89.2% on 2–7 levels). The flat choice is depth-insensitive
+  (93.0–97.0%) and halves the evaluator calls (4.4 → 2.2 per case) and the latency
+  (p50 1.0s → 0.5s). Measured against the beam baseline: E2E +4.0%p on `deep`
+  (McNemar p=0.0005), +4.7%p on `standard` (p<0.0001), Hit@1 +5.6%p on `standard`.
 - **Where it misses matters more than how often.** A miss sideways (sibling branch) drops the
   answer out of the candidate pool; a miss upward leaves it ranked under an ancestor and
   recoverable. Routing accuracy alone does not show this.

@@ -1018,9 +1018,7 @@ mod tests {
                 .contains("Jev API key")
         );
 
-        state
-            .jev
-            .script_choices(vec!["orders".into(), "orders_tracking".into()]);
+        state.jev.script_choices(vec!["orders_tracking".into()]);
         let (status, search) = send(
             &app,
             json_req(
@@ -1033,7 +1031,7 @@ mod tests {
         .await;
         assert_eq!(status, axum::http::StatusCode::OK, "{search}");
         assert_eq!(search["leaf_id"], "orders_tracking");
-        assert_eq!(search["trace"]["router"], "beam");
+        assert_eq!(search["trace"]["router"], "flat");
         assert!(search["items"].as_array().unwrap().iter().any(|row| {
             row["item"]["answer"]
                 .as_str()
