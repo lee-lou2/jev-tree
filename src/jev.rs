@@ -963,7 +963,7 @@ pub fn llm_menu(
 
 /// Above this many nodes in scope the one-shot menu stops being cheap, and the
 /// stepped walk (root topic, then a lexical shortlist below it) takes over.
-const ONE_SHOT_MAX_NODES: usize = 800;
+pub const ONE_SHOT_MAX_NODES: usize = 800;
 
 /// Top lexical matches inside `root`'s subtree, plus each match's parent when it
 /// is still inside that subtree. Parents stay visible so a specific child cannot

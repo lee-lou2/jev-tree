@@ -154,7 +154,7 @@
           },
           "probability": {
             "type": ["number", "null"],
-            "description": "Beam edge probability. Null on an LLM route."
+            "description": "Beam edge probability. Null on a flat choice or an LLM route."
           },
           "confidence": {
             "type": [
@@ -249,7 +249,7 @@
           },
           "score": {
             "type": ["number", "null"],
-            "description": "Geometric mean along a beam. Null on an LLM route."
+            "description": "Geometric mean along a beam. On a flat choice it is the chosen probability. Null on an LLM route."
           }
         }
       },
@@ -264,8 +264,8 @@
           },
           "router": {
             "type": "string",
-            "enum": ["beam", "llm"],
-            "description": "beam: Jev walked the tree. llm: the optional model picked the node."
+            "enum": ["flat", "beam", "llm"],
+            "description": "flat: one Jev choice over every node in scope (default). beam: Jev walked the tree level by level, used only when the scope is too large to name in one call. llm: the optional model picked the node."
           },
           "steps": {
             "type": "array",
@@ -281,7 +281,7 @@
           },
           "score": {
             "type": ["number", "null"],
-            "description": "Null on an LLM route."
+            "description": "Chosen probability on a flat choice. Null on an LLM route."
           },
           "final_beams": {
             "type": "array",
@@ -1062,7 +1062,7 @@
     "/api/run": {
       "post": {
         "summary": "Search or ingest (JSON)",
-        "description": "Text 1-8000 chars. A Jev API key is required (400 invalid_request without one). search: read role, not position. ingest without auto_publish = draft (published_id null, kind qa). When llm_base_url, llm_token, and llm_model are all set, that model chooses the category; a missing setting or a failed call uses the Jev beam. Ranking always uses Jev, over every active item in the landed subtree.",
+        "description": "Text 1-8000 chars. A Jev API key is required (400 invalid_request without one). search: read role, not position. ingest without auto_publish = draft (published_id null, kind qa). When llm_base_url, llm_token, and llm_model are all set, that model chooses the category; a missing setting or a failed call keeps Jev routing: one choice over every node in scope, with the level-by-level beam only when the scope is too large to name in one call. Ranking always uses Jev, over every active item in the landed subtree.",
         "responses": {
           "200": {
             "description": "OK",

@@ -531,7 +531,11 @@ fn oracle_script(variant: &Variant, node: Option<&str>) -> Vec<String> {
     match node {
         None => vec!["__none__".into()],
         Some(id) => {
+            // Most specific first: the one-shot menu picks the first scripted id
+            // it finds in the criteria, and that must be the expected node. The
+            // stepped walk still works — each round takes the first id it sees.
             let mut script = variant.chain(id);
+            script.reverse();
             if !variant.is_leaf(id) {
                 script.push("__stop__".into());
             }

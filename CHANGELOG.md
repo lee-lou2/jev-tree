@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.7.0
+
+### Changed
+
+- **Jev routing is one choice over every node in scope**, not a level-by-level beam.
+  The beam guessed a path from the root down and one wrong level lost the leaf; the
+  loss grew with depth (routing accuracy 88.7–89.2% on 2–7 level trees). One choice
+  removes the cascade and the round trips. `__none__` competes with every node, so an
+  out-of-scope request abstains at any depth. Under `root`/`start_node` the walk stays
+  in that subtree and must land on a node there. Above `ONE_SHOT_MAX_NODES` (800) nodes
+  in scope the menu falls back to lexical recall and, without lexical evidence, to the
+  beam (`trace.router` is `flat`, `beam`, or `llm`).
+- Measured on the golden set (`eval/`, `--router jev`, 2,404 cases, 0 errors) against the
+  beam baseline: E2E **+4.0%p on `deep`** (McNemar p=0.0005), **+4.7%p on `standard`**
+  (p<0.0001), +2.5%p on `sparse`; Hit@1 +5.0–9.4%p. Latency p50 1.0s → **0.5s** and
+  Jev calls 4.4 → **2.2** per case. The gap to LLM routing (`jev_llm`, gpt-6-luna) on
+  `standard` E2E narrows from +6.1%p to **+1.4%p**, at 0.5s versus 12.6s.
+- A flat trace lists the candidates with probabilities and puts the chosen probability
+  in `trace.score`; per-edge `probability` stays null.
+- The eval mock oracle scripts most-specific-first, so the one-shot menu and the stepped
+  walk both see the expected node first (`eval/runner/exec.rs`).
+
 ## 0.6.1
 
 ### Fixed

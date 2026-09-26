@@ -43,7 +43,8 @@ and `docs/api.md` in the same commit; a test asserts the path set matches the ro
 
 ```
 POST /api/run {mode: search|ingest, root?}
-  → engine::descend      virtual root (or forest) → children, beam (default 3), geometric-mean score
+  → engine::flat_route   virtual root (or forest) → every node in scope + __none__, one Jev choice
+  → engine::descend      beam fallback for scopes too large to name in one call
   → leaf, __stop__, or __none__
   → search: retrieve that subtree, rank with Noul/Score, assign roles
         (items ON the chosen node win near-ties against deeper ones — the walk already
@@ -51,7 +52,17 @@ POST /api/run {mode: search|ingest, root?}
   → ingest: upsert as draft, or publish when auto_publish is true
 ```
 
-One descent step:
+The default route is **one Jev choice** (`flat_route`):
+
+- The menu is **every node in the scope**, so a perfect evaluator always sees the right
+  node and a request may arrive in any script. `__none__` competes at a forest walk
+  ("nothing fits"). A walk that already has a `start_node`/scoped landing has no terminal:
+  the start node itself is a candidate, and picking a parent is how the walk stays there.
+- Above `ONE_SHOT_MAX_NODES` (800) nodes the menu falls back to lexical recall (strongest
+  matches, a per-root quota, full ancestor chains), and below `FLAT_MIN_EVIDENCE` the
+  semantic beam below runs instead.
+
+The beam fallback descends level by level:
 
 - Candidates are the node's **direct children** plus one terminal option:
   `__none__` at the root ("nothing fits"), `__stop__` deeper ("stay here").
@@ -66,12 +77,13 @@ One descent step:
   under a `root`/`start_node` the walk stays in that subtree and must land on a node there.
   Above `ONE_SHOT_MAX_NODES` (800) nodes in scope it falls back to the stepped walk: the
   root topic, then one node in a lexical shortlist of that subtree.
-  A missing setting or a failed call uses the Jev beam. Item **ranking** always uses Jev,
-  over every active item in the landed subtree, in batches of 32.
-- The lexical heuristic that pre-0.4 runs fell back to is **gone** (0.6.1). Nothing routes by
-  word overlap at runtime: an unconfigured or failed evaluator call returns an error and the
-  LLM router failing uses the Jev beam. `llm_shortlist` in `src/jev.rs` is lexical, but only
-  builds the candidate menu for the stepped LLM walk above `ONE_SHOT_MAX_NODES`.
+  A missing setting or a failed call keeps Jev routing (flat choice first). Item
+  **ranking** always uses Jev, over every active item in the landed subtree, in batches
+  of 32.
+- The lexical heuristic that pre-0.4 runs fell back to is **gone** (0.6.1). Nothing routes
+  by word overlap at runtime. Word overlap only builds candidate menus: the stepped LLM
+  walk above `ONE_SHOT_MAX_NODES` (`llm_shortlist` in `src/jev.rs`) and the flat route's
+  recall menu on scopes too large to name (`recall_candidates` in `src/engine.rs`).
 
 Result roles: `recommended` ≥ 0.65, `alternative` ≥ 0.40, else `reference`.
 Top score < 0.30 sets `abstained: true`. `leaf_id: null` means outside the tree.
@@ -150,7 +162,7 @@ Verified against the current code. Do not assume the rest of this document hides
 
 | Severity | Issue |
 |---|---|
-| Low | Above 800 nodes in scope the LLM router falls back to a stepped walk over a lexical shortlist of 20 nodes plus their parents, where a node whose wording shares nothing with the request can be skipped. Smaller scopes pick from every node in one call. A failed or unconfigured LLM call uses the Jev beam, which scores every sibling. |
+| Low | Above 800 nodes in scope both routers stop seeing the whole tree: the LLM router falls back to a stepped walk over a lexical shortlist of 20 nodes plus their parents, and the flat Jev menu falls back to a recall shortlist (strongest matches, a per-root quota, full ancestor chains). A node whose wording shares nothing with the request can be skipped; below `FLAT_MIN_EVIDENCE` the beam runs instead, which scores every sibling. Smaller scopes pick from every node in one call. |
 | Low | Ranking loads every active row in the landed subtree and scores it with Jev in batches of 32. Fine at seed scale (largest subtree 187 items). Not a plan for tens of thousands of rows under one node. |
 | Low | A degraded Jev call still makes up to three attempts (the first try and two retries) before the run deadline trips. |
 

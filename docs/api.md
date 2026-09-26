@@ -61,7 +61,7 @@ The only endpoint most integrations need.
 | `context` | array | `[]` | Prior turns, max 32. Strings or `{"role","text"}` objects |
 | `start_node` | string \| null | `null` | Optional forced start; unknown id is 400. Must sit under `root` when both are set |
 | `root` | string \| null | `null` | Virtual tree: slash-separated child keys (`products`, `products/products_stock`). Each segment is a **direct child** of the previous node (forest roots at the first step), matched by id then name. Unknown path is 404. Settings and keys ignore this |
-| `beam_width` | int | `3` | 1–5 |
+| `beam_width` | int | `3` | 1–5. Beam only; the default flat route does not beam |
 | `limit` | int | `8` | 1–20 ranked items |
 | `auto_publish` | bool | `false` | Ingest only. `false` stores a draft |
 | `item_id` + `expected_version` | string + int | — | Target an existing row; supply both or neither |
@@ -102,9 +102,19 @@ to `reference` — do not answer from them. A `candidate` with `id: null` is the
 choice (`__stop__` / `__none__`).
 
 Jev scores every active item in the landed subtree, 32 items per call, then `limit` is
-applied. A beam trace fills `probability` and `trace.score`. An LLM route
-(`trace.router` is `llm`) lists the options that call was shown and leaves
-`probability`, `confidence`, and `trace.score` null.
+applied. `trace.router` says who picked the node:
+
+| `router` | who picked the node | what the trace carries |
+|---|---|---|
+| `flat` (default) | one Jev choice over every node in scope, `__none__` included | `steps[0].candidates` carries probabilities, `trace.score` is the chosen probability, per-edge `probability` is null |
+| `beam` | Jev walked the tree level by level (`beam_width` paths), used only when the scope is too large to name in one call | per-depth `candidates`; `probability` and `trace.score` filled (geometric mean of edge probabilities) |
+| `llm` | the optional model | lists the options that call was shown and leaves `probability`, `confidence`, and `trace.score` null |
+
+The flat menu is **every node in the walk**, so the evaluator judges meaning even when
+the request shares no characters with the taxonomy. A walk with `start_node` (or a scoped
+root) picks inside that subtree only and has no `__none__`; the forest walk can abstain.
+Above `ONE_SHOT_MAX_NODES` (800) nodes in scope the menu falls back to lexical recall
+and, without lexical evidence, to the beam.
 
 ### `mode: "ingest"`
 
@@ -184,7 +194,7 @@ Project-wide. `root` / URL path never scopes them.
 | `site_name` / `site_description` | ≤ 60 / ≤ 200 characters |
 | `site_logo` | PNG/JPEG/SVG/WebP data URL ≤ 500 KB, or `null` to clear |
 | `jev_api_key` | Required. Search, ingest, and ranking use it. `""` clears it; runs then return 400 and `evaluator` becomes `unconfigured` |
-| `llm_base_url` / `llm_token` / `llm_model` | Optional. When all three are set, search and ingest **route** with this model: one call picks a node from every node in scope (`__none__` abstains). A `root` or `start_node` keeps the walk inside that subtree, where it must land on a node and cannot abstain. Above 800 nodes in scope it falls back to two calls: the root topic, then a node inside that subtree. Clearing any of the three, or any failed call, uses the Jev beam. Item ranking always uses Jev. The same credentials list models. |
+| `llm_base_url` / `llm_token` / `llm_model` | Optional. When all three are set, search and ingest **route** with this model: one call picks a node from every node in scope (`__none__` abstains). A `root` or `start_node` keeps the walk inside that subtree, where it must land on a node and cannot abstain. Above 800 nodes in scope it falls back to two calls: the root topic, then a node inside that subtree. Clearing any of the three, or any failed call, keeps Jev routing (flat choice; beam only above the one-shot menu limit). Item ranking always uses Jev. The same credentials list models. |
 | `server_key` | Login password, ≥ 6 characters; `""` turns login off (open mode) |
 
 In the UI, Jev and LLM settings live under **Settings → Models**. The login password and
