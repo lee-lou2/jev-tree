@@ -142,8 +142,9 @@ Domain and product concepts belong in `data/seed.json` or bootstrap fixtures onl
 The Jev API key and the LLM token are different things, and both belong with models.
 The login password and integration API keys belong with the server. The Jev key is
 required. The LLM base URL, token, and model route search/ingest when all three are
-set, and they list models. If any of them is missing, or the call fails, the Jev beam
-runs. Item ranking always posts to TypeSafe System One.
+set, and they list models. If any of them is missing, or the call fails, Jev routes
+(flat choice first; the beam only above the one-shot menu limit). Item ranking always
+posts to TypeSafe System One.
 
 ## Deployment safety
 
