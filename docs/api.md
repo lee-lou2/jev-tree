@@ -74,7 +74,7 @@ Combined text must be 1–8000 characters.
 {
   "query": "my parcel is stuck at customs",
   "leaf_id": "orders_tracking",          // null = outside the tree, items is empty
-  "abstained": false,                    // true = top score < 0.30, answer "I don't know"
+  "abstained": false,                    // true = the best item is weak (score < 0.45, or < 0.30 with directness < 1.0), answer "I don't know"
   "path": [{"id": "orders", "name": "Orders", "probability": 0.47, "confidence": 0.6}],
   "items": [{
     "item": {"id": "1", "category_id": "orders_tracking", "question": "...", "answer": "...",
@@ -106,7 +106,7 @@ applied. `trace.router` says who picked the node:
 
 | `router` | who picked the node | what the trace carries |
 |---|---|---|
-| `flat` (default) | one Jev choice over every node in scope, `__none__` included | `steps[0].candidates` carries probabilities, `trace.score` is the chosen probability, per-edge `probability` is null |
+| `flat` (default) | one Jev choice over every node in scope, `__none__` included | `steps[0].candidates` carries probabilities, `trace.score` is the chosen probability, per-edge `probability` is null. An uncertain pick adds a `steps[1]` scope judgment that can hold the request |
 | `beam` | Jev walked the tree level by level (`beam_width` paths), used only when the scope is too large to name in one call | per-depth `candidates`; `probability` and `trace.score` filled (geometric mean of edge probabilities) |
 | `llm` | the optional model | lists the options that call was shown and leaves `probability`, `confidence`, and `trace.score` null |
 

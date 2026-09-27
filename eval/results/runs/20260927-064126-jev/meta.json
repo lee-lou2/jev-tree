@@ -1,0 +1,49 @@
+{
+  "beam_width": "case/default",
+  "cases": 525,
+  "command": "run --router jev --variant all --note repeat of the calibration run (stability)",
+  "concurrency": 4,
+  "dataset": {
+    "cases_hash": "b2a362fcd60d",
+    "kb_hash": "489e5fca3c7c",
+    "name": "kb",
+    "version": "1.0.0"
+  },
+  "filter": "",
+  "finished_at": "2026-09-27T06:47:17Z",
+  "git": {
+    "dirty": true,
+    "sha": "ef481c7"
+  },
+  "limit": "case/default",
+  "mock": "off",
+  "models": {
+    "jev": {
+      "credentials": "env",
+      "jev_base_url": "https://api.typesafe.ai",
+      "jev_model": "jev-latest",
+      "llm_base_url": null,
+      "llm_model": null
+    }
+  },
+  "note": "repeat of the calibration run (stability)",
+  "repeat": 1,
+  "routers": [
+    "jev"
+  ],
+  "run_id": "20260927-064126-jev",
+  "split": "all",
+  "started_at": "2026-09-27T06:41:26Z",
+  "suites": [
+    "all"
+  ],
+  "timeout_secs": 120,
+  "variants": [
+    "deep",
+    "standard",
+    "shallow",
+    "flat",
+    "sparse"
+  ],
+  "verify_draft_search": false
+}
