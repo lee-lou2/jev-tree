@@ -1,0 +1,46 @@
+{
+  "beam_width": "case/default",
+  "cases": 525,
+  "command": "run --router jev_llm --variant deep,standard --settings-db /Users/jake/dev/ai/jev-tree/data/demo.db --note jev_llm with DB-registered LLM (muse-spark)",
+  "concurrency": 4,
+  "dataset": {
+    "cases_hash": "b2a362fcd60d",
+    "kb_hash": "489e5fca3c7c",
+    "name": "kb",
+    "version": "1.0.0"
+  },
+  "filter": "",
+  "finished_at": "2026-09-27T07:20:02Z",
+  "git": {
+    "dirty": true,
+    "sha": "ef481c7"
+  },
+  "limit": "case/default",
+  "mock": "off",
+  "models": {
+    "jev_llm": {
+      "credentials": "db:/Users/jake/dev/ai/jev-tree/data/demo.db",
+      "jev_base_url": "https://api.typesafe.ai",
+      "jev_model": "jev-latest",
+      "llm_base_url": "https://proxy.zvzo.ai/v1",
+      "llm_model": "meta/muse-spark-1.3-contributor"
+    }
+  },
+  "note": "jev_llm with DB-registered LLM (muse-spark)",
+  "repeat": 1,
+  "routers": [
+    "jev_llm"
+  ],
+  "run_id": "20260927-064735-jev_llm",
+  "split": "all",
+  "started_at": "2026-09-27T06:47:35Z",
+  "suites": [
+    "all"
+  ],
+  "timeout_secs": 120,
+  "variants": [
+    "deep",
+    "standard"
+  ],
+  "verify_draft_search": false
+}

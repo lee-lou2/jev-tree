@@ -135,7 +135,13 @@ pub async fn execute(
             sender.clone(),
         )
         .await?;
-        let abstained = ranked.first().map(|item| item.score < 0.30).unwrap_or(true);
+        let abstained = ranked
+            .first()
+            .map(|item| {
+                item.score < RANK_MIN_SCORE
+                    && !(item.score >= RANK_GRAY_ZONE && item.directness >= RANK_DIRECT_MIN)
+            })
+            .unwrap_or(true);
         let items = if abstained {
             ranked
                 .into_iter()
@@ -529,6 +535,136 @@ const FLAT_RULES: &str = "요청을 가장 정확히 담을 분류 하나를 고
 
 const FLAT_NONE: &str = "어느 분류에도 속하지 않음 — 요청이 이 분류들이 다루는 주제에 대한 문의가 아님(사이트 자체에 대한 일반 질문, 인사, 잡담, 완전히 다른 주제). 주제에 대한 문의라면 절대 고르지 마세요";
 
+/// Search holds rather than answers when the best item is weak. A score of 0.45
+/// or more answers outright; below that only a *direct* item answers (directness
+/// ≥ 1.0), and anything weaker is held. Swept over the golden set's 2,102 search
+/// cases: end-to-end +0.9pp with **no variant regressing** (deep +0.2, standard
+/// +0.2, shallow +0.5, flat 0.0, sparse +3.4), false answers 62 → 41 against
+/// false holds 10 → 14. Stricter lines trade that for regressions: a flat 0.45
+/// line alone gains more on `sparse` but loses +1.4pp on `flat`, where nothing
+/// is ever missing to hold back.
+const RANK_MIN_SCORE: f64 = 0.45;
+
+/// Below [`RANK_MIN_SCORE`] but at or above this, a direct item still answers.
+const RANK_GRAY_ZONE: f64 = 0.30;
+
+/// Directness (0..2) that lets a gray-zone item answer instead of holding.
+const RANK_DIRECT_MIN: f64 = 1.0;
+
+/// Below this chosen probability the route is unsure of its own pick, and one
+/// more judgment asks only whether this tree covers the request at all. Out-of-
+/// scope landings concentrate in that zone (median chosen probability 0.64
+/// against 0.99 for correct in-tree picks), so the check catches them without
+/// touching the confident majority.
+const ROUTE_SCOPE_CHECK_BELOW: f64 = 0.85;
+
+/// The scope check runs on an uncertain forest walk only. A `start_node` walk
+/// must land on a node and cannot abstain, so it never asks.
+fn scope_check_needed(chosen_probability: Option<f64>, start_forced: bool) -> bool {
+    !start_forced && chosen_probability.is_some_and(|p| p < ROUTE_SCOPE_CHECK_BELOW)
+}
+
+/// Only a confident `out` refuses the request. A hesitant "out" keeps the menu
+/// choice: one cross-domain question ("laptop battery swelled, where do I apply?")
+/// was refused at 0.5 and cost more than the timid refusals were worth.
+const SCOPE_OUT_MIN: f64 = 0.8;
+
+/// Only a confident `out` refuses: `choice` plus its probability.
+fn scope_refuses(choice: &str, out_probability: f64) -> bool {
+    choice == "out" && out_probability >= SCOPE_OUT_MIN
+}
+
+/// One judgment on scope alone. The menu asks "which node fits" and an
+/// out-of-scope request can still win one; this asks "does this tree cover the
+/// request at all". `None` when the call fails — the menu choice stands.
+async fn scope_check(
+    state: &AppState,
+    nodes: &[Node],
+    query: &str,
+    request: &RunRequest,
+    conversation: &str,
+    chosen: &str,
+) -> Option<(bool, TraceStep)> {
+    let mut criteria = serde_json::Map::new();
+    criteria.insert(
+        "in".into(),
+        Value::String("이 요청은 이 트리가 다루는 주제를 묻는다".into()),
+    );
+    criteria.insert(
+        "out".into(),
+        Value::String("이 요청은 이 트리가 다루지 않는 주제를 묻는다".into()),
+    );
+    let mut questions = BTreeMap::new();
+    questions.insert(
+        "scope".into(),
+        Question {
+            kind: "choice".into(),
+            instructions: "이 요청이 이 지식 트리가 다루는 주제인지 판정하세요. 참고로 고른 분류는 적혀 있지만, 판단은 요청 자체가 이 트리의 주제에 대한 문의인지로만 하세요. 인사, 잡담, 사이트 자체에 대한 일반 질문, 완전히 다른 주제는 out입니다.".into(),
+            criteria: Some(Value::Object(criteria)),
+        },
+    );
+    let judgment = state
+        .jev
+        .evaluate(
+            json!({
+                "conversation": conversation,
+                "current_request": query,
+                "background": &request.context,
+                "mode": request.mode,
+                "chosen": flat_label_for_scope(nodes, chosen),
+            }),
+            questions,
+        )
+        .await
+        .ok()?;
+    let Answer::Choice {
+        choice,
+        probabilities,
+        confidence,
+    } = judgment.answers.get("scope")?
+    else {
+        return None;
+    };
+    let in_scope = !scope_refuses(choice, probabilities.get("out").copied().unwrap_or(0.0));
+    let step = TraceStep {
+        depth: 1,
+        node_id: Some(chosen.to_string()),
+        node_name: "scope check".into(),
+        path: vec![],
+        candidates: vec![
+            Candidate {
+                id: Some("in".into()),
+                name: "request is in scope".into(),
+                probability: probabilities.get("in").copied(),
+            },
+            Candidate {
+                id: Some("out".into()),
+                name: "request is out of scope".into(),
+                probability: probabilities.get("out").copied(),
+            },
+        ],
+        choice_id: Some(choice.clone()),
+        choice_name: if in_scope {
+            "request is in scope".into()
+        } else {
+            "request is out of scope".into()
+        },
+        confidence: Some(*confidence),
+        reason: "flat: scope check".into(),
+    };
+    Some((in_scope, step))
+}
+
+/// The scope check's evidence for the chosen node: names plus description,
+/// without the examples, so the node's own wording cannot talk the check into
+/// seeing the request as in scope.
+fn flat_label_for_scope(nodes: &[Node], id: &str) -> String {
+    let Some(node) = nodes.iter().find(|node| node.id == id) else {
+        return id.to_string();
+    };
+    format!("{}: {}", node.name, node.description)
+}
+
 /// One Jev choice over every node in scope: `__none__` at a forest walk, no
 /// terminal when a `start_node`/scoped walk already fixes the landing. Returns
 /// `None` when the scope is too large to name in one call and the recall
@@ -648,23 +784,8 @@ async fn flat_route(
         }) => (choice.clone(), probabilities.clone(), *confidence),
         _ => return Err(Error::Internal("missing flat choice".into())),
     };
-    let abstained = choice == "__none__";
-    let leaf = (!abstained).then(|| choice.clone());
-    let path: Vec<PathPart> = leaf
-        .as_deref()
-        .map(|id| {
-            node_chain(nodes, &pool, id)
-                .into_iter()
-                .map(|id| PathPart {
-                    name: node_name(nodes, &id),
-                    id,
-                    probability: None,
-                    confidence: None,
-                })
-                .collect()
-        })
-        .unwrap_or_default();
     let score = probabilities.get(&choice).copied();
+    let mut abstained = choice == "__none__";
     let mut ranked: Vec<(&String, f64)> = menu
         .iter()
         .map(|id| (id, probabilities.get(id).copied().unwrap_or(0.0)))
@@ -704,11 +825,37 @@ async fn flat_route(
         confidence: Some(confidence),
         reason: format!("flat: {mode}: {query}"),
     };
+    let mut steps = vec![step];
+    if !abstained
+        && scope_check_needed(score, start.is_some())
+        && let Some((in_scope, scope_step)) =
+            scope_check(state, nodes, query, request, &conversation, &choice).await
+    {
+        steps.push(scope_step);
+        if !in_scope {
+            abstained = true;
+        }
+    }
+    let leaf = (!abstained).then(|| choice.clone());
+    let path: Vec<PathPart> = leaf
+        .as_deref()
+        .map(|id| {
+            node_chain(nodes, &pool, id)
+                .into_iter()
+                .map(|id| PathPart {
+                    name: node_name(nodes, &id),
+                    id,
+                    probability: None,
+                    confidence: None,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let trace = Trace {
         run_id: run_id.to_string(),
         mode: mode.to_string(),
         router: "flat".into(),
-        steps: vec![step.clone()],
+        steps: steps.clone(),
         leaf_id: leaf.clone(),
         score,
         final_beams: vec![FinalBeam {
@@ -720,7 +867,7 @@ async fn flat_route(
     };
     emit(
         sender,
-        json!({"type":"descent_step","status":"answered","depth":0,"run_id":run_id,"nodes":[step],"beams":[{"node_id":leaf,"path":path,"score":score,"alive":false}]}),
+        json!({"type":"descent_step","status":"answered","depth":0,"run_id":run_id,"nodes":steps,"beams":[{"node_id":leaf,"path":path,"score":score,"alive":false}]}),
     )
     .await;
     emit(
@@ -1479,6 +1626,63 @@ mod tests {
             .unwrap();
         assert_eq!(result["leaf_id"], "orders_tracking", "{result}");
         assert_eq!(result["trace"]["router"], "flat");
+    }
+
+    #[tokio::test]
+    async fn scope_check_says_out_of_scope() {
+        // One judgment on scope alone turns an uncertain route into a hold.
+        let (_dir, state) = fixture_state();
+        state.jev.script_choices(vec!["out".into()]);
+        let request = run_req("오늘 날씨가 어때요?");
+        let (in_scope, step) = scope_check(
+            &state,
+            &state.taxonomy().unwrap(),
+            "오늘 날씨가 어때요?",
+            &request,
+            "오늘 날씨가 어때요?",
+            "orders",
+        )
+        .await
+        .expect("scripted evaluator answers");
+        assert!(!in_scope);
+        assert_eq!(step.choice_name, "request is out of scope");
+    }
+
+    #[tokio::test]
+    async fn confident_route_skips_the_scope_check() {
+        // Scripted choices land at 0.95, above the check line: the second pick
+        // in the script would say "out" and must never be consulted.
+        let (_dir, state) = fixture_state();
+        state
+            .jev
+            .script_choices(vec!["orders_tracking".into(), "out".into()]);
+        let result = execute(state, run_req("해외 배송이 통관에서 멈췄어요"), None)
+            .await
+            .unwrap();
+        assert_eq!(result["leaf_id"], "orders_tracking", "{result}");
+        assert_eq!(
+            result["trace"]["steps"].as_array().unwrap().len(),
+            1,
+            "{result}"
+        );
+    }
+
+    #[test]
+    fn a_timid_out_does_not_refuse_the_request() {
+        assert!(scope_refuses("out", 0.8));
+        assert!(scope_refuses("out", 0.95));
+        assert!(!scope_refuses("out", 0.79));
+        assert!(!scope_refuses("in", 0.95));
+    }
+
+    #[test]
+    fn scope_check_guards_only_uncertain_forest_walks() {
+        assert!(scope_check_needed(Some(0.64), false));
+        assert!(scope_check_needed(Some(0.84), false));
+        assert!(!scope_check_needed(Some(0.85), false));
+        assert!(!scope_check_needed(Some(0.99), false));
+        // A forced start must land on a node; it never refuses the request.
+        assert!(!scope_check_needed(Some(0.10), true));
     }
 
     #[tokio::test]

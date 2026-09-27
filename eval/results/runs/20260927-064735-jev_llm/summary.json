@@ -1,0 +1,2311 @@
+{
+  "cells": [
+    {
+      "breakdowns": {
+        "ctx": [
+          {
+            "e2e": 0.9852941176470589,
+            "hit1": 0.9854014598540146,
+            "key": "-",
+            "mrr": 0.9908759124087592,
+            "n": 340,
+            "p50_ms": 4089,
+            "route_acc": 0.9705882352941176
+          },
+          {
+            "e2e": 0.8947368421052632,
+            "hit1": 0.8947368421052632,
+            "key": "coref",
+            "mrr": 0.8947368421052632,
+            "n": 19,
+            "p50_ms": 4443,
+            "route_acc": 0.8947368421052632
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "correct",
+            "mrr": 1.0,
+            "n": 8,
+            "p50_ms": 4008,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9,
+            "hit1": 0.9,
+            "key": "disambig",
+            "mrr": 0.9,
+            "n": 20,
+            "p50_ms": 4279,
+            "route_acc": 0.9
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "distract",
+            "mrr": 1.0,
+            "n": 9,
+            "p50_ms": 3729,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "ellipsis",
+            "mrr": 1.0,
+            "n": 9,
+            "p50_ms": 4789,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "long",
+            "mrr": 1.0,
+            "n": 8,
+            "p50_ms": 4723,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "refine",
+            "mrr": 1.0,
+            "n": 9,
+            "p50_ms": 3880,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "shift",
+            "mrr": 1.0,
+            "n": 14,
+            "p50_ms": 4731,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "slot",
+            "mrr": 1.0,
+            "n": 9,
+            "p50_ms": 4762,
+            "route_acc": 1.0
+          }
+        ],
+        "depth": [
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "-",
+            "mrr": null,
+            "n": 38,
+            "p50_ms": 4416,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "d1",
+            "mrr": 1.0,
+            "n": 10,
+            "p50_ms": 5793,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9666666666666667,
+            "hit1": 0.9473684210526315,
+            "key": "d2",
+            "mrr": 0.9736842105263158,
+            "n": 30,
+            "p50_ms": 5282,
+            "route_acc": 0.9666666666666667
+          },
+          {
+            "e2e": 0.9752475247524752,
+            "hit1": 0.9732620320855615,
+            "key": "d3",
+            "mrr": 0.9732620320855615,
+            "n": 202,
+            "p50_ms": 4218,
+            "route_acc": 0.9603960396039604
+          },
+          {
+            "e2e": 0.9791666666666666,
+            "hit1": 0.9857142857142858,
+            "key": "d4",
+            "mrr": 0.9928571428571429,
+            "n": 144,
+            "p50_ms": 3936,
+            "route_acc": 0.9652777777777778
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "d5",
+            "mrr": 1.0,
+            "n": 11,
+            "p50_ms": 3591,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "d6",
+            "mrr": 1.0,
+            "n": 2,
+            "p50_ms": 3543,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "d7",
+            "mrr": 1.0,
+            "n": 8,
+            "p50_ms": 4915,
+            "route_acc": 1.0
+          }
+        ],
+        "diff": [
+          {
+            "e2e": 0.9915254237288136,
+            "hit1": 0.990909090909091,
+            "key": "easy",
+            "mrr": 0.9954545454545455,
+            "n": 118,
+            "p50_ms": 3746,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.952,
+            "hit1": 0.9418604651162791,
+            "key": "hard",
+            "mrr": 0.9476744186046512,
+            "n": 125,
+            "p50_ms": 4681,
+            "route_acc": 0.912
+          },
+          {
+            "e2e": 0.9900990099009901,
+            "hit1": 0.988950276243094,
+            "key": "medium",
+            "mrr": 0.9917127071823204,
+            "n": 202,
+            "p50_ms": 4137,
+            "route_acc": 0.9851485148514851
+          }
+        ],
+        "domain": [
+          {
+            "e2e": 0.9347826086956522,
+            "hit1": 0.9302325581395349,
+            "key": "food",
+            "mrr": 0.9418604651162791,
+            "n": 46,
+            "p50_ms": 4622,
+            "route_acc": 0.9347826086956522
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "health",
+            "mrr": 1.0,
+            "n": 40,
+            "p50_ms": 4089,
+            "route_acc": 0.975
+          },
+          {
+            "e2e": 0.9900990099009901,
+            "hit1": 0.9895833333333334,
+            "key": "it",
+            "mrr": 0.9895833333333334,
+            "n": 101,
+            "p50_ms": 3936,
+            "route_acc": 0.9801980198019802
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "life",
+            "mrr": 1.0,
+            "n": 42,
+            "p50_ms": 4132,
+            "route_acc": 0.9761904761904762
+          },
+          {
+            "e2e": 0.9795918367346939,
+            "hit1": 1.0,
+            "key": "money",
+            "mrr": 1.0,
+            "n": 49,
+            "p50_ms": 3589,
+            "route_acc": 0.9795918367346939
+          },
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "oos",
+            "mrr": null,
+            "n": 38,
+            "p50_ms": 4416,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.975609756097561,
+            "hit1": 0.9736842105263158,
+            "key": "shop",
+            "mrr": 0.9736842105263158,
+            "n": 41,
+            "p50_ms": 4723,
+            "route_acc": 0.926829268292683
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "travel",
+            "mrr": 1.0,
+            "n": 44,
+            "p50_ms": 4132,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9318181818181818,
+            "hit1": 0.926829268292683,
+            "key": "work",
+            "mrr": 0.9512195121951219,
+            "n": 44,
+            "p50_ms": 5324,
+            "route_acc": 0.9318181818181818
+          }
+        ],
+        "entry": [
+          {
+            "e2e": 0.9766233766233766,
+            "hit1": 0.9765395894428153,
+            "key": "forest",
+            "mrr": 0.9809384164222874,
+            "n": 385,
+            "p50_ms": 4132,
+            "route_acc": 0.9636363636363636
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "root",
+            "mrr": 1.0,
+            "n": 43,
+            "p50_ms": 3751,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "start",
+            "mrr": 1.0,
+            "n": 17,
+            "p50_ms": 4464,
+            "route_acc": 1.0
+          }
+        ],
+        "expect": [
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "empty_leaf",
+            "mrr": null,
+            "n": 3,
+            "p50_ms": 2740,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9583333333333334,
+            "hit1": 0.9583333333333334,
+            "key": "internal",
+            "mrr": 0.9791666666666666,
+            "n": 24,
+            "p50_ms": 5793,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9773371104815864,
+            "hit1": 0.9801699716713881,
+            "key": "leaf",
+            "mrr": 0.9830028328611898,
+            "n": 353,
+            "p50_ms": 4008,
+            "route_acc": 0.9660056657223796
+          },
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "no_answer",
+            "mrr": null,
+            "n": 27,
+            "p50_ms": 5200,
+            "route_acc": 0.9259259259259259
+          },
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "oos",
+            "mrr": null,
+            "n": 38,
+            "p50_ms": 4416,
+            "route_acc": 1.0
+          }
+        ],
+        "level": [
+          {
+            "e2e": 0.9714285714285714,
+            "hit1": 0.9583333333333334,
+            "key": "internal",
+            "mrr": 0.9791666666666666,
+            "n": 35,
+            "p50_ms": 5641,
+            "route_acc": 0.9714285714285714
+          },
+          {
+            "e2e": 0.978494623655914,
+            "hit1": 0.9801699716713881,
+            "key": "leaf",
+            "mrr": 0.9830028328611898,
+            "n": 372,
+            "p50_ms": 4031,
+            "route_acc": 0.9650537634408602
+          },
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "none",
+            "mrr": null,
+            "n": 38,
+            "p50_ms": 4416,
+            "route_acc": 1.0
+          }
+        ],
+        "pool": [
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "0",
+            "mrr": null,
+            "n": 41,
+            "p50_ms": 4069,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "101+",
+            "mrr": 1.0,
+            "n": 4,
+            "p50_ms": 7300,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9780564263322884,
+            "hit1": 0.9801980198019802,
+            "key": "2-5",
+            "mrr": 0.9851485148514851,
+            "n": 319,
+            "p50_ms": 4006,
+            "route_acc": 0.9623824451410659
+          },
+          {
+            "e2e": 0.9672131147540983,
+            "hit1": 0.9661016949152542,
+            "key": "33-100",
+            "mrr": 0.9661016949152542,
+            "n": 61,
+            "p50_ms": 4725,
+            "route_acc": 0.9672131147540983
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "6-32",
+            "mrr": 1.0,
+            "n": 20,
+            "p50_ms": 5641,
+            "route_acc": 1.0
+          }
+        ],
+        "split": [
+          {
+            "e2e": 0.9802631578947368,
+            "hit1": 0.9767441860465116,
+            "key": "dev",
+            "mrr": 0.9806201550387597,
+            "n": 304,
+            "p50_ms": 4078,
+            "route_acc": 0.9736842105263158
+          },
+          {
+            "e2e": 0.9787234042553191,
+            "hit1": 0.9831932773109243,
+            "key": "test",
+            "mrr": 0.9873949579831933,
+            "n": 141,
+            "p50_ms": 4248,
+            "route_acc": 0.9574468085106383
+          }
+        ],
+        "style": [
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "canonical",
+            "mrr": 1.0,
+            "n": 8,
+            "p50_ms": 3501,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9855072463768116,
+            "hit1": 0.9846153846153847,
+            "key": "colloquial",
+            "mrr": 0.9923076923076923,
+            "n": 69,
+            "p50_ms": 3820,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.96875,
+            "hit1": 1.0,
+            "key": "condition",
+            "mrr": 1.0,
+            "n": 32,
+            "p50_ms": 4437,
+            "route_acc": 0.96875
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "english",
+            "mrr": 1.0,
+            "n": 20,
+            "p50_ms": 4089,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "injection",
+            "mrr": 1.0,
+            "n": 4,
+            "p50_ms": 4416,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.95,
+            "hit1": 0.95,
+            "key": "keyword",
+            "mrr": 0.95,
+            "n": 20,
+            "p50_ms": 4100,
+            "route_acc": 0.95
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "long",
+            "mrr": 1.0,
+            "n": 12,
+            "p50_ms": 3942,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "mixed",
+            "mrr": 1.0,
+            "n": 13,
+            "p50_ms": 4165,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.8888888888888888,
+            "hit1": 0.8888888888888888,
+            "key": "multi_intent",
+            "mrr": 0.9444444444444444,
+            "n": 9,
+            "p50_ms": 11402,
+            "route_acc": 0.3333333333333333
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "negation",
+            "mrr": 1.0,
+            "n": 20,
+            "p50_ms": 3741,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "oos_far",
+            "mrr": null,
+            "n": 9,
+            "p50_ms": 3578,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "oos_near",
+            "mrr": null,
+            "n": 15,
+            "p50_ms": 5801,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9774011299435028,
+            "hit1": 0.9712230215827338,
+            "key": "paraphrase",
+            "mrr": 0.9712230215827338,
+            "n": 177,
+            "p50_ms": 4279,
+            "route_acc": 0.9661016949152542
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "typo",
+            "mrr": 1.0,
+            "n": 13,
+            "p50_ms": 3646,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9583333333333334,
+            "hit1": 0.9583333333333334,
+            "key": "vague",
+            "mrr": 0.9791666666666666,
+            "n": 24,
+            "p50_ms": 5793,
+            "route_acc": 1.0
+          }
+        ],
+        "turns": [
+          {
+            "e2e": 0.9619047619047619,
+            "hit1": 0.9611650485436893,
+            "key": "multi",
+            "mrr": 0.9611650485436893,
+            "n": 105,
+            "p50_ms": 4210,
+            "route_acc": 0.9619047619047619
+          },
+          {
+            "e2e": 0.9852941176470589,
+            "hit1": 0.9854014598540146,
+            "key": "single",
+            "mrr": 0.9908759124087592,
+            "n": 340,
+            "p50_ms": 4089,
+            "route_acc": 0.9705882352941176
+          }
+        ]
+      },
+      "confusions": [
+        [
+          "food_store_item",
+          "food_store_freeze",
+          2
+        ],
+        [
+          "food_tool",
+          "food_tool_pan",
+          1
+        ],
+        [
+          "health_sym_head",
+          "health",
+          1
+        ],
+        [
+          "it_net_wifi_drop",
+          "it",
+          1
+        ],
+        [
+          "it_sec_hacked",
+          "it_sec_pw",
+          1
+        ],
+        [
+          "life_appl_air_ac",
+          "life_appl_air",
+          1
+        ],
+        [
+          "money_bank_xfer_cap",
+          "money_bank",
+          1
+        ],
+        [
+          "shop_order_pay",
+          "shop_order_cancel",
+          1
+        ],
+        [
+          "shop_ret_refund_card",
+          "shop_ret_refund",
+          1
+        ],
+        [
+          "shop_ship_addr",
+          "shop",
+          1
+        ],
+        [
+          "work_exp_trip",
+          "travel_air_ticket_mile",
+          1
+        ],
+        [
+          "work_exp_trip",
+          "work_exp_claim",
+          1
+        ],
+        [
+          "work_leave_annual_use",
+          "work",
+          1
+        ]
+      ],
+      "contract": {
+        "failed": [],
+        "n": 12,
+        "pass": {
+          "hi": 1.0,
+          "lo": 0.7574992425007574,
+          "n": 12,
+          "value": 1.0
+        }
+      },
+      "ingest": {
+        "draft_ok": {
+          "hi": 1.0,
+          "lo": 0.9358038555118846,
+          "n": 56,
+          "value": 1.0
+        },
+        "dup_precision": 1.0,
+        "dup_recall": 1.0,
+        "errors": 0,
+        "file_acc": {
+          "hi": 1.0,
+          "lo": 0.9358038555118846,
+          "n": 56,
+          "value": 1.0
+        },
+        "hf": {
+          "hi": 1.0,
+          "lo": 1.0,
+          "n": 56,
+          "value": 1.0
+        },
+        "ingest_acc": {
+          "hi": 1.0,
+          "lo": 0.9465268034119508,
+          "n": 68,
+          "value": 1.0
+        },
+        "live_demoted": 8,
+        "llm_fallback": {
+          "hi": 0.06419614448811528,
+          "lo": 0.0,
+          "n": 56,
+          "value": 0.0
+        },
+        "n": 68,
+        "p50_ms": 9213,
+        "probe_answer": {
+          "hi": 1.0,
+          "lo": 0.8568788745827374,
+          "n": 23,
+          "value": 1.0
+        },
+        "probe_hit": {
+          "hi": 1.0,
+          "lo": 0.8568788745827374,
+          "n": 23,
+          "value": 1.0
+        },
+        "publish_ok": {
+          "hi": 1.0,
+          "lo": 0.9358038555118846,
+          "n": 56,
+          "value": 1.0
+        },
+        "reject_acc": {
+          "hi": 1.0,
+          "lo": 0.7574992425007574,
+          "n": 12,
+          "value": 1.0
+        },
+        "stable": {
+          "hi": 1.0,
+          "lo": 0.9358038555118846,
+          "n": 56,
+          "value": 1.0
+        },
+        "update_ok": {
+          "hi": 1.0,
+          "lo": 0.9358038555118846,
+          "n": 56,
+          "value": 1.0
+        }
+      },
+      "levels": [
+        {
+          "hi": 0.9995094982279189,
+          "lo": 0.9844351634050557,
+          "n": 360,
+          "value": 0.9972222222222222
+        },
+        {
+          "hi": 0.9938830589555043,
+          "lo": 0.9669988723945686,
+          "n": 350,
+          "value": 0.9857142857142858
+        },
+        {
+          "hi": 0.9813441187585672,
+          "lo": 0.9414802853775976,
+          "n": 331,
+          "value": 0.9667673716012085
+        },
+        {
+          "hi": 0.9857751644228397,
+          "lo": 0.9248328375611233,
+          "n": 151,
+          "value": 0.9668874172185431
+        },
+        {
+          "hi": 0.9999999999999999,
+          "lo": 0.8453561767357979,
+          "n": 21,
+          "value": 1.0
+        },
+        {
+          "hi": 1.0,
+          "lo": 0.7224598312333834,
+          "n": 10,
+          "value": 1.0
+        },
+        {
+          "hi": 1.0,
+          "lo": 0.6755843804891231,
+          "n": 8,
+          "value": 1.0
+        }
+      ],
+      "misses": [
+        {
+          "case_id": "S-FOOD-010",
+          "expected": "food_tool",
+          "got": "food_tool · top food_tool_pan#2 0.46 alternative",
+          "kind": "search",
+          "text": "주방 조리도구들 오래 쓰려면 전반적으로 어떻게 관리해야 해요?",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-FOOD-012",
+          "expected": "food_tool · no answer",
+          "got": "food_tool_pan · abstained · top food_tool_pan#2 0.04 reference",
+          "kind": "search",
+          "text": "스테인리스 냄비 바닥에 까맣게 탄 자국은 어떻게 벗겨요?",
+          "why": "route deep"
+        },
+        {
+          "case_id": "S-FOOD-503",
+          "expected": "food_store_item",
+          "got": "food_store_freeze · top food_store_freeze#1 0.81 recommended",
+          "kind": "search",
+          "text": "다진마늘 냉동 보관",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-FOOD-514",
+          "expected": "food_store_item",
+          "got": "food_store_freeze · top food_store_freeze#1 0.86 recommended",
+          "kind": "search",
+          "text": "남는 건 얼려도 되나요? 어떻게 얼려요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-HEALTH-015",
+          "expected": "health_sym_head (+1)",
+          "got": "health · top health_sym_head#1 0.62 alternative",
+          "kind": "search",
+          "text": "요즘 밤에 잠도 잘 못 자고, 오후만 되면 머리가 조이듯 지끈거려요. 둘 다 어떻게 관리하면 좋을까요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-LIFE-018",
+          "expected": "life_appl_air_ac (+1)",
+          "got": "life_appl_air · top life_appl_air_ac#2 0.61 alternative",
+          "kind": "search",
+          "text": "에어컨 필터는 몇 주에 한 번 씻어야 하는지, 그리고 공기청정기 필터는 언제 새로 사야 하는지 둘 다 알려주세요",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-MONEY-019",
+          "expected": "money_bank_xfer_cap (+1)",
+          "got": "money_bank · top money_bank_xfer_cap#1 0.73 recommended",
+          "kind": "search",
+          "text": "이체 한도도 올려야 하고 공동인증서도 곧 만료라 갱신해야 해요. 둘 다 어떻게 하나요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-SHOP-010",
+          "expected": "shop_ret_refund_card",
+          "got": "shop_ret_refund · top shop_ret_refund_card#3 0.93 recommended",
+          "kind": "search",
+          "text": "이 쇼핑몰에서 3개월 할부로 산 가방을 반품하면 이미 나간 할부 수수료도 돌려받아요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-SHOP-015",
+          "expected": "shop_ship_addr (+1)",
+          "got": "shop · top shop_ship_addr#1 0.79 recommended",
+          "kind": "search",
+          "text": "배송지 주소를 잘못 넣은 것도 고쳐야 하고, 무통장 입금은 언제까지 해야 하는지도 알려 주세요",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-SHOP-030",
+          "expected": "shop_order_pay",
+          "got": "shop_order_cancel · top shop_order_cancel#2 0.54 alternative",
+          "kind": "search",
+          "text": "하나만 취소하려면 어떻게 해요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-WORK-003",
+          "expected": "work_leave_annual_left",
+          "got": "work_leave_annual_left · top work_leave_annual_left#2 0.75 recommended",
+          "kind": "search",
+          "text": "연차 아직 8개나 남았는데 연말 지나면 걍 날아가는 거임?? 돈으로라도 주나",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-WORK-017",
+          "expected": "work_leave_annual_use (+1)",
+          "got": "work · top work#article 0.73 recommended",
+          "kind": "search",
+          "text": "반차 신청하는 법이랑 급여명세서 보는 곳 둘 다 알려주세요",
+          "why": "route shallow, wrong top1"
+        },
+        {
+          "case_id": "S-WORK-020",
+          "expected": "work_exp_trip · no answer",
+          "got": "travel_air_ticket_mile · abstained · top travel_air_ticket_mile#2 0.08 reference",
+          "kind": "search",
+          "text": "출장 다니면서 쌓인 항공 마일리지는 개인적으로 써도 되나요?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-XD-016",
+          "expected": "money_bank_xfer_abroad",
+          "got": "money_bank_xfer_abroad · abstained · top money_bank_xfer_abroad#1 0.31 reference",
+          "kind": "search",
+          "text": "미국에 사는 동생한테 돈을 보내려는데 카드로도 보낼 수 있어요? 뭐가 필요해요?",
+          "why": "abstained"
+        },
+        {
+          "case_id": "S-XD-019",
+          "expected": "it_net_wifi_drop (+1)",
+          "got": "it · top it_net_wifi_drop#2 0.80 recommended",
+          "kind": "search",
+          "text": "My wifi keeps dropping every few minutes and my phone battery also drains really",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-XD-021",
+          "expected": "it_sec_hacked",
+          "got": "it_sec_pw · top it_sec_pw#3 0.58 alternative",
+          "kind": "search",
+          "text": "비밀번호 바꾸는 건 어디서 해요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-XD-038",
+          "expected": "work_exp_trip",
+          "got": "work_exp_claim · top work_exp_claim#2 0.84 recommended",
+          "kind": "search",
+          "text": "그거 영수증은 언제까지 올려야 해요?",
+          "why": "route branch, wrong top1"
+        }
+      ],
+      "route_errors": {
+        "branch": 5,
+        "deep": 1,
+        "domain": 1,
+        "exact": 499,
+        "shallow": 7
+      },
+      "router": "jev_llm",
+      "search": {
+        "confident": {
+          "hi": 0.9503163808822477,
+          "lo": 0.8978052528888532,
+          "n": 377,
+          "value": 0.9283819628647215
+        },
+        "e2e": {
+          "hi": 0.9893240686426246,
+          "lo": 0.9620137752648923,
+          "n": 445,
+          "value": 0.9797752808988764
+        },
+        "e2e_answerable": {
+          "hi": 0.9873908206209939,
+          "lo": 0.9552583017437898,
+          "n": 377,
+          "value": 0.9761273209549072
+        },
+        "e2e_unanswerable": {
+          "hi": 1.0,
+          "lo": 0.9465268034119508,
+          "n": 68,
+          "value": 1.0
+        },
+        "error_codes": {},
+        "errors": 0,
+        "false_abstain": {
+          "hi": 0.014870284083439975,
+          "lo": 0.0004683763990283264,
+          "n": 377,
+          "value": 0.002652519893899204
+        },
+        "false_answer": {
+          "hi": 0.05347319658804926,
+          "lo": 0.0,
+          "n": 68,
+          "value": 0.0
+        },
+        "hf": {
+          "hi": 0.995211065635243,
+          "lo": 0.9810329151031202,
+          "n": 445,
+          "value": 0.9881219903691816
+        },
+        "hit1": {
+          "hi": 0.9892091783568985,
+          "lo": 0.9586914711519786,
+          "n": 377,
+          "value": 0.9787798408488063
+        },
+        "hit1_given_route": {
+          "hi": 0.9984960797203623,
+          "lo": 0.9802438454941472,
+          "n": 365,
+          "value": 0.9945205479452055
+        },
+        "hit3": {
+          "hi": 0.9943221465420876,
+          "lo": 0.9693330843990701,
+          "n": 377,
+          "value": 0.986737400530504
+        },
+        "hitk": {
+          "hi": 0.9943221465420876,
+          "lo": 0.9693330843990701,
+          "n": 377,
+          "value": 0.986737400530504
+        },
+        "llm_fallback": {
+          "hi": 0.008558921454695822,
+          "lo": 0.0,
+          "n": 445,
+          "value": 0.0
+        },
+        "mean_jev_calls": 1.202247191011236,
+        "mean_llm_calls": 0.9775280898876404,
+        "mean_ms": 5115.777528089888,
+        "mean_pool": 14.47191011235955,
+        "mean_route_ms": 4852.611235955056,
+        "mrr": {
+          "hi": 0.9951195565618848,
+          "lo": 0.9703976848174255,
+          "n": 377,
+          "value": 0.9827586206896551
+        },
+        "mrr_given_route": {
+          "hi": 1.0010521211856995,
+          "lo": 0.9934684267595061,
+          "n": 365,
+          "value": 0.9972602739726028
+        },
+        "n": 445,
+        "ndcg": {
+          "hi": 0.9878354162484027,
+          "lo": 0.9624979341626663,
+          "n": 377,
+          "value": 0.9751666752055345
+        },
+        "oos_f1": 1.0,
+        "oos_precision": {
+          "hi": 0.9999999999999999,
+          "lo": 0.90818706741616,
+          "n": 38,
+          "value": 1.0
+        },
+        "oos_recall": {
+          "hi": 0.9999999999999999,
+          "lo": 0.90818706741616,
+          "n": 38,
+          "value": 1.0
+        },
+        "p50_ms": 4100,
+        "p90_ms": 7285,
+        "p95_ms": 10875,
+        "rec_precision": {
+          "hi": 0.9842392280317046,
+          "lo": 0.9530847156302672,
+          "n": 355,
+          "value": 0.9686619718309859
+        },
+        "recall": {
+          "hi": 0.9929644352150928,
+          "lo": 0.9672477663764192,
+          "n": 377,
+          "value": 0.980106100795756
+        },
+        "route_acc": {
+          "hi": 0.9811688363278852,
+          "lo": 0.9478894327808607,
+          "n": 445,
+          "value": 0.9685393258426966
+        }
+      },
+      "stability": null,
+      "sweep": [
+        {
+          "coverage": 1.0,
+          "e2e": 0.9775280898876404,
+          "false_answer": 0.029411764705882353,
+          "precision": 0.9736147757255936,
+          "threshold": 0.2
+        },
+        {
+          "coverage": 1.0,
+          "e2e": 0.9820224719101124,
+          "false_answer": 0.0,
+          "precision": 0.9787798408488063,
+          "threshold": 0.25
+        },
+        {
+          "coverage": 1.0,
+          "e2e": 0.9820224719101124,
+          "false_answer": 0.0,
+          "precision": 0.9787798408488063,
+          "threshold": 0.3
+        },
+        {
+          "coverage": 0.9973474801061007,
+          "e2e": 0.9797752808988764,
+          "false_answer": 0.0,
+          "precision": 0.9787234042553191,
+          "threshold": 0.35
+        },
+        {
+          "coverage": 0.9973474801061007,
+          "e2e": 0.9797752808988764,
+          "false_answer": 0.0,
+          "precision": 0.9787234042553191,
+          "threshold": 0.4
+        },
+        {
+          "coverage": 0.986737400530504,
+          "e2e": 0.9730337078651685,
+          "false_answer": 0.0,
+          "precision": 0.9811827956989247,
+          "threshold": 0.5
+        },
+        {
+          "coverage": 0.9628647214854111,
+          "e2e": 0.9573033707865168,
+          "false_answer": 0.0,
+          "precision": 0.9862258953168044,
+          "threshold": 0.6
+        },
+        {
+          "coverage": 0.9416445623342176,
+          "e2e": 0.9393258426966292,
+          "false_answer": 0.0,
+          "precision": 0.9859154929577465,
+          "threshold": 0.65
+        }
+      ],
+      "variant": "deep"
+    },
+    {
+      "breakdowns": {
+        "ctx": [
+          {
+            "e2e": 0.9823008849557522,
+            "hit1": 0.9816849816849816,
+            "key": "-",
+            "mrr": 0.9871794871794872,
+            "n": 339,
+            "p50_ms": 5548,
+            "route_acc": 0.967551622418879
+          },
+          {
+            "e2e": 0.8947368421052632,
+            "hit1": 0.8947368421052632,
+            "key": "coref",
+            "mrr": 0.8947368421052632,
+            "n": 19,
+            "p50_ms": 5127,
+            "route_acc": 0.8947368421052632
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "correct",
+            "mrr": 1.0,
+            "n": 8,
+            "p50_ms": 4611,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9,
+            "hit1": 0.9,
+            "key": "disambig",
+            "mrr": 0.9,
+            "n": 20,
+            "p50_ms": 9103,
+            "route_acc": 0.9
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "distract",
+            "mrr": 1.0,
+            "n": 9,
+            "p50_ms": 5979,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "ellipsis",
+            "mrr": 1.0,
+            "n": 9,
+            "p50_ms": 5087,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "long",
+            "mrr": 1.0,
+            "n": 8,
+            "p50_ms": 6818,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "refine",
+            "mrr": 1.0,
+            "n": 9,
+            "p50_ms": 4368,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "shift",
+            "mrr": 1.0,
+            "n": 14,
+            "p50_ms": 6479,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "slot",
+            "mrr": 1.0,
+            "n": 9,
+            "p50_ms": 5374,
+            "route_acc": 1.0
+          }
+        ],
+        "depth": [
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "-",
+            "mrr": null,
+            "n": 38,
+            "p50_ms": 6483,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "d1",
+            "mrr": 1.0,
+            "n": 10,
+            "p50_ms": 6836,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9666666666666667,
+            "hit1": 0.9473684210526315,
+            "key": "d2",
+            "mrr": 0.9736842105263158,
+            "n": 30,
+            "p50_ms": 6298,
+            "route_acc": 0.9666666666666667
+          },
+          {
+            "e2e": 0.9676258992805755,
+            "hit1": 0.9694656488549618,
+            "key": "d3",
+            "mrr": 0.9732824427480916,
+            "n": 278,
+            "p50_ms": 5441,
+            "route_acc": 0.9532374100719424
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "d4",
+            "mrr": 1.0,
+            "n": 88,
+            "p50_ms": 5515,
+            "route_acc": 0.9886363636363636
+          }
+        ],
+        "diff": [
+          {
+            "e2e": 0.9915254237288136,
+            "hit1": 0.990909090909091,
+            "key": "easy",
+            "mrr": 0.9954545454545455,
+            "n": 118,
+            "p50_ms": 4846,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9435483870967742,
+            "hit1": 0.9294117647058824,
+            "key": "hard",
+            "mrr": 0.9352941176470588,
+            "n": 124,
+            "p50_ms": 7529,
+            "route_acc": 0.9032258064516129
+          },
+          {
+            "e2e": 0.9900990099009901,
+            "hit1": 0.988950276243094,
+            "key": "medium",
+            "mrr": 0.9917127071823204,
+            "n": 202,
+            "p50_ms": 5479,
+            "route_acc": 0.9851485148514851
+          }
+        ],
+        "domain": [
+          {
+            "e2e": 0.9347826086956522,
+            "hit1": 0.9302325581395349,
+            "key": "food",
+            "mrr": 0.9418604651162791,
+            "n": 46,
+            "p50_ms": 6096,
+            "route_acc": 0.9347826086956522
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "health",
+            "mrr": 1.0,
+            "n": 40,
+            "p50_ms": 5472,
+            "route_acc": 0.975
+          },
+          {
+            "e2e": 0.9900990099009901,
+            "hit1": 0.9895833333333334,
+            "key": "it",
+            "mrr": 0.9895833333333334,
+            "n": 101,
+            "p50_ms": 5487,
+            "route_acc": 0.9900990099009901
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "life",
+            "mrr": 1.0,
+            "n": 41,
+            "p50_ms": 5548,
+            "route_acc": 0.975609756097561
+          },
+          {
+            "e2e": 0.9795918367346939,
+            "hit1": 1.0,
+            "key": "money",
+            "mrr": 1.0,
+            "n": 49,
+            "p50_ms": 6462,
+            "route_acc": 0.9795918367346939
+          },
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "oos",
+            "mrr": null,
+            "n": 38,
+            "p50_ms": 6483,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9512195121951219,
+            "hit1": 0.9473684210526315,
+            "key": "shop",
+            "mrr": 0.9473684210526315,
+            "n": 41,
+            "p50_ms": 5499,
+            "route_acc": 0.9024390243902439
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "travel",
+            "mrr": 1.0,
+            "n": 44,
+            "p50_ms": 5151,
+            "route_acc": 0.9772727272727273
+          },
+          {
+            "e2e": 0.9318181818181818,
+            "hit1": 0.926829268292683,
+            "key": "work",
+            "mrr": 0.9512195121951219,
+            "n": 44,
+            "p50_ms": 5505,
+            "route_acc": 0.9318181818181818
+          }
+        ],
+        "entry": [
+          {
+            "e2e": 0.9739583333333334,
+            "hit1": 0.9735294117647059,
+            "key": "forest",
+            "mrr": 0.9779411764705882,
+            "n": 384,
+            "p50_ms": 5587,
+            "route_acc": 0.9609375
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "root",
+            "mrr": 1.0,
+            "n": 43,
+            "p50_ms": 4653,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "start",
+            "mrr": 1.0,
+            "n": 17,
+            "p50_ms": 6488,
+            "route_acc": 1.0
+          }
+        ],
+        "expect": [
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "empty_leaf",
+            "mrr": null,
+            "n": 3,
+            "p50_ms": 5658,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9565217391304348,
+            "hit1": 0.9565217391304348,
+            "key": "internal",
+            "mrr": 0.9782608695652174,
+            "n": 23,
+            "p50_ms": 6524,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9745042492917847,
+            "hit1": 0.9773371104815864,
+            "key": "leaf",
+            "mrr": 0.9801699716713881,
+            "n": 353,
+            "p50_ms": 5384,
+            "route_acc": 0.9660056657223796
+          },
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "no_answer",
+            "mrr": null,
+            "n": 27,
+            "p50_ms": 6298,
+            "route_acc": 0.8888888888888888
+          },
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "oos",
+            "mrr": null,
+            "n": 38,
+            "p50_ms": 6483,
+            "route_acc": 1.0
+          }
+        ],
+        "level": [
+          {
+            "e2e": 0.9705882352941176,
+            "hit1": 0.9565217391304348,
+            "key": "internal",
+            "mrr": 0.9782608695652174,
+            "n": 34,
+            "p50_ms": 6610,
+            "route_acc": 0.9705882352941176
+          },
+          {
+            "e2e": 0.9758064516129032,
+            "hit1": 0.9773371104815864,
+            "key": "leaf",
+            "mrr": 0.9801699716713881,
+            "n": 372,
+            "p50_ms": 5428,
+            "route_acc": 0.9623655913978495
+          },
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "none",
+            "mrr": null,
+            "n": 38,
+            "p50_ms": 6483,
+            "route_acc": 1.0
+          }
+        ],
+        "pool": [
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "0",
+            "mrr": null,
+            "n": 41,
+            "p50_ms": 6349,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "101+",
+            "mrr": 1.0,
+            "n": 4,
+            "p50_ms": 8114,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9749216300940439,
+            "hit1": 0.976897689768977,
+            "key": "2-5",
+            "mrr": 0.9818481848184818,
+            "n": 319,
+            "p50_ms": 5248,
+            "route_acc": 0.9592476489028213
+          },
+          {
+            "e2e": 0.9672131147540983,
+            "hit1": 0.9661016949152542,
+            "key": "33-100",
+            "mrr": 0.9661016949152542,
+            "n": 61,
+            "p50_ms": 6610,
+            "route_acc": 0.9672131147540983
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "6-32",
+            "mrr": 1.0,
+            "n": 19,
+            "p50_ms": 6822,
+            "route_acc": 1.0
+          }
+        ],
+        "split": [
+          {
+            "e2e": 0.9801980198019802,
+            "hit1": 0.9766536964980544,
+            "key": "dev",
+            "mrr": 0.980544747081712,
+            "n": 303,
+            "p50_ms": 5535,
+            "route_acc": 0.9702970297029703
+          },
+          {
+            "e2e": 0.9716312056737588,
+            "hit1": 0.9747899159663865,
+            "key": "test",
+            "mrr": 0.9789915966386554,
+            "n": 141,
+            "p50_ms": 5969,
+            "route_acc": 0.9574468085106383
+          }
+        ],
+        "style": [
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "canonical",
+            "mrr": 1.0,
+            "n": 8,
+            "p50_ms": 7524,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9855072463768116,
+            "hit1": 0.9846153846153847,
+            "key": "colloquial",
+            "mrr": 0.9923076923076923,
+            "n": 69,
+            "p50_ms": 4780,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9375,
+            "hit1": 0.967741935483871,
+            "key": "condition",
+            "mrr": 0.967741935483871,
+            "n": 32,
+            "p50_ms": 7676,
+            "route_acc": 0.96875
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "english",
+            "mrr": 1.0,
+            "n": 20,
+            "p50_ms": 7240,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "injection",
+            "mrr": 1.0,
+            "n": 4,
+            "p50_ms": 5360,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.95,
+            "hit1": 0.95,
+            "key": "keyword",
+            "mrr": 0.95,
+            "n": 20,
+            "p50_ms": 5382,
+            "route_acc": 0.95
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "long",
+            "mrr": 1.0,
+            "n": 12,
+            "p50_ms": 5209,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "mixed",
+            "mrr": 1.0,
+            "n": 13,
+            "p50_ms": 6134,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.8888888888888888,
+            "hit1": 0.8888888888888888,
+            "key": "multi_intent",
+            "mrr": 0.9444444444444444,
+            "n": 9,
+            "p50_ms": 8782,
+            "route_acc": 0.3333333333333333
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "negation",
+            "mrr": 1.0,
+            "n": 20,
+            "p50_ms": 5647,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "oos_far",
+            "mrr": null,
+            "n": 9,
+            "p50_ms": 4879,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 1.0,
+            "hit1": null,
+            "key": "oos_near",
+            "mrr": null,
+            "n": 15,
+            "p50_ms": 9121,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9774011299435028,
+            "hit1": 0.9712230215827338,
+            "key": "paraphrase",
+            "mrr": 0.9712230215827338,
+            "n": 177,
+            "p50_ms": 5829,
+            "route_acc": 0.96045197740113
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "typo",
+            "mrr": 1.0,
+            "n": 13,
+            "p50_ms": 4512,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.9565217391304348,
+            "hit1": 0.9565217391304348,
+            "key": "vague",
+            "mrr": 0.9782608695652174,
+            "n": 23,
+            "p50_ms": 6524,
+            "route_acc": 1.0
+          }
+        ],
+        "turns": [
+          {
+            "e2e": 0.9619047619047619,
+            "hit1": 0.9611650485436893,
+            "key": "multi",
+            "mrr": 0.9611650485436893,
+            "n": 105,
+            "p50_ms": 5575,
+            "route_acc": 0.9619047619047619
+          },
+          {
+            "e2e": 0.9823008849557522,
+            "hit1": 0.9816849816849816,
+            "key": "single",
+            "mrr": 0.9871794871794872,
+            "n": 339,
+            "p50_ms": 5548,
+            "route_acc": 0.967551622418879
+          }
+        ]
+      },
+      "confusions": [
+        [
+          "food_store_item",
+          "food_store_freeze",
+          2
+        ],
+        [
+          "food_tool",
+          "food_tool_pan",
+          1
+        ],
+        [
+          "health_sym_head",
+          "health",
+          1
+        ],
+        [
+          "it_sec_hacked",
+          "it_sec_pw",
+          1
+        ],
+        [
+          "life_appl_air_ac",
+          "life_appl_air",
+          1
+        ],
+        [
+          "money_bank_xfer_cap",
+          "money_bank",
+          1
+        ],
+        [
+          "shop_order_pay",
+          "shop_order_cancel",
+          1
+        ],
+        [
+          "shop_ret_refund_card",
+          "money_card_install",
+          1
+        ],
+        [
+          "shop_ship_addr",
+          "shop",
+          1
+        ],
+        [
+          "shop_ship_missing",
+          "shop",
+          1
+        ],
+        [
+          "travel_local_train",
+          "null",
+          1
+        ],
+        [
+          "work_exp_trip",
+          "travel_air_ticket_mile",
+          1
+        ],
+        [
+          "work_exp_trip",
+          "work_exp_claim",
+          1
+        ],
+        [
+          "work_leave_annual_use",
+          "work",
+          1
+        ]
+      ],
+      "contract": {
+        "failed": [],
+        "n": 12,
+        "pass": {
+          "hi": 1.0,
+          "lo": 0.7574992425007574,
+          "n": 12,
+          "value": 1.0
+        }
+      },
+      "ingest": {
+        "draft_ok": {
+          "hi": 1.0,
+          "lo": 0.9358038555118846,
+          "n": 56,
+          "value": 1.0
+        },
+        "dup_precision": 1.0,
+        "dup_recall": 1.0,
+        "errors": 0,
+        "file_acc": {
+          "hi": 1.0,
+          "lo": 0.9358038555118846,
+          "n": 56,
+          "value": 1.0
+        },
+        "hf": {
+          "hi": 1.0,
+          "lo": 1.0,
+          "n": 56,
+          "value": 1.0
+        },
+        "ingest_acc": {
+          "hi": 1.0,
+          "lo": 0.9465268034119508,
+          "n": 68,
+          "value": 1.0
+        },
+        "live_demoted": 8,
+        "llm_fallback": {
+          "hi": 0.06419614448811528,
+          "lo": 0.0,
+          "n": 56,
+          "value": 0.0
+        },
+        "n": 68,
+        "p50_ms": 12028,
+        "probe_answer": {
+          "hi": 1.0,
+          "lo": 0.8568788745827374,
+          "n": 23,
+          "value": 1.0
+        },
+        "probe_hit": {
+          "hi": 1.0,
+          "lo": 0.8568788745827374,
+          "n": 23,
+          "value": 1.0
+        },
+        "publish_ok": {
+          "hi": 1.0,
+          "lo": 0.9358038555118846,
+          "n": 56,
+          "value": 1.0
+        },
+        "reject_acc": {
+          "hi": 1.0,
+          "lo": 0.7574992425007574,
+          "n": 12,
+          "value": 1.0
+        },
+        "stable": {
+          "hi": 1.0,
+          "lo": 0.9358038555118846,
+          "n": 56,
+          "value": 1.0
+        },
+        "update_ok": {
+          "hi": 1.0,
+          "lo": 0.9358038555118846,
+          "n": 56,
+          "value": 1.0
+        }
+      },
+      "levels": [
+        {
+          "hi": 0.9971540825329619,
+          "lo": 0.9757222359487117,
+          "n": 359,
+          "value": 0.9916434540389972
+        },
+        {
+          "hi": 0.9902511357174215,
+          "lo": 0.959183398079047,
+          "n": 349,
+          "value": 0.9799426934097422
+        },
+        {
+          "hi": 0.9745634168093585,
+          "lo": 0.9300572176472218,
+          "n": 330,
+          "value": 0.9575757575757575
+        },
+        {
+          "hi": 0.9932857704348765,
+          "lo": 0.915364580909926,
+          "n": 82,
+          "value": 0.975609756097561
+        }
+      ],
+      "misses": [
+        {
+          "case_id": "S-FOOD-010",
+          "expected": "food_tool",
+          "got": "food_tool · top food_tool_pan#2 0.49 alternative",
+          "kind": "search",
+          "text": "주방 조리도구들 오래 쓰려면 전반적으로 어떻게 관리해야 해요?",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-FOOD-012",
+          "expected": "food_tool · no answer",
+          "got": "food_tool_pan · abstained · top food_tool_pan#2 0.04 reference",
+          "kind": "search",
+          "text": "스테인리스 냄비 바닥에 까맣게 탄 자국은 어떻게 벗겨요?",
+          "why": "route deep"
+        },
+        {
+          "case_id": "S-FOOD-503",
+          "expected": "food_store_item",
+          "got": "food_store_freeze · top food_store_freeze#1 0.82 recommended",
+          "kind": "search",
+          "text": "다진마늘 냉동 보관",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-FOOD-514",
+          "expected": "food_store_item",
+          "got": "food_store_freeze · top food_store_freeze#1 0.90 recommended",
+          "kind": "search",
+          "text": "남는 건 얼려도 되나요? 어떻게 얼려요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-HEALTH-015",
+          "expected": "health_sym_head (+1)",
+          "got": "health · top health_sym_head#1 0.61 alternative",
+          "kind": "search",
+          "text": "요즘 밤에 잠도 잘 못 자고, 오후만 되면 머리가 조이듯 지끈거려요. 둘 다 어떻게 관리하면 좋을까요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-LIFE-018",
+          "expected": "life_appl_air_ac (+1)",
+          "got": "life_appl_air · top life_appl_air_purifier#1 0.71 recommended",
+          "kind": "search",
+          "text": "에어컨 필터는 몇 주에 한 번 씻어야 하는지, 그리고 공기청정기 필터는 언제 새로 사야 하는지 둘 다 알려주세요",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-MONEY-019",
+          "expected": "money_bank_xfer_cap (+1)",
+          "got": "money_bank · top money_bank_xfer_cap#1 0.63 alternative",
+          "kind": "search",
+          "text": "이체 한도도 올려야 하고 공동인증서도 곧 만료라 갱신해야 해요. 둘 다 어떻게 하나요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-SHOP-010",
+          "expected": "shop_ret_refund_card",
+          "got": "money_card_install · top money_card_install#3 0.43 alternative",
+          "kind": "search",
+          "text": "이 쇼핑몰에서 3개월 할부로 산 가방을 반품하면 이미 나간 할부 수수료도 돌려받아요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-SHOP-015",
+          "expected": "shop_ship_addr (+1)",
+          "got": "shop · top shop_order_pay#3 0.80 recommended",
+          "kind": "search",
+          "text": "배송지 주소를 잘못 넣은 것도 고쳐야 하고, 무통장 입금은 언제까지 해야 하는지도 알려 주세요",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-SHOP-030",
+          "expected": "shop_order_pay",
+          "got": "shop_order_cancel · top shop_order_cancel#2 0.54 alternative",
+          "kind": "search",
+          "text": "하나만 취소하려면 어떻게 해요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-TRAVEL-019",
+          "expected": "travel_local_train · no answer",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "KTX에 강아지 데리고 타려면 케이지가 꼭 있어야 하나요?",
+          "why": "route false_none"
+        },
+        {
+          "case_id": "S-WORK-003",
+          "expected": "work_leave_annual_left",
+          "got": "work_leave_annual_left · top work_leave_annual_left#2 0.72 recommended",
+          "kind": "search",
+          "text": "연차 아직 8개나 남았는데 연말 지나면 걍 날아가는 거임?? 돈으로라도 주나",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-WORK-017",
+          "expected": "work_leave_annual_use (+1)",
+          "got": "work · top work#article 0.76 recommended",
+          "kind": "search",
+          "text": "반차 신청하는 법이랑 급여명세서 보는 곳 둘 다 알려주세요",
+          "why": "route shallow, wrong top1"
+        },
+        {
+          "case_id": "S-WORK-020",
+          "expected": "work_exp_trip · no answer",
+          "got": "travel_air_ticket_mile · abstained · top travel_air_ticket_mile#3 0.07 reference",
+          "kind": "search",
+          "text": "출장 다니면서 쌓인 항공 마일리지는 개인적으로 써도 되나요?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-XD-016",
+          "expected": "money_bank_xfer_abroad",
+          "got": "money_bank_xfer_abroad · abstained · top money_bank_xfer_abroad#1 0.31 reference",
+          "kind": "search",
+          "text": "미국에 사는 동생한테 돈을 보내려는데 카드로도 보낼 수 있어요? 뭐가 필요해요?",
+          "why": "abstained"
+        },
+        {
+          "case_id": "S-XD-018",
+          "expected": "shop_ship_missing (+1)",
+          "got": "shop · top shop_ship_missing#1 0.76 recommended",
+          "kind": "search",
+          "text": "배송 완료라는데 택배는 없고, 카드 명세서에는 결제가 두 번 찍혔어요",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-XD-021",
+          "expected": "it_sec_hacked",
+          "got": "it_sec_pw · top it_sec_pw#3 0.61 alternative",
+          "kind": "search",
+          "text": "비밀번호 바꾸는 건 어디서 해요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-XD-038",
+          "expected": "work_exp_trip",
+          "got": "work_exp_claim · top work_exp_claim#2 0.80 recommended",
+          "kind": "search",
+          "text": "그거 영수증은 언제까지 올려야 해요?",
+          "why": "route branch, wrong top1"
+        }
+      ],
+      "route_errors": {
+        "branch": 5,
+        "deep": 1,
+        "domain": 2,
+        "exact": 497,
+        "false_none": 1,
+        "shallow": 6
+      },
+      "router": "jev_llm",
+      "search": {
+        "confident": {
+          "hi": 0.9457648830521374,
+          "lo": 0.8914261987040474,
+          "n": 376,
+          "value": 0.9228723404255319
+        },
+        "e2e": {
+          "hi": 0.9877212322542641,
+          "lo": 0.9590420876338392,
+          "n": 444,
+          "value": 0.9774774774774775
+        },
+        "e2e_answerable": {
+          "hi": 0.985490958013965,
+          "lo": 0.9517418253357262,
+          "n": 376,
+          "value": 0.973404255319149
+        },
+        "e2e_unanswerable": {
+          "hi": 1.0,
+          "lo": 0.9465268034119508,
+          "n": 68,
+          "value": 1.0
+        },
+        "error_codes": {},
+        "errors": 0,
+        "false_abstain": {
+          "hi": 0.014909419720602963,
+          "lo": 0.0004696224906766836,
+          "n": 376,
+          "value": 0.0026595744680851063
+        },
+        "false_answer": {
+          "hi": 0.05347319658804926,
+          "lo": 0.0,
+          "n": 68,
+          "value": 0.0
+        },
+        "hf": {
+          "hi": 0.9934135518335495,
+          "lo": 0.9748618664418692,
+          "n": 444,
+          "value": 0.9841377091377094
+        },
+        "hit1": {
+          "hi": 0.9873571524709314,
+          "lo": 0.9551409835942074,
+          "n": 376,
+          "value": 0.976063829787234
+        },
+        "hit1_given_route": {
+          "hi": 0.9984919445157637,
+          "lo": 0.9801901838786321,
+          "n": 364,
+          "value": 0.9945054945054945
+        },
+        "hit3": {
+          "hi": 0.992666668158958,
+          "lo": 0.9656275260525238,
+          "n": 376,
+          "value": 0.9840425531914894
+        },
+        "hitk": {
+          "hi": 0.992666668158958,
+          "lo": 0.9656275260525238,
+          "n": 376,
+          "value": 0.9840425531914894
+        },
+        "llm_fallback": {
+          "hi": 0.00857803294736353,
+          "lo": 0.0,
+          "n": 444,
+          "value": 0.0
+        },
+        "mean_jev_calls": 1.1711711711711712,
+        "mean_llm_calls": 0.9774774774774775,
+        "mean_ms": 7720.695945945946,
+        "mean_pool": 13.817567567567568,
+        "mean_route_ms": 7458.93018018018,
+        "mrr": {
+          "hi": 0.9934632788731059,
+          "lo": 0.9666431041056174,
+          "n": 376,
+          "value": 0.9800531914893617
+        },
+        "mrr_given_route": {
+          "hi": 1.0010549972007248,
+          "lo": 0.9934504973047698,
+          "n": 364,
+          "value": 0.9972527472527473
+        },
+        "n": 444,
+        "ndcg": {
+          "hi": 0.9874863991997098,
+          "lo": 0.9601814106117921,
+          "n": 376,
+          "value": 0.973833904905751
+        },
+        "oos_f1": 0.9870129870129869,
+        "oos_precision": {
+          "hi": 0.9954594139347627,
+          "lo": 0.8681871352137286,
+          "n": 39,
+          "value": 0.9743589743589743
+        },
+        "oos_recall": {
+          "hi": 0.9999999999999999,
+          "lo": 0.90818706741616,
+          "n": 38,
+          "value": 1.0
+        },
+        "p50_ms": 5567,
+        "p90_ms": 14760,
+        "p95_ms": 22099,
+        "rec_precision": {
+          "hi": 0.9869140555594723,
+          "lo": 0.9565045050465885,
+          "n": 352,
+          "value": 0.9717092803030304
+        },
+        "recall": {
+          "hi": 0.9921070246995736,
+          "lo": 0.9644532589883696,
+          "n": 376,
+          "value": 0.9782801418439716
+        },
+        "route_acc": {
+          "hi": 0.9794216971815098,
+          "lo": 0.9450122991243269,
+          "n": 444,
+          "value": 0.9662162162162162
+        }
+      },
+      "stability": null,
+      "sweep": [
+        {
+          "coverage": 1.0,
+          "e2e": 0.9752252252252253,
+          "false_answer": 0.029411764705882353,
+          "precision": 0.9708994708994709,
+          "threshold": 0.2
+        },
+        {
+          "coverage": 1.0,
+          "e2e": 0.9797297297297297,
+          "false_answer": 0.0,
+          "precision": 0.976063829787234,
+          "threshold": 0.25
+        },
+        {
+          "coverage": 1.0,
+          "e2e": 0.9797297297297297,
+          "false_answer": 0.0,
+          "precision": 0.976063829787234,
+          "threshold": 0.3
+        },
+        {
+          "coverage": 0.9973404255319149,
+          "e2e": 0.9774774774774775,
+          "false_answer": 0.0,
+          "precision": 0.976,
+          "threshold": 0.35
+        },
+        {
+          "coverage": 0.9973404255319149,
+          "e2e": 0.9774774774774775,
+          "false_answer": 0.0,
+          "precision": 0.976,
+          "threshold": 0.4
+        },
+        {
+          "coverage": 0.9867021276595744,
+          "e2e": 0.972972972972973,
+          "false_answer": 0.0,
+          "precision": 0.9811320754716981,
+          "threshold": 0.5
+        },
+        {
+          "coverage": 0.9654255319148937,
+          "e2e": 0.9572072072072072,
+          "false_answer": 0.0,
+          "precision": 0.9834710743801653,
+          "threshold": 0.6
+        },
+        {
+          "coverage": 0.9361702127659575,
+          "e2e": 0.9346846846846847,
+          "false_answer": 0.0,
+          "precision": 0.9857954545454546,
+          "threshold": 0.65
+        }
+      ],
+      "variant": "standard"
+    }
+  ],
+  "meta": {
+    "beam_width": "case/default",
+    "cases": 525,
+    "command": "run --router jev_llm --variant deep,standard --settings-db /Users/jake/dev/ai/jev-tree/data/demo.db --note jev_llm with DB-registered LLM (muse-spark)",
+    "concurrency": 4,
+    "dataset": {
+      "cases_hash": "b2a362fcd60d",
+      "kb_hash": "489e5fca3c7c",
+      "name": "kb",
+      "version": "1.0.0"
+    },
+    "filter": "",
+    "finished_at": "2026-09-27T07:20:02Z",
+    "git": {
+      "dirty": true,
+      "sha": "ef481c7"
+    },
+    "limit": "case/default",
+    "mock": "off",
+    "models": {
+      "jev_llm": {
+        "credentials": "db:/Users/jake/dev/ai/jev-tree/data/demo.db",
+        "jev_base_url": "https://api.typesafe.ai",
+        "jev_model": "jev-latest",
+        "llm_base_url": "https://proxy.zvzo.ai/v1",
+        "llm_model": "meta/muse-spark-1.3-contributor"
+      }
+    },
+    "note": "jev_llm with DB-registered LLM (muse-spark)",
+    "repeat": 1,
+    "routers": [
+      "jev_llm"
+    ],
+    "run_id": "20260927-064735-jev_llm",
+    "split": "all",
+    "started_at": "2026-09-27T06:47:35Z",
+    "suites": [
+      "all"
+    ],
+    "timeout_secs": 120,
+    "variants": [
+      "deep",
+      "standard"
+    ],
+    "verify_draft_search": false
+  }
+}

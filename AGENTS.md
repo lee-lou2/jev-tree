@@ -61,6 +61,10 @@ The default route is **one Jev choice** (`flat_route`):
 - Above `ONE_SHOT_MAX_NODES` (800) nodes the menu falls back to lexical recall (strongest
   matches, a per-root quota, full ancestor chains), and below `FLAT_MIN_EVIDENCE` the
   semantic beam below runs instead.
+- An uncertain pick (chosen probability < 0.85) gets **one more judgment on scope alone**
+  ("does this tree cover the request at all"). Only a confident `out` (p ≥ 0.8) refuses;
+  a hesitant one keeps the menu choice. A `start_node` walk must land on a node and never
+  asks. The step shows up as `trace.steps[1]`.
 
 The beam fallback descends level by level:
 
@@ -86,7 +90,8 @@ The beam fallback descends level by level:
   recall menu on scopes too large to name (`recall_candidates` in `src/engine.rs`).
 
 Result roles: `recommended` ≥ 0.65, `alternative` ≥ 0.40, else `reference`.
-Top score < 0.30 sets `abstained: true`. `leaf_id: null` means outside the tree.
+A weak best item sets `abstained: true` (score < 0.45, or < 0.30 with directness < 1.0).
+`leaf_id: null` means outside the tree.
 
 ## Where code goes
 

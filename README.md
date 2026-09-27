@@ -66,7 +66,7 @@ Read a search result by role, never by `items[0]`:
 | field | meaning |
 |---|---|
 | `items[].role` | `recommended` ≥ 0.65 · `alternative` ≥ 0.40 · else `reference` |
-| `abstained: true` | top score < 0.30 — say "I don't know" |
+| `abstained: true` | the best item is weak (score < 0.45, or < 0.30 with directness < 1.0) — say "I don't know" |
 | `leaf_id: null` | outside the tree; `items` is empty |
 
 ## API in 30 seconds
@@ -144,15 +144,15 @@ cargo run --release --example eval -- validate --strict        # dataset check, 
 cargo run --release --example eval -- run --router both --variant all
 ```
 
-Measured on the `standard` tree (`jev-latest`; `gpt-6-luna` routes the category in
-`jev_llm`. `jev` row: run `20260926-215730-jev`. `jev_llm` row: `20260924-073815`):
+Measured on the `standard` tree (`jev-latest`; `muse-spark` routes the category in
+`jev_llm`. `jev` row: run `20260927-064126-jev`. `jev_llm` row: `20260927-064735-jev_llm`):
 
 | routing | E2E | Hit@1 | ingest | latency p50 |
 |---|---:|---:|---:|---:|
-| Jev, one flat choice | 96.8% | 97.1% | 91.2% | **0.5s** |
-| LLM + Jev ranking | **98.2%** | **97.9%** | **94.1%** | 12.6s |
+| Jev, one flat choice | 97.3% | 97.3% | 92.6% | **0.5s** |
+| LLM (`muse-spark`) + Jev ranking | **97.7%** | **97.6%** | **100%** | 5.6s |
 
-Three things worth knowing before trusting a result:
+Four things worth knowing before trusting a result:
 
 - **Routing is one Jev choice over every node in scope, not a level-by-level beam.** The
   beam lost a leaf as soon as one level guessed wrong, and the loss grew with depth
@@ -160,6 +160,15 @@ Three things worth knowing before trusting a result:
   (93.0–97.0%) and halves the evaluator calls (4.4 → 2.2 per case) and the latency
   (p50 1.0s → 0.5s). Measured against the beam baseline: E2E +4.0%p on `deep`
   (McNemar p=0.0005), +4.7%p on `standard` (p<0.0001), Hit@1 +5.6%p on `standard`.
+- **A weak best item is held, not answered.** Score ≥ 0.45 answers outright; below that
+  only a *direct* item (directness ≥ 1.0) does. False answers fall 62 → 38 (−39%) with
+  false holds 10 → 13, and `sparse` (where the answer is often missing) gains +3.8%p
+  (p<0.0001). An uncertain route gets one more judgment on scope alone, which refuses
+  out-of-scope requests the menu still picked (caught 73% → 77%). No tree shape regressed
+  beyond the ±1%p run noise.
+- **Jev and LLM routing now tie end-to-end** (97.3% vs 97.7% on `standard`, p=0.69). The
+  LLM still routes better (route accuracy +3.5%p, p=0.001) and files better (ingest 100%
+  vs 92.6%), at eleven times the latency.
 - **Where it misses matters more than how often.** A miss sideways (sibling branch) drops the
   answer out of the candidate pool; a miss upward leaves it ranked under an ancestor and
   recoverable. Routing accuracy alone does not show this.

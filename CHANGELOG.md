@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.0
+
+### Changed
+
+- **Holds are calibrated; weak answers no longer ship.** A best item scoring ≥ 0.45 answers
+  outright; below that only a *direct* item (directness ≥ 1.0) answers, and anything weaker
+  is held. The lines were swept on the golden set's 2,102 search cases (thresholds chosen on
+  the recorded judgments) and confirmed with live runs: false answers 62 → 38 (−39%) with
+  false holds 10 → 13, end-to-end +0.8~1.0pp, and `sparse` — where the answer is often
+  missing — **+3.8%p** (McNemar p<0.0001). No tree shape regressed beyond the ±1%p run
+  noise (repeat run agrees on every cell).
+- **An uncertain route asks one more judgment on scope alone** ("does this tree cover the
+  request at all"). The menu asks *which node fits* and an out-of-scope request can still
+  win one; the scope judgment catches those (caught 73% → 77%). Only a confident `out`
+  (p ≥ 0.8) refuses — a timid one kept refusing real questions ("laptop battery swelled,
+  where do I apply?"). The step shows as `trace.steps[1]`; a `start_node` walk must land on
+  a node and never asks.
+- `jev_llm` re-measured with the DB-registered LLM (`muse-spark`) for the comparison:
+  end-to-end is now a tie (97.3% vs 97.7% on `standard`, McNemar p=0.69). The LLM still
+  routes better (route accuracy +3.5%p, p=0.001) and files better (ingest 100% vs 92.6%),
+  at eleven times the latency (p50 5.6s vs 0.5s).
+
 ## 0.7.0
 
 ### Changed

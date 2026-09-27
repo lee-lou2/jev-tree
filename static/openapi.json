@@ -326,7 +326,8 @@
         "type": "object",
         "properties": {
           "abstained": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "True when the best item is weak: score < 0.45, or < 0.30 with directness < 1.0. Answer that you don't know; do not answer from the items."
           },
           "items": {
             "type": "array",
