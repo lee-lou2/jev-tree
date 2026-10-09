@@ -26,7 +26,7 @@ cargo run --release      # from the repo root
 # Docs  http://127.0.0.1:8768/docs      (spec: /api/openapi.json)
 ```
 
-Default paths are relative (`data/demo.db`, `data/seed.json`, `static/`), so the repo root
+Default paths are relative (`data/db.sqlite3`, `data/seed.json`, `static/`), so the repo root
 must be the working directory. The bundled seed is fictional: 604 categories, 1,312 items,
 max depth 10.
 
@@ -98,7 +98,7 @@ live in SQLite and are changed through `PATCH /api/settings`.
 | `PORT` | `8768` | Listen port |
 | `JEV_TREE_BIND` | `127.0.0.1` | Any non-loopback value requires a login password (see below) |
 | `JEV_TREE_ALLOW_OPEN` | — | `1` allows a public bind without a login password. Understand the risk first |
-| `JEV_TREE_DB` | `data/demo.db` | SQLite file |
+| `JEV_TREE_DB` | `data/db.sqlite3` | SQLite file |
 | `JEV_TREE_SEED` | `data/seed.json` | Seed used on first boot and by `POST /api/seed` |
 | `JEV_TREE_STATIC_DIR` | `static` | UI + `openapi.json` |
 | `JEV_TREE_SECRET_KEY_FILE` / `JEV_TREE_SECRET_KEY` | — | Material for encrypting stored secrets; otherwise a `0600` sibling `.jev-tree.key` is created |
