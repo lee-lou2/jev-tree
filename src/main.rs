@@ -10,7 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         )
         .init();
     let port = env::var("PORT").unwrap_or_else(|_| "8768".into());
-    let db = env::var("JEV_TREE_DB").unwrap_or_else(|_| "data/demo.db".into());
+    let db = env::var("JEV_TREE_DB").unwrap_or_else(|_| "data/db.sqlite3".into());
     let seed = env::var("JEV_TREE_SEED").unwrap_or_else(|_| "data/seed.json".into());
     let static_dir = env::var("JEV_TREE_STATIC_DIR").unwrap_or_else(|_| "static".into());
     if !std::path::Path::new(&static_dir)

@@ -58,7 +58,7 @@ cargo run --release --example eval -- compare eval/results/runs/<A> eval/results
 러너는 **DB에 등록된 설정을 먼저** 읽습니다.
 
 ```bash
-cargo run --release --example eval -- … --settings-db /path/to/data/demo.db
+cargo run --release --example eval -- … --settings-db /path/to/data/db.sqlite3
 ```
 
 DB에 없거나 덮어쓸 때만 환경 변수를 씁니다(앞 것이 우선).

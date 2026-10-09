@@ -120,7 +120,7 @@ fn derive_aes_key(db_path: &str) -> [u8; 32] {
 }
 
 fn db_path() -> String {
-    std::env::var("JEV_TREE_DB").unwrap_or_else(|_| "data/demo.db".into())
+    std::env::var("JEV_TREE_DB").unwrap_or_else(|_| "data/db.sqlite3".into())
 }
 
 /// Encrypt a secret for storage. Format: `v2:<base64(nonce‖ciphertext)>`.
