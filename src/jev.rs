@@ -308,7 +308,7 @@ impl JevClient {
                     request_block(query, background),
                     lines.join("\n")
                 ),
-                &allowed,
+                &options,
             )
             .await?;
         if root == "__none__" {
@@ -409,7 +409,7 @@ impl JevClient {
         );
         step.ask(&parent);
         let picked = self
-            .complete_id(&creds.base, &creds.token, &creds.model, &prompt, &allowed)
+            .complete_id(&creds.base, &creds.token, &creds.model, &prompt, &options)
             .await?;
         if picked == "__none__" {
             step.chose(&parent, options, None, "no matching topic".into());
@@ -482,7 +482,7 @@ impl JevClient {
         );
         step.ask(&root_name);
         let picked = self
-            .complete_id(&creds.base, &creds.token, &creds.model, &prompt, &short)
+            .complete_id(&creds.base, &creds.token, &creds.model, &prompt, &options)
             .await?;
         let picked_name = by_id
             .get(picked.as_str())
@@ -502,16 +502,18 @@ impl JevClient {
         token: &str,
         model: &str,
         user: &str,
-        allowed: &[String],
+        choices: &[(String, String)],
     ) -> Result<String, JevError> {
         let content = self.chat(base, token, model, user).await?;
-        if let Some(id) = parse_final_id(&content, allowed) {
+        if let Some(id) = parse_final_choice(&content, choices) {
             return Ok(id);
         }
-        let retry =
-            format!("{user}\n\n마지막 줄에 허용된 id 하나만 다시 쓰세요. 설명은 쓰지 마세요.");
+        let retry = format!(
+            "{user}\n\n이전 답변에서 id를 찾을 수 없었습니다. \
+             설명·근거·마크다운 없이, 허용된 id 하나만 한 줄로 다시 쓰세요."
+        );
         let content = self.chat(base, token, model, &retry).await?;
-        parse_final_id(&content, allowed)
+        parse_final_choice(&content, choices)
             .ok_or_else(|| JevError::Invalid("LLM route did not return an allowed id".into()))
     }
 
@@ -530,12 +532,21 @@ impl JevClient {
         let mut payload = json!({
             "model": model,
             "reasoning_effort": "low",
-            "max_tokens": 900,
+            // A reasoning model bills its thinking against max_tokens, and the
+            // menu can name every node in scope. 900 was too small: the reply
+            // budget went to deliberation and `content` came back empty, which
+            // is what the "LLM returned no content" and "did not return an
+            // allowed id" warnings were. The answer is one id, so this is pure
+            // thinking headroom — cheap insurance against a truncated reply.
+            "max_tokens": ROUTE_MAX_TOKENS,
             "messages": messages,
         });
         let first = match self.post_chat(&url, token, &payload).await {
             Err(JevError::Status(400)) => {
+                // The endpoint may reject the thinking knob or a ceiling above
+                // its own. Shrink the budget so an oversized ask still routes.
                 plain_chat_payload(&mut payload);
+                shrink_max_tokens(&mut payload);
                 self.post_chat(&url, token, &payload).await?
             }
             other => other?,
@@ -556,8 +567,9 @@ impl JevClient {
     async fn post_chat(&self, url: &str, token: &str, payload: &Value) -> Result<String, JevError> {
         // 90s, not the 20s the client defaults to: the route call now names every
         // node in scope, and a reasoning model deliberates over that menu for a
-        // while. Still under the run deadline (JEV_TREE_RUN_TIMEOUT_SECS, 120s)
-        // so a hung call cannot outlive the request it belongs to.
+        // while. The route step's own budget (`llm_route_budget`) is the real
+        // ceiling and cancels this future first; this timeout only stops a hung
+        // socket from pinning the connection.
         let response = self
             .client
             .post(url)
@@ -965,6 +977,16 @@ pub fn llm_menu(
 /// stepped walk (root topic, then a lexical shortlist below it) takes over.
 pub const ONE_SHOT_MAX_NODES: usize = 800;
 
+/// Output budget for one routing reply. A reasoning model bills its thinking
+/// against this, so it has to cover deliberating over the menu as well as the
+/// one id that comes out the far end. The reply itself is tiny — the room is
+/// for the thinking, and a ceiling that cuts it off leaves `content` empty.
+const ROUTE_MAX_TOKENS: u32 = 16384;
+
+/// Ceiling for endpoints whose own cap is below [`ROUTE_MAX_TOKENS`]. Used only
+/// after a 400, so the common path keeps the full budget.
+const ROUTE_MAX_TOKENS_FALLBACK: u32 = 4096;
+
 /// Top lexical matches inside `root`'s subtree, plus each match's parent when it
 /// is still inside that subtree. Parents stay visible so a specific child cannot
 /// hide the topic the request actually named.
@@ -1007,6 +1029,12 @@ fn plain_chat_payload(payload: &mut Value) {
     if let Some(map) = payload.as_object_mut() {
         map.remove("reasoning_effort");
         map.insert("temperature".into(), json!(0));
+    }
+}
+
+fn shrink_max_tokens(payload: &mut Value) {
+    if let Some(map) = payload.as_object_mut() {
+        map.insert("max_tokens".into(), json!(ROUTE_MAX_TOKENS_FALLBACK));
     }
 }
 
@@ -1068,6 +1096,57 @@ pub fn parse_final_id(content: &str, allowed: &[String]) -> Option<String> {
         return Some(hits[0].clone());
     }
     None
+}
+
+/// The node the model named. [`parse_final_id`] first, then the whole reply:
+/// a reasoning model often leaves its pick in the middle of a sentence, and a
+/// weak one answers with the node's name instead of its id. Ambiguous replies
+/// (two ids, two names) return `None` so the caller can retry rather than guess.
+pub fn parse_final_choice(content: &str, choices: &[(String, String)]) -> Option<String> {
+    let allowed: Vec<String> = choices.iter().map(|(id, _)| id.clone()).collect();
+    if let Some(id) = parse_final_id(content, &allowed) {
+        return Some(id);
+    }
+    // Whole-reply scan, still whole-token so `orders` never matches inside
+    // `orders_tracking`. The last mention wins: that is the model's conclusion.
+    let mut found: Option<String> = None;
+    let mut ambiguous = false;
+    for line in content.lines() {
+        let hits: Vec<&String> = allowed
+            .iter()
+            .filter(|id| {
+                line.split(|c: char| !c.is_ascii_alphanumeric() && c != '_' && c != '-')
+                    .any(|token| token == id.as_str())
+            })
+            .collect();
+        match hits.len() {
+            0 => {}
+            1 => {
+                found = Some(hits[0].clone());
+                ambiguous = false;
+            }
+            _ => ambiguous = true,
+        }
+    }
+    if let Some(id) = found
+        && !ambiguous
+    {
+        return Some(id);
+    }
+    // Last resort: the node name. Only an unambiguous name counts.
+    let last = content.lines().rev().find(|line| !line.trim().is_empty())?;
+    let mut named: Option<&String> = None;
+    for (id, name) in choices {
+        let name = name.trim();
+        if name.is_empty() || !last.contains(name) {
+            continue;
+        }
+        if named.is_some() {
+            return None;
+        }
+        named = Some(id);
+    }
+    named.cloned()
 }
 
 pub fn tokens(text: &str) -> BTreeSet<String> {
@@ -1257,6 +1336,33 @@ mod tests {
             Some("orders_tracking")
         );
         assert!(parse_final_id("orders or orders_tracking", &allowed).is_none());
+    }
+
+    #[test]
+    fn parse_final_choice_survives_reasoning_prose_and_names() {
+        let choices = vec![
+            ("orders".to_string(), "주문".to_string()),
+            ("orders_tracking".to_string(), "배송 추적".to_string()),
+            ("account".to_string(), "계정".to_string()),
+        ];
+        // The pick sits mid-sentence — the reasoning models' usual shape.
+        assert_eq!(
+            parse_final_choice("orders_tracking이 더 정확합니다.\n그 이유는...", &choices)
+                .as_deref(),
+            Some("orders_tracking")
+        );
+        // The last unambiguous mention wins.
+        assert_eq!(
+            parse_final_choice("orders일까?\n아니다, orders_tracking.", &choices).as_deref(),
+            Some("orders_tracking")
+        );
+        // A weak model answers with the node name, not the id.
+        assert_eq!(
+            parse_final_choice("배송 추적", &choices).as_deref(),
+            Some("orders_tracking")
+        );
+        // Two names on the answer line is still a guess we refuse to make.
+        assert!(parse_final_choice("주문 또는 배송 추적", &choices).is_none());
     }
 
     #[test]

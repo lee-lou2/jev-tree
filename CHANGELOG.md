@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.1
+
+### Fixed
+
+- **LLM routing no longer drops replies it can read.** Two warnings filled the log
+  ("LLM returned no content", "LLM route did not return an allowed id") and every one
+  of them fell back to Jev beam descent. Both had the same two roots: the route call
+  asked for 900 output tokens while the model also bills its thinking against that
+  budget, so a long deliberation over the menu left `content` empty; and the pick was
+  read from the last line only, so a model that answered mid-sentence — or with the
+  node's name instead of its id — was treated as no answer at all.
+  The budget is now 16,384 — room for the thinking as well as the one id that comes
+  out the far end — and 4,096 if the endpoint rejects a larger ask. The reply is
+  parsed as a whole: the last unambiguous allowed id anywhere in it wins, with the
+  node name as a last resort. A line naming two candidates is still refused rather
+  than guessed. Covered in `src/jev.rs`.
+- **A slow LLM can no longer cost the request its answer.** The route step shares the
+  run deadline with the beam and the ranking that follow it, so a model that
+  deliberates past the budget used to time the whole run out. The route step now gets
+  a third of `JEV_TREE_RUN_TIMEOUT_SECS` and falls back to the Jev beam when that is
+  spent.
+
 ## 0.8.0
 
 ### Changed

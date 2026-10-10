@@ -1,4 +1,4 @@
-use crate::engine::{depth, execute, resolve_root};
+use crate::engine::{depth, execute, resolve_root, run_deadline};
 use crate::error::Error;
 use crate::models::*;
 use crate::{AppResult, AppState};
@@ -751,16 +751,6 @@ async fn reset_seed(
     state.reload_taxonomy()?;
     let (nodes, items) = state.store.stats()?;
     Ok(Json(json!({"seeded":{"nodes":nodes,"items":items}})))
-}
-
-/// Upper bound on a single descent so a degraded evaluator cannot pin a connection open.
-fn run_deadline() -> std::time::Duration {
-    let seconds = env::var("JEV_TREE_RUN_TIMEOUT_SECS")
-        .ok()
-        .and_then(|v| v.parse::<u64>().ok())
-        .filter(|v| *v > 0)
-        .unwrap_or(120);
-    std::time::Duration::from_secs(seconds)
 }
 
 async fn run_once(
