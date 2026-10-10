@@ -166,6 +166,26 @@ pub async fn execute(
     }
 }
 
+/// Upper bound on a single descent so a degraded evaluator cannot pin a
+/// connection open. `JEV_TREE_RUN_TIMEOUT_SECS` overrides the 120s default.
+pub fn run_deadline() -> std::time::Duration {
+    let seconds = std::env::var("JEV_TREE_RUN_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(120);
+    std::time::Duration::from_secs(seconds)
+}
+
+/// Wall-clock budget for the LLM route step alone. The route call may retry and
+/// the model may deliberate over the full menu, so without a ceiling a slow
+/// reply eats the whole run deadline and the request dies as a timeout instead
+/// of falling back to the Jev beam. A third of the deadline leaves room for the
+/// beam and the ranking that follow.
+fn llm_route_budget() -> std::time::Duration {
+    run_deadline() / 3
+}
+
 async fn descend(
     state: &AppState,
     query: &str,
@@ -214,39 +234,45 @@ async fn descend(
     if state.jev.llm_routing() {
         let restrict = beams[0].node_id.clone();
         let progress = sender.clone();
-        match state
-            .jev
-            .route(query, &conversation, &nodes, restrict.as_deref(), |note| {
-                let Some(tx) = &progress else {
-                    return;
-                };
-                let event = if note.asking {
-                    json!({
-                        "type": "descent_step",
-                        "status": "asking",
-                        "depth": note.depth
-                    })
-                } else {
-                    json!({
-                        "type": "descent_step",
-                        "status": "answered",
-                        "depth": note.depth,
-                        "nodes": [{
-                            "node_name": note.parent_name,
-                            "choice_id": note.choice_id,
-                            "choice_name": note.choice_name
-                        }]
-                    })
-                };
-                let _ = tx.try_send(event);
-            })
-            .await
-        {
-            Ok(route) => {
+        let routed = tokio::time::timeout(
+            llm_route_budget(),
+            state
+                .jev
+                .route(query, &conversation, &nodes, restrict.as_deref(), |note| {
+                    let Some(tx) = &progress else {
+                        return;
+                    };
+                    let event = if note.asking {
+                        json!({
+                            "type": "descent_step",
+                            "status": "asking",
+                            "depth": note.depth
+                        })
+                    } else {
+                        json!({
+                            "type": "descent_step",
+                            "status": "answered",
+                            "depth": note.depth,
+                            "nodes": [{
+                                "node_name": note.parent_name,
+                                "choice_id": note.choice_id,
+                                "choice_name": note.choice_name
+                            }]
+                        })
+                    };
+                    let _ = tx.try_send(event);
+                }),
+        )
+        .await;
+        match routed {
+            Ok(Ok(route)) => {
                 return Ok(llm_route_result(&nodes, route, mode, query, &run_id, &sender).await);
             }
-            Err(error) => {
+            Ok(Err(error)) => {
                 tracing::warn!("llm route failed, using beam descent: {error}");
+            }
+            Err(_) => {
+                tracing::warn!("llm route failed, using beam descent: route budget spent");
             }
         }
     }
@@ -1868,6 +1894,14 @@ mod tests {
         assert_eq!(result["leaf_id"], "orders_tracking", "{result}");
         assert_eq!(result["trace"]["router"], "flat");
         assert!(result["trace"]["score"].as_f64().is_some(), "{result}");
+    }
+
+    #[test]
+    fn llm_route_budget_leaves_room_for_the_beam_and_ranking() {
+        // A third of the run deadline: enough for a slow model to deliberate
+        // and still leave the beam and the ranking time to finish.
+        assert_eq!(llm_route_budget(), run_deadline() / 3);
+        assert!(llm_route_budget() < run_deadline());
     }
 
     #[tokio::test]
