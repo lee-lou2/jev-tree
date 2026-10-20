@@ -9,7 +9,10 @@
 //!   boot, then the DB is the single source of truth.
 
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce, aead::Aead};
-use argon2::Argon2;
+use argon2::{
+    Argon2,
+    password_hash::{PasswordHasher, PasswordVerifier},
+};
 use base64::{
     Engine,
     engine::general_purpose::{STANDARD as B64, URL_SAFE_NO_PAD as B64URL},
@@ -177,18 +180,29 @@ pub fn sha256_hex(value: &str) -> String {
     hex(&hasher.finalize())
 }
 
-/// Salted server-key hash: `v1:<salt-b64>:<sha256-hex(salt+key)>`.
+/// Login-password hash: `v2:<argon2id PHC string>` (random 16-byte salt, the
+/// parameters travel inside the string). The login password is the one secret
+/// here that a person chose, so it gets a memory-hard hash: a dumped database
+/// must not turn a short password into a quick offline guess. Session tokens and
+/// API keys are 192-bit random values; a plain SHA-256 is enough for those.
 pub fn hash_server_key(key: &str) -> String {
     let mut salt = [0u8; 16];
     fill_random(&mut salt);
-    let salt_b64 = B64.encode(salt);
-    let mut hasher = Sha256::new();
-    hasher.update(salt);
-    hasher.update(key.as_bytes());
-    format!("v1:{salt_b64}:{}", hex(&hasher.finalize()))
+    let phc = Argon2::default()
+        .hash_password_with_salt(key.as_bytes(), &salt)
+        .expect("argon2 must run");
+    format!("v2:{phc}")
 }
 
+/// Check a login password against `v2:` (Argon2id) or the older
+/// `v1:<salt-b64>:<sha256-hex(salt+key)>` hashes, which stay valid until the next
+/// successful login replaces them (see [`server_key_needs_upgrade`]).
 pub fn verify_server_key(key: &str, stored: &str) -> bool {
+    if let Some(phc) = stored.strip_prefix("v2:") {
+        return Argon2::default()
+            .verify_password(key.as_bytes(), phc)
+            .is_ok();
+    }
     let parts: Vec<&str> = stored.split(':').collect();
     if parts.len() != 3 || parts[0] != "v1" {
         return false;
@@ -199,7 +213,18 @@ pub fn verify_server_key(key: &str, stored: &str) -> bool {
     let mut hasher = Sha256::new();
     hasher.update(salt);
     hasher.update(key.as_bytes());
-    hex(&hasher.finalize()) == parts[2]
+    constant_time_eq(hex(&hasher.finalize()).as_bytes(), parts[2].as_bytes())
+}
+
+/// True for a hash that predates Argon2id: re-hash the password while it is in
+/// hand, right after it verified.
+pub fn server_key_needs_upgrade(stored: &str) -> bool {
+    stored.starts_with("v1:")
+}
+
+/// Compare without stopping at the first difference.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
 /// Issue an opaque session token (returned once, never stored raw).
@@ -223,6 +248,17 @@ pub fn new_server_key() -> String {
     format!("{SERVER_KEY_PREFIX}{}", B64URL.encode(buf))
 }
 
+/// The hash this crate wrote before Argon2id, `v1:<salt>:<sha256(salt+key)>`,
+/// for tests that need an old database.
+#[cfg(test)]
+pub(crate) fn legacy_server_key_hash(key: &str) -> String {
+    let salt = [7u8; 16];
+    let mut hasher = Sha256::new();
+    hasher.update(salt);
+    hasher.update(key.as_bytes());
+    format!("v1:{}:{}", B64.encode(salt), hex(&hasher.finalize()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -244,6 +280,39 @@ mod tests {
         // `jt-…` keys are not locked out by the rotation.
         let stored = hash_server_key("jt-ABCD-1234-EFGH");
         assert!(verify_server_key("jt-ABCD-1234-EFGH", &stored));
+    }
+
+    #[test]
+    fn new_hashes_are_argon2id_with_a_salt_of_their_own() {
+        let a = hash_server_key("correct horse");
+        let b = hash_server_key("correct horse");
+        assert!(a.starts_with("v2:$argon2id$"), "{a}");
+        assert_ne!(a, b, "each hash carries its own random salt");
+        assert!(verify_server_key("correct horse", &a));
+        assert!(!verify_server_key("correct horse ", &a));
+        assert!(!server_key_needs_upgrade(&a));
+    }
+
+    #[test]
+    fn old_sha256_hashes_still_log_in_and_are_flagged_for_upgrade() {
+        let stored = legacy_server_key_hash("old-password");
+        assert!(verify_server_key("old-password", &stored));
+        assert!(!verify_server_key("other-password", &stored));
+        assert!(server_key_needs_upgrade(&stored));
+    }
+
+    #[test]
+    fn unreadable_hashes_never_verify() {
+        for stored in ["", "v1", "v1:x", "v1:!!!:abc", "v2:", "v2:garbage", "plain"] {
+            assert!(!verify_server_key("anything", stored), "{stored:?}");
+        }
+    }
+
+    #[test]
+    fn constant_time_eq_compares_whole_values() {
+        assert!(constant_time_eq(b"abc", b"abc"));
+        assert!(!constant_time_eq(b"abc", b"abd"));
+        assert!(!constant_time_eq(b"abc", b"abcd"));
     }
 
     #[test]

@@ -45,16 +45,17 @@ A Jev API key is required. The LLM is optional.
    stay inside it. Settings and keys do not.
 2. Routing is **one Jev choice over every node in scope** — no level-by-level guessing,
    so no choice is made blind to the rest of the tree and one wrong level cannot lose the
-   leaf. `__none__` abstains; under a `root`/`start_node` the walk stays in that subtree
-   and cannot. Above 800 nodes in scope the menu falls back to lexical recall and, without
-   lexical evidence, to the **beam**: direct children plus one terminal option (`__none__`
-   at the root, `__stop__` deeper), `beam_width` paths scored by the **geometric mean** of
-   edge probabilities. When an LLM base URL, token, and model are all set, routing uses
+   leaf. `__none__` abstains (a `root` scope abstains for "outside this root"); a
+   `start_node` walk stays in that subtree and cannot. When one choice cannot name the whole
+   scope (Jev takes 255 options, so past 254 nodes, or 80 KB of menu text) the menu falls
+   back to lexical recall and, without lexical evidence, to the **beam**: direct children
+   plus one terminal option (`__none__` at the root, `__stop__` deeper), `beam_width` paths
+   scored by the **geometric mean** of edge probabilities. When an LLM base URL, token, and model are all set, routing uses
    that model instead — also **one call naming every node in scope**. Above 800 nodes it
    falls back to the stepped walk (root topic, then a shortlist below it). If any of the
    three is missing, or the call fails, Jev routes.
 3. `search` ranks **every active item** under the selected node with Jev (Noul and Score),
-   in batches of 32, then keeps `limit`. `ingest` routes a new Q&A through the same descent
+   in batches of up to 32 items and 24 KB, then keeps `limit`. `ingest` routes a new Q&A through the same descent
    and stores it as `qa`.
 4. A flat `trace` lists the candidates with probabilities; `trace.score` is the chosen
    probability and per-edge `probability` is null. A beam `trace` has per-depth candidates
