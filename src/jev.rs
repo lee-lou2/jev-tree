@@ -347,9 +347,15 @@ impl JevClient {
     /// One model call naming every node in scope. `None` when that menu is too
     /// large to stay cheap, which hands routing back to the stepped walk.
     ///
-    /// Under `root`/`start_node` the walk stays inside one subtree and cannot
-    /// abstain, so the model must land on a node in scope; the whole forest adds
-    /// `__none__` for "this belongs nowhere".
+    /// A `start_node` walk stays inside one subtree and cannot abstain, so the
+    /// model must land on a node in scope. A forest walk adds `__none__` for
+    /// "this belongs nowhere", and so does a `root` scope: the engine hands over
+    /// the root's children as the forest, so `__none__` there means "outside
+    /// this root".
+    ///
+    /// The limit that keeps this menu to one call is [`ONE_SHOT_MAX_NODES`]. The
+    /// flat Jev choice is stricter (see `FLAT_MAX_NODES` in the engine): it is a
+    /// structured-output call with a hard option cap, this is a chat completion.
     async fn route_once<F>(
         &self,
         creds: &LlmCreds,
@@ -974,7 +980,8 @@ pub fn llm_menu(
 }
 
 /// Above this many nodes in scope the one-shot menu stops being cheap, and the
-/// stepped walk (root topic, then a lexical shortlist below it) takes over.
+/// stepped walk (root topic, then a lexical shortlist below it) takes over. This
+/// is the LLM router's line only; the flat Jev choice has lower ones.
 pub const ONE_SHOT_MAX_NODES: usize = 800;
 
 /// Output budget for one routing reply. A reasoning model bills its thinking

@@ -78,6 +78,79 @@ fn require_session(session: &Session, needs_auth: bool) -> Result<(), Error> {
     Ok(())
 }
 
+/// Settings, key management, model probes and the destructive seed reset belong
+/// to the operator, so they need a login session. An integration's API key is for
+/// the data endpoints: one that could mint keys or rotate the password would
+/// outlive its own revocation.
+fn require_admin(state: &AppState, session: &Session) -> Result<(), Error> {
+    authed(state, session)?;
+    if session.via_api_key {
+        return Err(Error::Forbidden(
+            "this endpoint needs a login session; an API key cannot use it".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// axum answers extractor failures (bad JSON, a wrong content type, a body over
+/// the limit) and routing misses (405) with plain text. Every `/api` error is
+/// documented as `{code, detail}`, so those are wrapped here; responses that
+/// already are JSON pass through untouched.
+async fn error_envelope(response: Response) -> Response {
+    let status = response.status();
+    if !(status.is_client_error() || status.is_server_error()) {
+        return response;
+    }
+    let is_json = response
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.starts_with("application/json"));
+    if is_json {
+        return response;
+    }
+    let (mut parts, body) = response.into_parts();
+    let text = match axum::body::to_bytes(body, 8 * 1024).await {
+        Ok(bytes) => String::from_utf8_lossy(&bytes).trim().to_string(),
+        Err(_) => String::new(),
+    };
+    let (status, code) = match status {
+        StatusCode::UNPROCESSABLE_ENTITY => (StatusCode::BAD_REQUEST, "invalid_request"),
+        StatusCode::UNAUTHORIZED => (status, "unauthorized"),
+        StatusCode::FORBIDDEN => (status, "forbidden"),
+        StatusCode::NOT_FOUND => (status, "not_found"),
+        StatusCode::CONFLICT => (status, "conflict"),
+        other if other.is_server_error() => (other, "internal_error"),
+        other => (other, "invalid_request"),
+    };
+    let detail = if text.is_empty() {
+        status
+            .canonical_reason()
+            .unwrap_or("request failed")
+            .to_lowercase()
+    } else {
+        text
+    };
+    parts.headers.remove(axum::http::header::CONTENT_TYPE);
+    parts.headers.remove(axum::http::header::CONTENT_LENGTH);
+    (
+        status,
+        parts.headers,
+        Json(json!({"code": code, "detail": detail})),
+    )
+        .into_response()
+}
+
+/// What a handler panic becomes: the same `{code, detail}` envelope, and no
+/// panic text, which can carry internals.
+pub fn panic_response(_panic: Box<dyn std::any::Any + Send + 'static>) -> Response {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(json!({"code": "internal_error", "detail": "internal error"})),
+    )
+        .into_response()
+}
+
 pub fn router(state: AppState, static_dir: String) -> Router {
     let open = Router::new()
         .route("/setup/status", get(setup_status))
@@ -111,7 +184,8 @@ pub fn router(state: AppState, static_dir: String) -> Router {
             "/openapi.json",
             get(move || async move { openapi_spec_handler(&spec_file).await }),
         )
-        .merge(guarded);
+        .merge(guarded)
+        .layer(axum::middleware::map_response(error_envelope));
     let index_spa = index_file.clone();
     Router::new()
         .route(
@@ -333,35 +407,67 @@ async fn setup_server_key(
     )?;
     let token = crate::secret::new_token();
     state.store.session_create(&token, SESSION_TTL_SECS)?;
+    tracing::info!("login password created through first-run setup");
     Ok(Json(json!({"server_key": key, "token": token})))
 }
+
+/// Argon2id costs about 19 MiB and tens of milliseconds per attempt. Without a
+/// cap, a burst of simultaneous logins would all pass the guard before the first
+/// failure is recorded and hash at once, and the memory alone would be the
+/// attack. Two at a time; the rest queue, and ask the guard again on their turn.
+static LOGIN_HASH_SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
 
 async fn login(
     State(state): State<AppState>,
     Json(body): Json<LoginRequest>,
 ) -> Result<Json<Value>, Error> {
-    let stored = state.store.setting_get("auth.server_key_hash")?;
-    match stored {
+    let stored = state
+        .store
+        .setting_get("auth.server_key_hash")?
+        .filter(|hash| !hash.trim().is_empty());
+    let Some(hash) = stored else {
         // Open mode: no login password configured, issue a session right away.
-        None => {
-            let token = crate::secret::new_token();
-            state.store.session_create(&token, SESSION_TTL_SECS)?;
-            Ok(Json(json!({"token": token, "open_mode": true})))
+        let token = crate::secret::new_token();
+        state.store.session_create(&token, SESSION_TTL_SECS)?;
+        return Ok(Json(json!({"token": token, "open_mode": true})));
+    };
+    // After a run of wrong guesses the door closes for a while. Refuse before
+    // hashing: while it is closed, a guess costs the server nothing.
+    state.store.login_allowed()?;
+    let _slot = LOGIN_HASH_SLOTS
+        .acquire()
+        .await
+        .map_err(|_| Error::Internal("login queue closed".into()))?;
+    // The door may have closed while this attempt waited its turn.
+    state.store.login_allowed()?;
+    let key = body.server_key.trim().to_string();
+    // Argon2id takes tens of milliseconds and a good chunk of memory: keep it
+    // off the async workers. A hash from before Argon2id is replaced on the
+    // spot, while the password is in hand.
+    let (ok, upgraded) = tokio::task::spawn_blocking({
+        let hash = hash.clone();
+        move || {
+            let ok = crate::secret::verify_server_key(&key, &hash);
+            let upgraded = (ok && crate::secret::server_key_needs_upgrade(&hash))
+                .then(|| crate::secret::hash_server_key(&key));
+            (ok, upgraded)
         }
-        Some(hash) if hash.trim().is_empty() => {
-            let token = crate::secret::new_token();
-            state.store.session_create(&token, SESSION_TTL_SECS)?;
-            Ok(Json(json!({"token": token, "open_mode": true})))
-        }
-        Some(hash) => {
-            if !crate::secret::verify_server_key(body.server_key.trim(), &hash) {
-                return Err(Error::Unauthorized("invalid password".into()));
-            }
-            let token = crate::secret::new_token();
-            state.store.session_create(&token, SESSION_TTL_SECS)?;
-            Ok(Json(json!({"token": token})))
-        }
+    })
+    .await
+    .map_err(|error| Error::Internal(error.to_string()))?;
+    if !ok {
+        state.store.login_failed();
+        return Err(Error::Unauthorized("invalid password".into()));
     }
+    state.store.login_succeeded();
+    if let Some(upgraded) = upgraded {
+        state.store.setting_set("auth.server_key_hash", &upgraded)?;
+        tracing::info!("login password hash upgraded to argon2id");
+    }
+    let token = crate::secret::new_token();
+    state.store.session_create(&token, SESSION_TTL_SECS)?;
+    tracing::info!("login ok");
+    Ok(Json(json!({"token": token})))
 }
 
 async fn logout(
@@ -394,7 +500,8 @@ async fn patch_settings(
     session: axum::Extension<Session>,
     Json(patch): Json<SettingsPatch>,
 ) -> Result<Json<Value>, Error> {
-    authed(&state, &session)?;
+    require_admin(&state, &session)?;
+    let mut changed: Vec<&str> = Vec::new();
     if let Some(name) = patch.site_name {
         let name = name.trim().to_string();
         if name.chars().count() > 60 {
@@ -403,6 +510,7 @@ async fn patch_settings(
             ));
         }
         state.store.setting_set("site.name", &name)?;
+        changed.push("site_name");
     }
     if let Some(description) = patch.site_description {
         let description = description.trim().to_string();
@@ -412,6 +520,7 @@ async fn patch_settings(
             ));
         }
         state.store.setting_set("site.description", &description)?;
+        changed.push("site_description");
     }
     if let Some(logo) = patch.site_logo {
         match logo {
@@ -422,6 +531,7 @@ async fn patch_settings(
                 state.store.setting_set("site.logo", &data_url)?;
             }
         }
+        changed.push("site_logo");
     }
     if let Some(key) = patch.jev_api_key {
         let key = key.trim().to_string();
@@ -432,10 +542,12 @@ async fn patch_settings(
                 .store
                 .setting_set("jev.api_key", &crate::secret::encrypt(&key))?;
         }
+        changed.push("jev_api_key");
     }
     if let Some(base_url) = patch.llm_base_url {
         let base_url = normalize_base_url(&base_url)?;
         state.store.setting_set("llm.base_url", &base_url)?;
+        changed.push("llm_base_url");
     }
     if let Some(token) = patch.llm_token {
         let token = token.trim().to_string();
@@ -446,6 +558,7 @@ async fn patch_settings(
                 .store
                 .setting_set("llm.token", &crate::secret::encrypt(&token))?;
         }
+        changed.push("llm_token");
     }
     if let Some(model) = patch.llm_model {
         let model = model.trim().to_string();
@@ -453,6 +566,7 @@ async fn patch_settings(
             return Err(Error::BadRequest("model name is too long".into()));
         }
         state.store.setting_set("llm.model", &model)?;
+        changed.push("llm_model");
     }
     if let Some(server_key) = patch.server_key {
         if server_key.trim().is_empty() {
@@ -469,6 +583,11 @@ async fn patch_settings(
                 &crate::secret::hash_server_key(server_key.trim()),
             )?;
         }
+        changed.push("server_key");
+    }
+    // Names only, never values: who changed what is worth a log line.
+    if !changed.is_empty() {
+        tracing::info!(?changed, "settings changed");
     }
     // Hot-swap the Jev connection so settings apply without restart.
     // DB is the only source: no env reads at request time.
@@ -488,7 +607,7 @@ async fn llm_models(
     session: axum::Extension<Session>,
     Json(probe): Json<ModelsProbe>,
 ) -> Result<Json<Value>, Error> {
-    authed(&state, &session)?;
+    require_admin(&state, &session)?;
     let settings = state.store.load_settings()?;
     let base = probe
         .base_url
@@ -542,7 +661,7 @@ async fn issue_key(
     session: axum::Extension<Session>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<Value>, Error> {
-    authed(&state, &session)?;
+    require_admin(&state, &session)?;
     let name = body
         .get("name")
         .and_then(Value::as_str)
@@ -559,6 +678,7 @@ async fn issue_key(
     }
     let key = crate::secret::new_server_key(); // same jev_tree_sk_ format
     state.store.api_key_issue(&name, &key)?;
+    tracing::info!(%name, "api key issued");
     Ok(Json(json!({
         "id": state.store.api_key_id(&name)?.unwrap_or_default(),
         "name": name,
@@ -572,7 +692,7 @@ async fn list_keys(
     State(state): State<AppState>,
     session: axum::Extension<Session>,
 ) -> Result<Json<Value>, Error> {
-    authed(&state, &session)?;
+    require_admin(&state, &session)?;
     Ok(Json(json!({"keys": state.store.api_key_list()?})))
 }
 
@@ -583,10 +703,11 @@ async fn revoke_key(
     session: axum::Extension<Session>,
     axum::extract::Path(id): axum::extract::Path<i64>,
 ) -> Result<Json<Value>, Error> {
-    authed(&state, &session)?;
+    require_admin(&state, &session)?;
     if !state.store.api_key_revoke(id)? {
         return Err(Error::NotFound("key not found".into()));
     }
+    tracing::info!(id, "api key revoked");
     Ok(Json(json!({"ok": true, "revoked": id})))
 }
 
@@ -735,8 +856,10 @@ struct SeedReset {
 
 async fn reset_seed(
     State(state): State<AppState>,
+    session: axum::Extension<Session>,
     body: Option<Json<SeedReset>>,
 ) -> AppResult<Value> {
+    require_admin(&state, &session)?;
     let confirm = body.map(|Json(body)| body.confirm).unwrap_or_default();
     if confirm != "RESET" {
         return Err(Error::BadRequest(
@@ -750,6 +873,11 @@ async fn reset_seed(
         .map_err(|error| Error::Internal(error.to_string()))?;
     state.reload_taxonomy()?;
     let (nodes, items) = state.store.stats()?;
+    tracing::warn!(
+        nodes,
+        items,
+        "seed reset: every category and item was replaced"
+    );
     Ok(Json(json!({"seeded":{"nodes":nodes,"items":items}})))
 }
 
@@ -1327,5 +1455,431 @@ mod tests {
         .await;
         assert_eq!(status, axum::http::StatusCode::OK, "{health}");
         assert_eq!(health["evaluator"], "unconfigured");
+    }
+
+    async fn send_full(
+        app: &Router,
+        req: axum::http::Request<axum::body::Body>,
+    ) -> (axum::http::StatusCode, axum::http::HeaderMap, Value) {
+        use http_body_util::BodyExt;
+        use tower::ServiceExt as _;
+        let response = app.clone().oneshot(req).await.unwrap();
+        let status = response.status();
+        let headers = response.headers().clone();
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let body = serde_json::from_slice(&bytes)
+            .unwrap_or_else(|_| json!(String::from_utf8_lossy(&bytes)));
+        (status, headers, body)
+    }
+
+    fn bare_req(
+        method: &str,
+        uri: &str,
+        token: Option<&str>,
+    ) -> axum::http::Request<axum::body::Body> {
+        let mut builder = axum::http::Request::builder().method(method).uri(uri);
+        if let Some(token) = token {
+            builder = builder.header(axum::http::header::AUTHORIZATION, format!("Bearer {token}"));
+        }
+        builder.body(axum::body::Body::empty()).unwrap()
+    }
+
+    /// Turn on key mode; returns the login password, a session token, and an API key.
+    async fn key_mode(app: &Router) -> (String, String, String) {
+        let (status, setup) = send(
+            app,
+            json_req("POST", "/api/setup/server-key", json!({}), None),
+        )
+        .await;
+        assert_eq!(status, axum::http::StatusCode::OK, "{setup}");
+        let password = setup["server_key"].as_str().unwrap().to_string();
+        let session = setup["token"].as_str().unwrap().to_string();
+        let (status, issued) = send(
+            app,
+            json_req("POST", "/api/keys", json!({"name":"ci"}), Some(&session)),
+        )
+        .await;
+        assert_eq!(status, axum::http::StatusCode::OK, "{issued}");
+        (
+            password,
+            session,
+            issued["key"].as_str().unwrap().to_string(),
+        )
+    }
+
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
+    async fn an_api_key_cannot_use_the_operator_endpoints() {
+        use axum::http::StatusCode;
+        let (_guard, _dir, db, static_dir) = test_paths();
+        let (app, _state) = test_router(&db, &static_dir);
+        let (password, session, api_key) = key_mode(&app).await;
+
+        let with_body = [
+            (
+                "PATCH",
+                "/api/settings",
+                json!({"server_key": "rotated-by-a-key"}),
+            ),
+            (
+                "PATCH",
+                "/api/settings",
+                json!({"llm_base_url": "http://127.0.0.1:9"}),
+            ),
+            (
+                "POST",
+                "/api/llm/models",
+                json!({"base_url": "http://127.0.0.1:9", "token": "x"}),
+            ),
+            ("POST", "/api/keys", json!({"name": "second"})),
+            ("POST", "/api/seed", json!({"confirm": "RESET"})),
+        ];
+        for (method, uri, body) in with_body {
+            let (status, error) = send(&app, json_req(method, uri, body, Some(&api_key))).await;
+            assert_eq!(status, StatusCode::FORBIDDEN, "{method} {uri}: {error}");
+            assert_eq!(error["code"], "forbidden", "{method} {uri}");
+        }
+        for (method, uri) in [("GET", "/api/keys"), ("DELETE", "/api/keys/1")] {
+            let (status, error) = send(&app, bare_req(method, uri, Some(&api_key))).await;
+            assert_eq!(status, StatusCode::FORBIDDEN, "{method} {uri}: {error}");
+            assert_eq!(error["code"], "forbidden", "{method} {uri}");
+        }
+
+        // Nothing above took effect: the password is the one it was.
+        let (status, _) = send(
+            &app,
+            json_req(
+                "POST",
+                "/api/auth/login",
+                json!({"server_key": password}),
+                None,
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let (_, keys) = send(&app, bare_req("GET", "/api/keys", Some(&session))).await;
+        assert_eq!(keys["keys"].as_array().unwrap().len(), 1, "{keys}");
+
+        // The data endpoints are what an integration key is for.
+        for uri in [
+            "/api/health",
+            "/api/items?limit=1",
+            "/api/tree",
+            "/api/settings",
+        ] {
+            let (status, body) = send(&app, bare_req("GET", uri, Some(&api_key))).await;
+            assert_eq!(status, StatusCode::OK, "{uri}: {body}");
+        }
+        let (status, _) = send(&app, bare_req("DELETE", "/api/items/9999", Some(&api_key))).await;
+        assert_eq!(
+            status,
+            StatusCode::NOT_FOUND,
+            "reaches the handler, not the guard"
+        );
+
+        // A login session still does everything.
+        let (status, body) = send(&app, bare_req("GET", "/api/keys", Some(&session))).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let (status, body) = send(
+            &app,
+            json_req(
+                "PATCH",
+                "/api/settings",
+                json!({"site_name": "ops"}),
+                Some(&session),
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+    }
+
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
+    async fn extractor_and_routing_errors_use_the_error_envelope() {
+        use axum::http::StatusCode;
+        let (_guard, _dir, db, static_dir) = test_paths();
+        let (app, _state) = test_router(&db, &static_dir);
+        let raw = |method: &str, uri: &str, content_type: Option<&str>, body: Vec<u8>| {
+            let mut builder = axum::http::Request::builder().method(method).uri(uri);
+            if let Some(content_type) = content_type {
+                builder = builder.header(axum::http::header::CONTENT_TYPE, content_type);
+            }
+            builder.body(axum::body::Body::from(body)).unwrap()
+        };
+        let json_type = Some("application/json");
+        let cases = [
+            (
+                "truncated JSON",
+                raw(
+                    "POST",
+                    "/api/run",
+                    json_type,
+                    br#"{"mode":"search","query":"#.to_vec(),
+                ),
+                StatusCode::BAD_REQUEST,
+            ),
+            (
+                "a field of the wrong type",
+                raw(
+                    "POST",
+                    "/api/run",
+                    json_type,
+                    br#"{"mode":"search","query":"x","context":"notarray"}"#.to_vec(),
+                ),
+                StatusCode::BAD_REQUEST,
+            ),
+            (
+                "no JSON content type",
+                raw("POST", "/api/run", Some("text/plain"), b"{}".to_vec()),
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            ),
+            (
+                "a body over the limit",
+                raw("POST", "/api/run", json_type, vec![b' '; 2_600_000]),
+                StatusCode::PAYLOAD_TOO_LARGE,
+            ),
+            (
+                "a method the path does not take",
+                raw("POST", "/api/health", json_type, b"{}".to_vec()),
+                StatusCode::METHOD_NOT_ALLOWED,
+            ),
+            (
+                "a query value of the wrong type",
+                raw("GET", "/api/items?limit=abc", None, vec![]),
+                StatusCode::BAD_REQUEST,
+            ),
+            (
+                "a path value of the wrong type",
+                raw("DELETE", "/api/keys/abc", None, vec![]),
+                StatusCode::BAD_REQUEST,
+            ),
+        ];
+        for (what, request, expected) in cases {
+            let (status, headers, body) = send_full(&app, request).await;
+            assert_eq!(status, expected, "{what}: {body}");
+            assert_eq!(body["code"], "invalid_request", "{what}: {body}");
+            assert!(
+                body["detail"]
+                    .as_str()
+                    .is_some_and(|detail| !detail.is_empty()),
+                "{what}: {body}"
+            );
+            assert!(
+                headers
+                    .get(axum::http::header::CONTENT_TYPE)
+                    .and_then(|value| value.to_str().ok())
+                    .is_some_and(|value| value.starts_with("application/json")),
+                "{what}: {headers:?}"
+            );
+            if expected == StatusCode::METHOD_NOT_ALLOWED {
+                assert!(
+                    headers.contains_key(axum::http::header::ALLOW),
+                    "Allow survives"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_panic_is_answered_with_the_error_envelope() {
+        use http_body_util::BodyExt;
+        let response = panic_response(Box::new("secret detail from inside"));
+        assert_eq!(
+            response.status(),
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        );
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["code"], "internal_error");
+        assert!(!body.to_string().contains("secret detail"), "{body}");
+    }
+
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
+    async fn repeated_wrong_passwords_close_the_login_for_a_while() {
+        use axum::http::StatusCode;
+        let (_guard, _dir, db, static_dir) = test_paths();
+        let (app, _state) = test_router(&db, &static_dir);
+        let (password, session, _api_key) = key_mode(&app).await;
+        let login = |password: &str| {
+            json_req(
+                "POST",
+                "/api/auth/login",
+                json!({"server_key": password}),
+                None,
+            )
+        };
+        for attempt in 0..crate::store::LoginGuard::FREE_FAILURES {
+            let (status, body) = send(&app, login("not-the-password")).await;
+            assert_eq!(
+                status,
+                StatusCode::UNAUTHORIZED,
+                "attempt {attempt}: {body}"
+            );
+        }
+        // The door is closed now, even for the right password.
+        let (status, headers, body) = send_full(&app, login(&password)).await;
+        assert_eq!(status, StatusCode::TOO_MANY_REQUESTS, "{body}");
+        assert_eq!(body["code"], "rate_limited", "{body}");
+        let retry_after: u64 = headers
+            .get(axum::http::header::RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse().ok())
+            .expect("Retry-After says how long to wait");
+        assert!((1..=crate::store::LoginGuard::MAX_BLOCK_SECS).contains(&retry_after));
+        // Someone already logged in is not locked out of their own session.
+        let (status, body) = send(&app, bare_req("GET", "/api/health", Some(&session))).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+    }
+
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
+    async fn a_burst_of_logins_is_throttled_instead_of_hashed_all_at_once() {
+        use axum::http::StatusCode;
+        let (_guard, _dir, db, static_dir) = test_paths();
+        let (app, _state) = test_router(&db, &static_dir);
+        let (_password, _session, _api_key) = key_mode(&app).await;
+        let attempts = futures_util::future::join_all((0..10).map(|n| {
+            let app = app.clone();
+            async move {
+                send(
+                    &app,
+                    json_req(
+                        "POST",
+                        "/api/auth/login",
+                        json!({"server_key": format!("wrong-{n}")}),
+                        None,
+                    ),
+                )
+                .await
+                .0
+            }
+        }))
+        .await;
+        let wrong = attempts
+            .iter()
+            .filter(|status| **status == StatusCode::UNAUTHORIZED)
+            .count();
+        let refused = attempts
+            .iter()
+            .filter(|status| **status == StatusCode::TOO_MANY_REQUESTS)
+            .count();
+        assert_eq!(wrong + refused, attempts.len(), "{attempts:?}");
+        // Only the free misses (plus the one already hashing when the door shut)
+        // were hashed; the attempts queued behind them were turned away.
+        assert!(
+            wrong >= crate::store::LoginGuard::FREE_FAILURES as usize,
+            "{attempts:?}"
+        );
+        assert!(refused >= 1, "{attempts:?}");
+    }
+
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
+    async fn a_login_replaces_an_old_sha256_hash_with_argon2id() {
+        use axum::http::StatusCode;
+        let (_guard, _dir, db, static_dir) = test_paths();
+        let (app, state) = test_router(&db, &static_dir);
+        state
+            .store
+            .setting_set(
+                "auth.server_key_hash",
+                &crate::secret::legacy_server_key_hash("old-password"),
+            )
+            .unwrap();
+        let login = |password: &str| {
+            json_req(
+                "POST",
+                "/api/auth/login",
+                json!({"server_key": password}),
+                None,
+            )
+        };
+        let (status, _) = send(&app, login("wrong-password")).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert!(
+            state
+                .store
+                .setting_get("auth.server_key_hash")
+                .unwrap()
+                .unwrap()
+                .starts_with("v1:"),
+            "a failed login must not touch the hash"
+        );
+        let (status, first) = send(&app, login("old-password")).await;
+        assert_eq!(status, StatusCode::OK, "{first}");
+        let stored = state
+            .store
+            .setting_get("auth.server_key_hash")
+            .unwrap()
+            .unwrap();
+        assert!(stored.starts_with("v2:$argon2id$"), "{stored}");
+        // The same password keeps working against the new hash.
+        let (status, second) = send(&app, login("old-password")).await;
+        assert_eq!(status, StatusCode::OK, "{second}");
+    }
+
+    #[test]
+    fn openapi_describes_this_build_and_its_auth() {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("static/openapi.json");
+        let spec: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        assert_eq!(
+            spec["info"]["version"],
+            env!("CARGO_PKG_VERSION"),
+            "bump static/openapi.json with Cargo.toml"
+        );
+        let public = [
+            "/api/setup/status",
+            "/api/setup/server-key",
+            "/api/auth/login",
+            "/api/site",
+            "/api/openapi.json",
+        ];
+        let operator = [
+            ("/api/settings", "patch"),
+            ("/api/llm/models", "post"),
+            ("/api/keys", "post"),
+            ("/api/keys", "get"),
+            ("/api/keys/{id}", "delete"),
+            ("/api/seed", "post"),
+        ];
+        let mut guarded = 0;
+        for (path, item) in spec["paths"].as_object().unwrap() {
+            for (method, operation) in item.as_object().unwrap() {
+                let responses = operation["responses"].as_object().unwrap();
+                if public.contains(&path.as_str()) {
+                    assert!(
+                        operation.get("security").is_none(),
+                        "{method} {path} is public"
+                    );
+                    continue;
+                }
+                guarded += 1;
+                assert_eq!(
+                    operation["security"],
+                    json!([{"bearer": []}]),
+                    "{method} {path}"
+                );
+                assert!(
+                    responses.contains_key("401"),
+                    "{method} {path} must declare 401"
+                );
+                if operator.contains(&(path.as_str(), method.as_str())) {
+                    assert!(
+                        responses.contains_key("403"),
+                        "{method} {path} must declare 403"
+                    );
+                }
+            }
+        }
+        assert!(guarded >= 15, "{guarded} guarded operations");
+        for status in ["401", "429"] {
+            assert!(
+                spec["paths"]["/api/auth/login"]["post"]["responses"]
+                    .get(status)
+                    .is_some(),
+                "login declares {status}"
+            );
+        }
     }
 }

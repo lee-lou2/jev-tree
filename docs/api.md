@@ -11,7 +11,8 @@ Behavioural caveats that this contract does not express are listed under
 `/` is the whole forest. `/products` makes the `products` child of the forest the
 page root: the tree and table show that node's children, and search/ingest walk only
 that subtree. `/products/products_stock` goes one level deeper. Each path segment must
-name a **direct child** of the previous node (id first, then name). The same value is
+name a **direct child** of the previous node (id first, then name): a nested node needs its
+whole path, `products/products_stock`, and `products_stock` alone is a 404. The same value is
 `root` on `POST /api/run` and on the read endpoints. Login, settings, and API keys are
 not scoped; they belong to the process.
 
@@ -30,23 +31,37 @@ together with a session token. It fails with 400 if a password already exists. T
 
 ## Conventions
 
-- JSON bodies require `Content-Type: application/json`.
-- Errors are always `{"code": "...", "detail": "..."}`.
+- JSON bodies require `Content-Type: application/json` and stay under 2 MB.
+- Errors are always `{"code": "...", "detail": "..."}`. That includes a body that is not
+  valid JSON, a field of the wrong type, a wrong content type, a body over the limit, a
+  query or path value of the wrong type, and a method the path does not take.
 
 | code | status | meaning |
 |---|---|---|
-| `invalid_request` | 400 | Value or format rejected; `detail` explains |
+| `invalid_request` | 400 | Value or format rejected; `detail` explains. Also 413 (body over 2 MB), 415 (not `application/json`), 405 (method not allowed) |
 | `unauthorized` | 401 | Missing, expired, or wrong credential |
+| `forbidden` | 403 | An API key reached an operator endpoint; log in for a session |
 | `not_found` | 404 | Unknown id |
 | `conflict` | 409 | `expected_version` did not match |
+| `rate_limited` | 429 | Too many wrong passwords in a row; wait `Retry-After` seconds |
 | `cancelled` | 499 | The streaming client went away mid-run |
 | `internal_error` | 500 | Server fault |
-| `upstream_error` | 502 | Evaluator call failed |
-| `timeout` | 504 | The run passed `JEV_TREE_RUN_TIMEOUT_SECS` (default 120) |
+| `upstream_error` | 502 | Evaluator call failed. `detail` says when the input looks too large for it |
+| `timeout` | 504 | The run passed `JEV_TREE_RUN_TIMEOUT_SECS` (default 120). The LLM route gets a third of it; under about 20 s that route is usually cut off and Jev routes instead |
 
 - Sessions last 30 days and slide on each call. `POST /api/auth/logout` revokes one.
 - API keys from `POST /api/keys` authenticate the same way but never slide.
-  Use these for apps and scripts, not the login password. Revoke with `DELETE /api/keys/{id}`.
+  Use these for apps and scripts, not the login password. Revoke with `DELETE /api/keys/{id}`
+  and list them with `GET /api/keys`.
+- A key is for the data endpoints (`/api/run`, `/api/run/stream`, `/api/items`, `/api/tree`,
+  `/api/health`, `/api/seed/stats`). Settings, key management, `POST /api/llm/models` and
+  `POST /api/seed` belong to the operator and need a login session: with a key they return
+  403 `forbidden`. A key that could mint keys or rotate the password would outlive its
+  own revocation.
+- After 5 wrong passwords in a row, `POST /api/auth/login` makes the next attempts wait
+  1 s, 2 s, 4 s … up to 60 s and answers `429` with `Retry-After`, even for the right
+  password. A good login clears it, and so does a quiet quarter hour. Sessions already issued
+  are not affected.
 - Secrets are never returned in full; `GET /api/settings` shows `****` plus a 4-character hint.
 
 ## `POST /api/run`
@@ -63,8 +78,8 @@ The only endpoint most integrations need.
 | `root` | string \| null | `null` | Virtual tree: slash-separated child keys (`products`, `products/products_stock`). Each segment is a **direct child** of the previous node (forest roots at the first step), matched by id then name. Unknown path is 404. Settings and keys ignore this |
 | `beam_width` | int | `3` | 1–5. Beam only; the default flat route does not beam |
 | `limit` | int | `8` | 1–20 ranked items |
-| `auto_publish` | bool | `false` | Ingest only. `false` stores a draft |
-| `item_id` + `expected_version` | string + int | — | Target an existing row; supply both or neither |
+| `auto_publish` | bool | `false` | Ingest only. `false` stores a draft. Re-sending the question of a *published* row without it turns that row back into a draft: it leaves search until it is published again |
+| `item_id` + `expected_version` | string + int | — | Target an existing row; supply both or neither. The row keeps its category (no routing call: `trace.router` is `flat` with no `steps`) unless `start_node` is also given. If its category is gone or outside `root`, the request routes afresh |
 
 Combined text must be 1–8000 characters.
 
@@ -101,8 +116,11 @@ Pick the answer by `role`, not by position. When `abstained` is true every item 
 to `reference` — do not answer from them. A `candidate` with `id: null` is the terminal
 choice (`__stop__` / `__none__`).
 
-Jev scores every active item in the landed subtree, 32 items per call, then `limit` is
-applied. `trace.router` says who picked the node:
+Jev scores every active item in the landed subtree, then `limit` is applied. A call carries
+up to 32 items and 24 KB of request, four calls run at a time, and text over 8,000
+characters (more than the API accepts, so only a row put in the database another way) is
+cut for the evaluator only (the result carries the stored text). `trace.router` says who
+picked the node:
 
 | `router` | who picked the node | what the trace carries |
 |---|---|---|
@@ -111,10 +129,13 @@ applied. `trace.router` says who picked the node:
 | `llm` | the optional model | lists the options that call was shown and leaves `probability`, `confidence`, and `trace.score` null |
 
 The flat menu is **every node in the walk**, so the evaluator judges meaning even when
-the request shares no characters with the taxonomy. A walk with `start_node` (or a scoped
-root) picks inside that subtree only and has no `__none__`; the forest walk can abstain.
-Above `ONE_SHOT_MAX_NODES` (800) nodes in scope the menu falls back to lexical recall
-and, without lexical evidence, to the beam.
+the request shares no characters with the taxonomy. A walk with `start_node` picks inside
+that subtree only and has no `__none__`. The forest walk can abstain, and so can a `root`
+scope: it walks the root's children as the forest, so `leaf_id: null` there means "outside
+this root". When one Jev choice cannot name every node in scope — more than 254 nodes (Jev
+takes at most 255 options, `__none__` included) or more than 80 KB of menu text — the menu
+falls back to the strongest lexical matches with their ancestors, filled up to what one
+choice can read, and, without lexical evidence, to the beam.
 
 ### `mode: "ingest"`
 
@@ -174,7 +195,9 @@ Terminal events are `search_done`, `ingest_saved`, and `ingest_draft`. Do not cl
 first URL segments (`/products`, `/products/products_stock`). Settings, login, and
 API keys stay project-wide and do not change with `root`.
 
-`GET /api/items` also accepts `q`, `category_id`, `offset`, `limit` (1–100, default 50),
+`GET /api/items` also accepts `q` (matched literally against question and answer; `%` and
+`_` are ordinary characters), `category_id`, `offset`, `limit` (1–100, default 50, values
+outside the range are clamped),
 `scope` (`exact` for the category itself, `subtree` for all descendants), and `status`
 (`active`, `draft`, or `all`; default `active`). Search only ever reads `active` rows.
 A `category_id` outside the current `root` is 400. Without `category_id`, `root` lists
@@ -187,6 +210,8 @@ answer; archived rows leave search, listings, and upsert matching.
 
 Project-wide. `root` / URL path never scopes them.
 
+Settings and keys need a login session; an API key gets 403.
+
 `PATCH /api/settings` takes any subset. Secrets are encrypted at rest and applied without a restart.
 
 | field | rule |
@@ -194,8 +219,8 @@ Project-wide. `root` / URL path never scopes them.
 | `site_name` / `site_description` | ≤ 60 / ≤ 200 characters |
 | `site_logo` | PNG/JPEG/SVG/WebP data URL ≤ 500 KB, or `null` to clear |
 | `jev_api_key` | Required. Search, ingest, and ranking use it. `""` clears it; runs then return 400 and `evaluator` becomes `unconfigured` |
-| `llm_base_url` / `llm_token` / `llm_model` | Optional. When all three are set, search and ingest **route** with this model: one call picks a node from every node in scope (`__none__` abstains). A `root` or `start_node` keeps the walk inside that subtree, where it must land on a node and cannot abstain. Above 800 nodes in scope it falls back to two calls: the root topic, then a node inside that subtree. Clearing any of the three, or any failed call, keeps Jev routing (flat choice; beam only above the one-shot menu limit). Item ranking always uses Jev. The same credentials list models. |
-| `server_key` | Login password, ≥ 6 characters; `""` turns login off (open mode) |
+| `llm_base_url` / `llm_token` / `llm_model` | Optional. When all three are set, search and ingest **route** with this model: one call picks a node from every node in scope (`__none__` abstains). A `start_node` keeps the walk inside that subtree, where it must land on a node; a `root` walks its children as the forest, where `__none__` means outside the root. Above 800 nodes in scope it falls back to two calls: the root topic, then a node inside that subtree. Clearing any of the three, or any failed call, keeps Jev routing (flat choice; beam only when one choice cannot name the scope). Item ranking always uses Jev. The same credentials list models. |
+| `server_key` | Login password, ≥ 6 characters; `""` turns login off (open mode). Stored as an Argon2id hash; a hash from before 0.9 is replaced at the next login |
 
 In the UI, Jev and LLM settings live under **Settings → Models**. The login password and
 integration API keys live under **Settings → Server**. Changing the page root does not

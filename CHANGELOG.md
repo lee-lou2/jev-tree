@@ -1,5 +1,85 @@
 # Changelog
 
+## 0.9.0
+
+Found by a five-agent review of 0.8.1 (correctness, accuracy, performance, security,
+end-to-end) and re-checked against the live Jev API. Two of the findings turned every
+search into a 502; the limits behind them are written down in `AGENTS.md`
+("Evaluator limits").
+
+### Fixed
+
+- **A scope of 255 to 800 nodes no longer fails every search.** One Jev choice takes at
+  most 255 options (256 is HTTP 422), but the flat route named every node up to 800, so a
+  tree one node past 254 answered 502 to everything, and the 234-node live tree had 21
+  nodes of room. The flat menu now stays within `FLAT_MAX_NODES` (254) and
+  `FLAT_MAX_MENU_BYTES` (80 KB: a 234-node menu of 94 KB passes, 124 KB is HTTP 400);
+  past either line it names the strongest lexical matches with their ancestors, then fills
+  the rest of the 254 slots with the next best nodes, and without lexical evidence the beam
+  runs. Measured on 187 golden queries (Jev router): 94.1-94.7% exact leaf (two runs) with the full
+  219-node menu; with 60 unrelated nodes added (279, so past the line) 93.6% with the
+  filled menu against 79.1% when the menu stopped at the ~47 strongest matches; 90.8% at
+  500 nodes and 89.7% at 800. The golden set's variants (at most 219 nodes, 50 KB of menu)
+  are unchanged.
+- **A subtree of large items no longer fails its search.** Ranking sent 32 items per call
+  whatever their size; a live subtree of 2,201 items reached batches of 157 KB and the
+  evaluator answered HTTP 400 on the 66th call, 15 seconds into the run. A call now carries
+  at most 32 items **and** 24 KB (ordinary batches are unchanged), and text over 8,000
+  characters, which the API cannot store (question plus answer is capped there), is cut for
+  the evaluator only; the result still carries the stored text. The longest answer in the
+  live databases is 6,963 characters, so nothing live is cut.
+- **Publishing a reviewed draft files it where it was reviewed.** The publish call routed
+  the Q&A again; with an edited answer the second route could land elsewhere or nowhere,
+  and the call failed with 400 so the draft could never be published. A call with
+  `item_id` now keeps the row's category and asks no one (`trace.router` is `flat` with no
+  steps). Pass `start_node` to move a row. If the stored category is gone or outside the
+  `root`, the request routes afresh as before. An unknown `item_id` is a 404 before any
+  routing.
+- **`recommended`/`alternative` and the hold line include their exact value.**
+  `0.5 * 0.7 + 1.0 * 0.3` is 0.6499999999999999 in f64, one step under the 0.65 it
+  mathematically is, and a third of the grid of round scores fell on the low side of a line.
+- **Every `/api` error is `{code, detail}`.** Malformed JSON, a field of the wrong type
+  (was 422), a wrong content type (415), a body over 2 MB (413), a bad query or path value,
+  and a method the path does not take (405) came back as plain text, and a handler panic
+  as a bare 500.
+- `GET /api/items?q=%` listed everything: `%` and `_` in a search are now ordinary
+  characters.
+- A broken or missing seed file names the file in the error.
+- The log said "using beam descent" when an LLM route failed; the fallback is the flat
+  Jev choice. An evaluator 400/413/422 now says the input may be too large instead of
+  blaming the API key.
+
+### Security
+
+- **An API key can no longer mint keys, rotate the login password, or reset the seed.**
+  Settings, `/api/keys`, `POST /api/llm/models` and `POST /api/seed` need a login session
+  and answer a key with 403 `forbidden`. A leaked key could create more keys that survived
+  its own revocation, change the password to lock the owner out, or point the LLM base URL
+  at a host of its choosing and receive the saved token. Keys keep the data endpoints.
+- **Login passwords are hashed with Argon2id** (`v2:`). SHA-256 hashes written by earlier
+  versions still verify and are replaced at the next good login, and the comparison is
+  constant-time.
+- **Wrong passwords back off.** Five in a row start a wait of 1 s doubling to 60 s
+  (`429 rate_limited`, `Retry-After`), refused before the password is hashed. Global, in
+  memory, cleared by a good login or a quiet quarter hour. At most two passwords are
+  hashed at a time and a queued attempt asks the guard again on its turn, so a burst of
+  200 simultaneous guesses costs 6 hashes and 194 refusals instead of 200 hashes of
+  19 MiB each.
+- First-run setup, logins, settings changes, key issue and revoke, and a seed reset leave a
+  log line (names and ids, never values).
+
+### Changed
+
+- Ranking runs four calls at a time and consumes them in order, so a large subtree takes a
+  fraction of the serial time and the result does not depend on which call returns first.
+  A listener that went away stops the run before the next call.
+- `static/openapi.json` is at this version (it said 0.4.1), declares 401 on every guarded
+  operation, 403 on the operator ones and 429 on login; a test keeps the version and those
+  declarations in step.
+- Docs: a `root` scope abstains (`leaf_id: null` means outside the root) for both routers,
+  as the code and its test always did; re-sending a published question without
+  `auto_publish` unpublishes it until it is published again; `GET /api/keys` is listed.
+
 ## 0.8.1
 
 ### Fixed

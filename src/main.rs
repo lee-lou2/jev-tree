@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         return Err(reason.into());
     }
     let app = jev_tree::http::router(state.clone(), static_dir)
-        .layer(CatchPanicLayer::new())
+        .layer(CatchPanicLayer::custom(jev_tree::http::panic_response))
         .layer(TraceLayer::new_for_http());
     let listener = tokio::net::TcpListener::bind(format!("{bind}:{port}")).await?;
     info!(%bind, %port, evaluator = state.jev.label(), "jev-tree listening");

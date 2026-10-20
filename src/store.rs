@@ -5,11 +5,60 @@ use serde_json::Value;
 use std::{
     path::Path,
     sync::{Arc, Mutex},
+    time::{Duration, Instant},
 };
 
 #[derive(Clone)]
 pub struct Store {
     inner: Arc<Mutex<Connection>>,
+    login: Arc<Mutex<LoginGuard>>,
+}
+
+/// Failed-login throttle, in memory and process-wide: the login password is one
+/// shared secret, so there is no account to count against. After
+/// [`Self::FREE_FAILURES`] wrong guesses in a row, the next attempts wait 1s, 2s,
+/// 4s ... up to a minute, and a blocked attempt is refused before the password
+/// is even hashed. A good login clears it, and so does a quiet quarter hour.
+#[derive(Debug, Default)]
+pub struct LoginGuard {
+    failures: u32,
+    last_failure: Option<Instant>,
+    blocked_until: Option<Instant>,
+}
+
+impl LoginGuard {
+    pub const FREE_FAILURES: u32 = 5;
+    pub const MAX_BLOCK_SECS: u64 = 60;
+    pub const FORGET_AFTER: Duration = Duration::from_secs(15 * 60);
+
+    /// Seconds until the next attempt may go ahead, or `None` when it may now.
+    pub fn retry_after(&mut self, now: Instant) -> Option<u64> {
+        if self
+            .last_failure
+            .is_some_and(|at| now.saturating_duration_since(at) > Self::FORGET_AFTER)
+        {
+            *self = Self::default();
+        }
+        let wait = self.blocked_until?.checked_duration_since(now)?;
+        if wait.is_zero() {
+            return None;
+        }
+        Some(wait.as_secs() + u64::from(wait.subsec_nanos() > 0))
+    }
+
+    pub fn record_failure(&mut self, now: Instant) {
+        self.failures = self.failures.saturating_add(1);
+        self.last_failure = Some(now);
+        if self.failures >= Self::FREE_FAILURES {
+            let doublings = (self.failures - Self::FREE_FAILURES).min(6);
+            let secs = (1u64 << doublings).min(Self::MAX_BLOCK_SECS);
+            self.blocked_until = Some(now + Duration::from_secs(secs));
+        }
+    }
+
+    pub fn record_success(&mut self) {
+        *self = Self::default();
+    }
 }
 
 #[derive(Deserialize)]
@@ -48,6 +97,7 @@ impl Store {
             connection.query_row("SELECT COUNT(*) FROM taxonomy_nodes", [], |row| row.get(0))?;
         let store = Self {
             inner: Arc::new(Mutex::new(connection)),
+            login: Arc::new(Mutex::new(LoginGuard::default())),
         };
         if count == 0 {
             store.reset(seed_path)?;
@@ -81,7 +131,10 @@ impl Store {
     }
 
     pub fn reset(&self, seed_path: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let seed: Seed = serde_json::from_str(&std::fs::read_to_string(seed_path)?)?;
+        let text = std::fs::read_to_string(seed_path)
+            .map_err(|error| format!("cannot read seed file {seed_path}: {error}"))?;
+        let seed: Seed = serde_json::from_str(&text)
+            .map_err(|error| format!("invalid seed file {seed_path}: {error}"))?;
         validate_taxonomy(&seed.nodes).map_err(|detail| format!("invalid taxonomy: {detail}"))?;
         let mut connection = self.inner.lock().map_err(|_| "store lock poisoned")?;
         let transaction =
@@ -212,9 +265,12 @@ impl Store {
         }
         let needle = query.unwrap_or("").trim().to_lowercase();
         if !needle.is_empty() {
-            clauses.push("(lower(question) LIKE ? OR lower(answer) LIKE ?)".into());
-            args.push(format!("%{needle}%"));
-            args.push(format!("%{needle}%"));
+            clauses.push(
+                "(lower(question) LIKE ? ESCAPE '\\' OR lower(answer) LIKE ? ESCAPE '\\')".into(),
+            );
+            let pattern = format!("%{}%", escape_like(&needle));
+            args.push(pattern.clone());
+            args.push(pattern);
         }
         let where_sql = clauses.join(" AND ");
         let total: i64 = connection.query_row(
@@ -301,6 +357,14 @@ impl Store {
         Ok(connection.query_row("SELECT id,category_id,question,answer,kind,status,version FROM knowledge_items WHERE id=?", [id], item_from_row).optional()?)
     }
 
+    /// A row that can still be edited or published: active or draft. Archived
+    /// rows are gone for every purpose and do not match.
+    pub fn editable_item(&self, id: &str) -> Result<Option<Item>, crate::error::Error> {
+        Ok(self
+            .item_by_id(id)?
+            .filter(|item| item.status == "active" || item.status == "draft"))
+    }
+
     // -- app settings (key/value; secrets encrypted by the caller) ------------
 
     pub fn setting_get(&self, key: &str) -> Result<Option<String>, crate::error::Error> {
@@ -350,6 +414,30 @@ impl Store {
             .setting_get("auth.server_key_hash")?
             .map(|v| !v.trim().is_empty())
             .unwrap_or(false))
+    }
+
+    /// `Err(RateLimited)` while failed logins have the door closed.
+    pub fn login_allowed(&self) -> Result<(), crate::error::Error> {
+        let mut guard = self
+            .login
+            .lock()
+            .map_err(|_| crate::error::Error::Poisoned)?;
+        match guard.retry_after(Instant::now()) {
+            Some(retry_after_secs) => Err(crate::error::Error::RateLimited { retry_after_secs }),
+            None => Ok(()),
+        }
+    }
+
+    pub fn login_failed(&self) {
+        if let Ok(mut guard) = self.login.lock() {
+            guard.record_failure(Instant::now());
+        }
+    }
+
+    pub fn login_succeeded(&self) {
+        if let Ok(mut guard) = self.login.lock() {
+            guard.record_success();
+        }
     }
 
     // -- sessions (opaque bearer tokens, only SHA-256 hashes stored) ----------
@@ -584,6 +672,142 @@ mod tests {
             .is_err()
         );
     }
+
+    fn open_fixture() -> (tempfile::TempDir, Store) {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("t.db");
+        let seed =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/mini-seed.json");
+        let store =
+            Store::open(db.to_str().unwrap(), seed.to_str().unwrap()).expect("fixture store opens");
+        (dir, store)
+    }
+
+    #[test]
+    fn login_guard_lets_five_misses_through_then_backs_off() {
+        let mut guard = LoginGuard::default();
+        let mut now = Instant::now();
+        let mut waits = Vec::new();
+        for _ in 0..12 {
+            guard.record_failure(now);
+            let wait = guard.retry_after(now);
+            waits.push(wait);
+            now += Duration::from_secs(wait.unwrap_or(0));
+            assert_eq!(
+                guard.retry_after(now),
+                None,
+                "the wait is over once it has passed"
+            );
+        }
+        assert_eq!(
+            waits,
+            [
+                None,
+                None,
+                None,
+                None,
+                Some(1),
+                Some(2),
+                Some(4),
+                Some(8),
+                Some(16),
+                Some(32),
+                Some(60),
+                Some(60)
+            ]
+        );
+    }
+
+    #[test]
+    fn login_guard_forgets_on_success_and_after_a_quiet_quarter_hour() {
+        let t0 = Instant::now();
+        let mut guard = LoginGuard::default();
+        for _ in 0..LoginGuard::FREE_FAILURES {
+            guard.record_failure(t0);
+        }
+        assert!(guard.retry_after(t0).is_some());
+        guard.record_success();
+        assert_eq!(guard.retry_after(t0), None);
+
+        for _ in 0..LoginGuard::FREE_FAILURES + 3 {
+            guard.record_failure(t0);
+        }
+        assert!(guard.retry_after(t0).is_some());
+        let later = t0 + LoginGuard::FORGET_AFTER + Duration::from_secs(1);
+        assert_eq!(guard.retry_after(later), None);
+        // The count started over: one more miss is a first miss again.
+        guard.record_failure(later);
+        assert_eq!(guard.retry_after(later), None);
+    }
+
+    #[test]
+    fn store_refuses_logins_while_the_guard_is_closed() {
+        let (_dir, store) = open_fixture();
+        assert!(store.login_allowed().is_ok());
+        for _ in 0..LoginGuard::FREE_FAILURES {
+            store.login_failed();
+        }
+        let error = store.login_allowed().unwrap_err();
+        assert!(
+            matches!(error, crate::error::Error::RateLimited { retry_after_secs } if retry_after_secs >= 1),
+            "{error}"
+        );
+        store.login_succeeded();
+        assert!(store.login_allowed().is_ok());
+    }
+
+    #[test]
+    fn search_text_is_literal_not_a_like_pattern() {
+        let (_dir, store) = open_fixture();
+        for question in [
+            "할인은 100% 보장되나요",
+            "snake_case 질문",
+            "plain question",
+        ] {
+            store
+                .upsert("orders", question, "답변", "qa", None, None, true)
+                .unwrap();
+        }
+        let found = |needle: &str| {
+            store
+                .list_items(0, 50, Some(needle), None, false, "active")
+                .unwrap()
+                .1
+        };
+        assert_eq!(found("%"), 1, "`%` is a character, not every row");
+        assert_eq!(found("100%"), 1);
+        assert_eq!(found("_"), 1, "`_` is a character, not any one character");
+        assert_eq!(found("e_c"), 1);
+        assert_eq!(found("plain"), 1);
+        assert_eq!(found("\\"), 0, "a backslash is only itself");
+    }
+
+    #[test]
+    fn a_broken_seed_names_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let seed = dir.path().join("broken-seed.json");
+        std::fs::write(&seed, "{not json").unwrap();
+        let db = dir.path().join("t.db");
+        let error = Store::open(db.to_str().unwrap(), seed.to_str().unwrap())
+            .err()
+            .expect("a broken seed is an error")
+            .to_string();
+        assert!(error.contains("broken-seed.json"), "{error}");
+        let missing = dir.path().join("missing.json");
+        let db = dir.path().join("t2.db");
+        let error = Store::open(db.to_str().unwrap(), missing.to_str().unwrap())
+            .err()
+            .expect("a missing seed is an error")
+            .to_string();
+        assert!(error.contains("missing.json"), "{error}");
+    }
+}
+
+/// `%`, `_` and the escape character itself are text in a search, not wildcards.
+fn escape_like(text: &str) -> String {
+    text.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
 
 fn item_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Item> {

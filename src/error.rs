@@ -17,6 +17,10 @@ pub enum Error {
     NotFound(String),
     #[error("{0}")]
     Unauthorized(String),
+    #[error("{0}")]
+    Forbidden(String),
+    #[error("too many failed logins; try again in {retry_after_secs}s")]
+    RateLimited { retry_after_secs: u64 },
     #[error("store lock poisoned")]
     Poisoned,
     #[error("request cancelled")]
@@ -40,6 +44,8 @@ impl Error {
             Self::Conflict(_) => "conflict",
             Self::NotFound(_) => "not_found",
             Self::Unauthorized(_) => "unauthorized",
+            Self::Forbidden(_) => "forbidden",
+            Self::RateLimited { .. } => "rate_limited",
             Self::Upstream(crate::jev::JevError::Unconfigured) => "invalid_request",
             Self::Upstream(_) => "upstream_error",
             Self::Cancelled => "cancelled",
@@ -60,6 +66,11 @@ impl Error {
                 crate::jev::JevError::Status(404) => {
                     "Jev endpoint not found (404). Item ranking posts to TypeSafe (https://api.typesafe.ai). The LLM base URL in Settings → Models is a different host.".into()
                 }
+                crate::jev::JevError::Status(s @ (400 | 413 | 422)) => {
+                    format!(
+                        "Jev rejected the request (HTTP {s}). The input may be too large for the evaluator: shorten the question, answer, or context."
+                    )
+                }
                 crate::jev::JevError::Status(s) => {
                     format!("Jev call failed (HTTP {s}). Check the Jev API key in Settings → Models.")
                 }
@@ -76,6 +87,8 @@ impl IntoResponse for Error {
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
+            Self::Forbidden(_) => StatusCode::FORBIDDEN,
+            Self::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
             Self::Upstream(crate::jev::JevError::Unconfigured) => StatusCode::BAD_REQUEST,
             Self::Upstream(_) => StatusCode::BAD_GATEWAY,
             Self::Cancelled => StatusCode::from_u16(499).unwrap_or(StatusCode::BAD_REQUEST),
@@ -83,10 +96,20 @@ impl IntoResponse for Error {
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
         tracing::warn!(code = self.code(), error = %self, "request failed");
-        (
+        let retry_after = match &self {
+            Self::RateLimited { retry_after_secs } => Some(*retry_after_secs),
+            _ => None,
+        };
+        let mut response = (
             status,
             Json(json!({"code":self.code(),"detail":self.public_message()})),
         )
-            .into_response()
+            .into_response();
+        if let Some(seconds) = retry_after {
+            response
+                .headers_mut()
+                .insert(axum::http::header::RETRY_AFTER, seconds.into());
+        }
+        response
     }
 }
