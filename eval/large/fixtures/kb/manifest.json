@@ -1,0 +1,62 @@
+{
+ "name": "large-kb",
+ "title": "대규모 합성 지식베이스",
+ "version": "1.0.0",
+ "language": "ko",
+ "description": "33개 생활·업무 영역의 합성 FAQ. 답변은 평가용 합성 데이터이며 라우팅·랭킹을 평가한다.",
+ "domains": {
+  "phone": "PHONE",
+  "pc": "PC",
+  "net": "NET",
+  "office": "OFFICE",
+  "security": "SECURITY",
+  "bank": "BANK",
+  "card": "CARD",
+  "loan": "LOAN",
+  "tax": "TAX",
+  "insure": "INSURE",
+  "pension": "PENSION",
+  "house": "HOUSE",
+  "appliance": "APPLIANCE",
+  "homecare": "HOMECARE",
+  "cook": "COOK",
+  "health": "HEALTH",
+  "medical": "MEDICAL",
+  "fitness": "FITNESS",
+  "parent": "PARENT",
+  "pet": "PET",
+  "car": "CAR",
+  "transit": "TRANSIT",
+  "abroad": "ABROAD",
+  "shop": "SHOP",
+  "returns": "RETURNS",
+  "member": "MEMBER",
+  "hr": "HR",
+  "payroll": "PAYROLL",
+  "itdesk": "ITDESK",
+  "civil": "CIVIL",
+  "legal": "LEGAL",
+  "career": "CAREER",
+  "utility": "UTILITY"
+ },
+ "variants": {
+  "full": {
+   "keep_tiers": [
+    "core",
+    "fine"
+   ],
+   "keep_roots": true,
+   "description": "원본 그대로"
+  },
+  "standard": {
+   "keep_tiers": [
+    "core"
+   ],
+   "keep_roots": true,
+   "description": "fine 단계 제거"
+  }
+ },
+ "default_variant": "full",
+ "empty_leaves": [],
+ "dense_leaves": []
+}
