@@ -239,6 +239,32 @@ pub struct SearchOut {
     pub pool: Option<usize>,
     pub ms: u64,
     pub route_ms: Option<u64>,
+    /// Evaluator calls and billed input tokens, from the run's `usage` events.
+    #[serde(default)]
+    pub cost: Cost,
+}
+
+/// What one run paid, read off its `usage` events. Zero on records made before
+/// the engine reported usage.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct Cost {
+    pub jev_calls: usize,
+    pub jev_in: u64,
+    pub llm_calls: usize,
+    pub llm_in: u64,
+    pub llm_out: u64,
+}
+
+impl Cost {
+    pub fn add(self, other: Cost) -> Cost {
+        Cost {
+            jev_calls: self.jev_calls + other.jev_calls,
+            jev_in: self.jev_in + other.jev_in,
+            llm_calls: self.llm_calls + other.llm_calls,
+            llm_in: self.llm_in + other.llm_in,
+            llm_out: self.llm_out + other.llm_out,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -256,6 +282,8 @@ pub struct IngestStep {
     pub beam_rounds: usize,
     pub llm_calls: usize,
     pub ms: u64,
+    #[serde(default)]
+    pub cost: Cost,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -341,20 +369,17 @@ pub fn facets(kb: &Kb, case: &Case, resolved: &Resolved) -> BTreeMap<String, Str
 // Engine calls
 // ---------------------------------------------------------------------------
 
+#[derive(Default)]
 struct Events {
     beam_rounds: usize,
     llm_calls: usize,
     pool: Option<usize>,
     descent_done: Option<Instant>,
+    cost: Cost,
 }
 
 async fn collect(mut rx: mpsc::Receiver<Value>) -> Events {
-    let mut events = Events {
-        beam_rounds: 0,
-        llm_calls: 0,
-        pool: None,
-        descent_done: None,
-    };
+    let mut events = Events::default();
     while let Some(value) = rx.recv().await {
         match value["type"].as_str() {
             Some("descent_step") if value["status"] == "asking" => {
@@ -369,6 +394,17 @@ async fn collect(mut rx: mpsc::Receiver<Value>) -> Events {
                 events.pool = value["count"].as_u64().map(|n| n as usize);
             }
             Some("descent_done") => events.descent_done = Some(Instant::now()),
+            Some("usage") => {
+                let tokens = |key: &str| value[key].as_u64().unwrap_or(0);
+                if value["source"] == "llm" {
+                    events.cost.llm_calls += value["calls"].as_u64().unwrap_or(1) as usize;
+                    events.cost.llm_in += tokens("input_tokens");
+                    events.cost.llm_out += tokens("output_tokens");
+                } else {
+                    events.cost.jev_calls += 1;
+                    events.cost.jev_in += tokens("input_tokens");
+                }
+            }
             _ => {}
         }
     }
@@ -390,12 +426,7 @@ async fn call(
 ) -> (Result<Value, Failure>, Events, u64, Option<u64>) {
     let started = Instant::now();
     if let Err(message) = request.validate() {
-        let events = Events {
-            beam_rounds: 0,
-            llm_calls: 0,
-            pool: None,
-            descent_done: None,
-        };
+        let events = Events::default();
         return (
             Err(Failure {
                 code: "invalid_request".into(),
@@ -413,12 +444,7 @@ async fn call(
         jev_tree::engine::execute(state.clone(), request, Some(tx)),
     )
     .await;
-    let events = collector.await.unwrap_or(Events {
-        beam_rounds: 0,
-        llm_calls: 0,
-        pool: None,
-        descent_done: None,
-    });
+    let events = collector.await.unwrap_or_default();
     let ms = started.elapsed().as_millis() as u64;
     let route_ms = events
         .descent_done
@@ -459,6 +485,7 @@ async fn search(
         pool: events.pool,
         ms,
         route_ms,
+        cost: events.cost,
         ..Default::default()
     };
     match result {
@@ -498,6 +525,7 @@ async fn ingest_step(state: &AppState, request: RunRequest, timeout: Duration) -
         beam_rounds: events.beam_rounds,
         llm_calls: events.llm_calls,
         ms,
+        cost: events.cost,
         ..Default::default()
     };
     match result {
@@ -548,6 +576,7 @@ struct Engine {
     store: Store,
     nodes: Arc<RwLock<Vec<jev_tree::models::Node>>>,
     shared: JevClient,
+    recall: jev_tree::recall::Cache,
 }
 
 impl Engine {
@@ -563,6 +592,7 @@ impl Engine {
             store,
             nodes,
             shared,
+            recall: jev_tree::recall::Cache::default(),
         })
     }
 
@@ -585,6 +615,14 @@ impl Engine {
                 } else if mock == Mock::Abstain {
                     client.script_choices(vec!["__none__".into(), "__stop__".into()]);
                 } else if settings.router == Router::JevLlm {
+                    // Jev is scripted unsure of the right node, so the LLM reviews
+                    // every pick and the pinned answer is the one that lands.
+                    client.script_choices(
+                        oracle_script(variant, node)
+                            .into_iter()
+                            .map(|id| format!("~{id}"))
+                            .collect(),
+                    );
                     client.script_llm(Some(node.unwrap_or("__none__").to_string()));
                 } else {
                     client.script_choices(oracle_script(variant, node));
@@ -596,6 +634,9 @@ impl Engine {
             store: self.store.clone(),
             nodes: self.nodes.clone(),
             jev,
+            recall: self.recall.clone(),
+            // Every case is measured, never served from an earlier one.
+            results: jev_tree::cache::ResultCache::disabled(),
         })
     }
 }

@@ -4,7 +4,10 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::{
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -12,6 +15,9 @@ use std::{
 pub struct Store {
     inner: Arc<Mutex<Connection>>,
     login: Arc<Mutex<LoginGuard>>,
+    /// Bumped by every write to the taxonomy or the items, so caches built
+    /// from them know when they are stale.
+    generation: Arc<AtomicU64>,
 }
 
 /// Failed-login throttle, in memory and process-wide: the login password is one
@@ -98,6 +104,7 @@ impl Store {
         let store = Self {
             inner: Arc::new(Mutex::new(connection)),
             login: Arc::new(Mutex::new(LoginGuard::default())),
+            generation: Arc::new(AtomicU64::new(0)),
         };
         if count == 0 {
             store.reset(seed_path)?;
@@ -147,7 +154,29 @@ impl Store {
             transaction.execute("INSERT INTO knowledge_items(id,category_id,question,answer,kind,version) VALUES(?,?,?,?,?,1)", params![(index + 1).to_string(),item.category_id,item.question,item.answer,item.kind])?;
         }
         transaction.commit()?;
+        self.touch();
         Ok(())
+    }
+
+    /// Changes whenever the taxonomy or an item changes.
+    pub fn generation(&self) -> u64 {
+        self.generation.load(Ordering::Acquire)
+    }
+
+    fn touch(&self) {
+        self.generation.fetch_add(1, Ordering::AcqRel);
+    }
+
+    /// `(category_id, question)` of every active item: the words search can
+    /// reach a node by.
+    pub fn active_questions(&self) -> Result<Vec<(String, String)>, crate::error::Error> {
+        let connection = self.lock()?;
+        let mut statement = connection
+            .prepare("SELECT category_id,question FROM knowledge_items WHERE status='active'")?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
     }
 
     pub fn load_taxonomy(&self) -> Result<Vec<Node>, crate::error::Error> {
@@ -294,10 +323,15 @@ impl Store {
     /// Retire an item. Archived rows leave search, listings, and upsert matching.
     pub fn archive_item(&self, id: &str) -> Result<bool, crate::error::Error> {
         let connection = self.lock()?;
-        Ok(connection.execute(
+        let changed = connection.execute(
             "UPDATE knowledge_items SET status='archived' WHERE id=? AND status IN ('active','draft')",
             [id],
-        )? > 0)
+        )? > 0;
+        drop(connection);
+        if changed {
+            self.touch();
+        }
+        Ok(changed)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -346,6 +380,7 @@ impl Store {
         };
         transaction.commit()?;
         drop(connection);
+        self.touch();
         let item = self
             .item_by_id(&id)?
             .ok_or(crate::error::Error::NotFound("item not found".into()))?;

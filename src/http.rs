@@ -997,6 +997,8 @@ mod tests {
             store,
             jev: JevClient::with_config(config).unwrap(),
             nodes,
+            recall: crate::recall::Cache::default(),
+            results: crate::cache::ResultCache::default(),
         };
         (router(state.clone(), static_dir.to_string()), state)
     }

@@ -255,7 +255,19 @@ pub fn render(meta: &Value, cells: &[CellSummary]) -> String {
                         .unwrap_or_else(|| "-".into()),
                 ),
                 (
-                    "Jev 호출 수 평균 (라운드 + 32개 배치)",
+                    "Jev 입력 토큰 평균 (과금)",
+                    s.mean_jev_in
+                        .map(|v| format!("{v:.0}"))
+                        .unwrap_or_else(|| "-".into()),
+                ),
+                (
+                    "LLM 토큰 평균 (입력+출력)",
+                    s.mean_llm_tokens
+                        .map(|v| format!("{v:.0}"))
+                        .unwrap_or_else(|| "-".into()),
+                ),
+                (
+                    "Jev 호출 수 평균 (실측, 없으면 라운드 + 32개 배치 추정)",
                     s.mean_jev_calls
                         .map(|v| format!("{v:.2}"))
                         .unwrap_or_else(|| "-".into()),
@@ -266,7 +278,10 @@ pub fn render(meta: &Value, cells: &[CellSummary]) -> String {
                         .map(|v| format!("{v:.2}"))
                         .unwrap_or_else(|| "-".into()),
                 ),
-                ("LLM 실패 → Jev 빔 대체율", rate(&s.llm_fallback)),
+                (
+                    "LLM이 경로를 정한 비율 (Jev가 불확실해 리뷰)",
+                    rate(&s.llm_decided),
+                ),
             ];
             for (name, value) in lines {
                 let _ = writeln!(out, "| {name} | {value} |");
@@ -370,7 +385,10 @@ pub fn render(meta: &Value, cells: &[CellSummary]) -> String {
                 ("게시 후 probe 검색 top-k 포함", rate(&g.probe_hit)),
                 ("게시 후 probe 검색 top1 답변", rate(&g.probe_answer)),
                 ("지연 p50 (초안+게시+probe)", ms(g.p50_ms)),
-                ("LLM 실패 → Jev 빔 대체율", rate(&g.llm_fallback)),
+                (
+                    "LLM이 경로를 정한 비율 (Jev가 불확실해 리뷰)",
+                    rate(&g.llm_decided),
+                ),
             ];
             for (name, value) in lines {
                 let _ = writeln!(out, "| {name} | {value} |");

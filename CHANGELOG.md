@@ -1,5 +1,72 @@
 # Changelog
 
+## 0.10.0
+
+Built and measured against a new benchmark ten times the golden set's size
+(`eval/large`: 1,902 nodes, 14,870 items, 3,860 cases). The golden tree fits in one Jev
+choice, so it never showed what happens when a tree does not: at 1,902 nodes the old flat
+route landed on the right node for 48.5% of requests. Every change below was first
+measured on recorded judgments, then confirmed with paired runs (McNemar).
+
+### Changed
+
+- **A scope too big for one choice is routed through a coarse map, not word overlap.**
+  Past 254 nodes the menu used to be the nodes sharing the most characters with the
+  request, which held the right node only 69% of the time on the benchmark (paraphrases
+  and English queries had nothing to match). Now one Jev choice over the deepest tree level
+  that still fits opens its best branches whole, and BM25 over every node's text **and the
+  questions filed under it** adds 30 matches (`src/recall.rs`). The right node is in the
+  menu 98% of the time and the menus are smaller (about 90 nodes against 254). A pick whose
+  branch did not fit is walked into; a coarse map wider than one choice is split into
+  questions with their own way out, asked in parallel.
+- **An unsure search also ranks the runners-up.** Most misses on a big tree are sideways —
+  a sibling, another branch, another domain — and they left the answer outside the pool
+  however well Jev ranked. Below 0.9 the two next-best nodes' items join the pool (never
+  the pick's own ancestors or descendants; only a runner-up's own items past 64), and a
+  rescued item answers only at 0.75 or more, so false answers do not rise.
+- **The LLM reviews Jev's unsure picks instead of routing every request.** A pick below 0.8
+  goes to the LLM with the same menu Jev chose from, in tree order; confident picks never
+  wait for it. Shown only Jev's top candidates the model agreed with Jev's mistakes (93%
+  route accuracy on the golden queries against 97% with the whole menu), so it reads the
+  whole menu. The LLM-everywhere router, its two-step walk above 800 nodes, and the
+  lexical shortlist behind it are gone.
+- **The level-by-level beam is gone.** The coarse map made it unreachable. `beam_width` is
+  still accepted and ignored; `trace.router` is `flat` or `llm`.
+- **Repeated searches are served from a cache** (`src/cache.rs`): 1,024 results for 10
+  minutes, keyed by the request plus the store's and the settings' generation, so any
+  write or settings change invalidates it. A hit makes no model call and emits `cache_hit`.
+- Every model call leaves a `usage` event (`source`, `input_tokens`, `output_tokens`); the
+  eval runner reports billed Jev tokens and LLM tokens per case from them, and counts Jev
+  calls instead of estimating them.
+
+### Measured
+
+Large benchmark, 1,500 paired cases (`--sample 1500 --seed final`), `jev-latest`:
+
+| | E2E | route | Hit@1 | ingest | p50 | Jev tokens |
+|---|---:|---:|---:|---:|---:|---:|
+| 0.9.0 Jev | 68.4% | 48.5% | 67.8% | 73.4% | 0.7s | 45.4K |
+| 0.9.0 LLM routes every request (600 of the cases) | 73.7% | 64.2% | 72.4% | 88.5% | 12.1s | 12.4K + 6.2K LLM |
+| 0.10.0 Jev | **82.0%** | 68.7% | 82.6% | 73.4% | 0.9s | 38.7K |
+| 0.10.0 Jev + LLM review | **83.8%** | **75.5%** | **84.5%** | **76.6%** | 1.8s | 36.4K + 3.3K LLM |
+
+0.9.0 → 0.10.0 Jev: E2E +13.6pp (232 fixed, 36 broken, p<0.0001), false holds 8.4% →
+3.0%, false answers 25.0% → 24.2%. The LLM review adds +1.7pp E2E (p=0.014) and +6.8pp
+route accuracy (p<0.0001); it reviewed 50% of requests on this tree. Against 0.9.0's LLM
+router on the same 600 cases: E2E 73.7% → 85.0% (p<0.0001) at p50 3.7s instead of 11.9s;
+Jev alone already reaches 83.3% at 0.9s.
+
+Golden set (`eval/`, paired against the 0.9.0 baselines): Jev E2E up in every tree shape
+(deep 97.3 → 97.8, standard 97.3 → 98.0, shallow 97.2 → 97.8, flat 96.7 → 97.6, sparse
+90.5 → 90.8), none of it a regression. With the LLM: 98.4% on `standard` (LLM routing
+everything: 97.7%), ingest still 100%, **p50 0.4s against 3.8s**, LLM tokens per search
+1.7K against 11.7K; the LLM reviewed 13% of requests.
+
+### Evaluator limits found
+
+- A request has to fit about 64K tokens across all its questions (three 21K-token menus
+  pass, four fail), on top of the ~32K per question. Big menus now go in separate requests.
+
 ## 0.9.0
 
 Found by a five-agent review of 0.8.1 (correctness, accuracy, performance, security,

@@ -41,8 +41,8 @@ pub struct RankedItem {
 pub struct PathPart {
     pub id: String,
     pub name: String,
-    /// Edge probability from the Jev beam. `None` when the optional LLM router
-    /// chose this node and did not produce a probability.
+    /// Always `None` since 0.10: the flat choice puts its probabilities on the
+    /// step candidates and `Trace::score`.
     pub probability: Option<f64>,
     pub confidence: Option<f64>,
 }
@@ -66,11 +66,13 @@ pub struct TraceStep {
     pub confidence: Option<f64>,
     pub reason: String,
 }
+/// Where the walk ended. One entry since 0.10; the name and shape are kept for
+/// clients written against the beam.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FinalBeam {
     pub node_id: Option<String>,
     pub path: Vec<PathPart>,
-    /// Geometric mean of edge probabilities. `None` for an LLM route.
+    /// Same as `Trace::score`.
     pub score: Option<f64>,
     pub alive: bool,
 }
@@ -78,17 +80,18 @@ pub struct FinalBeam {
 pub struct Trace {
     pub run_id: String,
     pub mode: String,
-    /// `beam` when Jev walked the tree, `llm` when the optional model picked the node.
+    /// `flat` when Jev picked the node, `llm` when the optional model reviewed
+    /// an unsure Jev pick and chose. (`beam` before 0.10.)
     #[serde(default = "default_router")]
     pub router: String,
     pub steps: Vec<TraceStep>,
     pub leaf_id: Option<String>,
-    /// `None` for an LLM route. The beam stores the geometric mean.
+    /// The chosen probability of a Jev pick; `None` when the LLM decided.
     pub score: Option<f64>,
     pub final_beams: Vec<FinalBeam>,
 }
 fn default_router() -> String {
-    "beam".into()
+    "flat".into()
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResult {
@@ -349,20 +352,21 @@ pub enum Answer {
         confidence: f64,
     },
 }
-#[derive(Debug, Default, Deserialize, Clone)]
+/// Token counts one evaluator call reports. Only input tokens are billed.
+#[derive(Debug, Default, Deserialize, Serialize, Clone, Copy)]
 pub struct Usage {
-    #[serde(default, rename = "input_tokens")]
-    pub _input_tokens: u64,
-    #[serde(default, rename = "output_tokens")]
-    pub _output_tokens: u64,
+    #[serde(default)]
+    pub input_tokens: u64,
+    #[serde(default)]
+    pub output_tokens: u64,
 }
 #[derive(Debug, Deserialize, Clone)]
 pub struct Judgment {
     pub answers: BTreeMap<String, Answer>,
     #[serde(default, rename = "model")]
     pub _model: String,
-    #[serde(default, rename = "usage")]
-    pub _usage: Usage,
+    #[serde(default)]
+    pub usage: Usage,
 }
 
 #[cfg(test)]

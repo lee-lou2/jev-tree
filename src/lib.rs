@@ -2,11 +2,13 @@
 //!
 //! The HTTP surface lives in [`http`]; classification and ranking live in [`engine`].
 
+pub mod cache;
 pub mod engine;
 pub mod error;
 pub mod http;
 pub mod jev;
 pub mod models;
+pub mod recall;
 pub mod secret;
 pub mod store;
 
@@ -27,6 +29,11 @@ pub struct AppState {
     pub store: Store,
     pub nodes: Arc<RwLock<Vec<Node>>>,
     pub jev: JevClient,
+    /// Lexical recall index over the taxonomy and its items. Rebuilt when the
+    /// store changes; only scopes too large for one Jev choice read it.
+    pub recall: recall::Cache,
+    /// Recent search results (see [`cache`]).
+    pub results: cache::ResultCache,
 }
 
 impl AppState {
@@ -137,6 +144,8 @@ pub fn build_state(
         jev: JevClient::with_config(jev_config)?,
         store,
         nodes,
+        recall: recall::Cache::default(),
+        results: cache::ResultCache::default(),
     })
 }
 

@@ -88,8 +88,32 @@ pub struct Score {
     pub jev_calls: Option<usize>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub llm_calls: Option<usize>,
+    /// Billed evaluator input tokens, when the run reported usage.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub llm_fallback: Option<bool>,
+    pub jev_in: Option<u64>,
+    /// LLM prompt plus completion tokens, when the run reported usage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub llm_tokens: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub llm_decided: Option<bool>,
+}
+
+/// Measured calls when the run reported usage; otherwise the old estimate
+/// (beam rounds plus one ranking call per 32 candidates).
+fn jev_calls(cost: &crate::exec::Cost, estimate: usize) -> usize {
+    if cost.jev_calls > 0 {
+        cost.jev_calls
+    } else {
+        estimate
+    }
+}
+
+fn measured(cost: &crate::exec::Cost) -> (Option<u64>, Option<u64>) {
+    if cost.jev_calls == 0 && cost.llm_calls == 0 {
+        (None, None)
+    } else {
+        (Some(cost.jev_in), Some(cost.llm_in + cost.llm_out))
+    }
 }
 
 struct Route {
@@ -195,13 +219,19 @@ fn ndcg(grades: &BTreeMap<String, u8>, returned: &[String]) -> f64 {
 
 fn score_search(kb: &Kb, variant: &Variant, record: &Record, out: &SearchOut) -> Score {
     let expected = &record.expected;
+    let (jev_in, llm_tokens) = measured(&out.cost);
     let mut score = Score {
         ms: out.ms,
         route_ms: out.route_ms,
         pool: out.pool,
-        jev_calls: Some(out.beam_rounds + out.pool.unwrap_or(0).div_ceil(32)),
+        jev_calls: Some(jev_calls(
+            &out.cost,
+            out.beam_rounds + out.pool.unwrap_or(0).div_ceil(32),
+        )),
         llm_calls: Some(out.llm_calls),
-        llm_fallback: (record.router == "jev_llm").then_some(out.router == "beam"),
+        jev_in,
+        llm_tokens,
+        llm_decided: (record.router == "jev_llm").then_some(out.router == "llm"),
         ..Default::default()
     };
     if let Some(error) = &out.error {
@@ -288,17 +318,24 @@ fn score_ingest(kb: &Kb, variant: &Variant, record: &Record) -> Score {
         .and_then(|p| p.pool)
         .unwrap_or(0)
         .div_ceil(32);
+    let cost = draft
+        .cost
+        .add(ingest.publish.as_ref().map(|p| p.cost).unwrap_or_default())
+        .add(ingest.probe.as_ref().map(|p| p.cost).unwrap_or_default());
+    let (jev_in, llm_tokens) = measured(&cost);
     let mut score = Score {
         ms: ingest.ms,
         route_ms: Some(draft.ms),
-        jev_calls: Some(rounds + ranked),
+        jev_calls: Some(jev_calls(&cost, rounds + ranked)),
+        jev_in,
+        llm_tokens,
         llm_calls: Some(
             draft.llm_calls
                 + ingest.publish.as_ref().map(|p| p.llm_calls).unwrap_or(0)
                 + ingest.probe.as_ref().map(|p| p.llm_calls).unwrap_or(0),
         ),
-        llm_fallback: (record.router == "jev_llm" && draft.error.is_none())
-            .then_some(draft.router == "beam"),
+        llm_decided: (record.router == "jev_llm" && draft.error.is_none())
+            .then_some(draft.router == "llm"),
         ..Default::default()
     };
     let routed = route(kb, variant, expected, draft.category.as_deref());
@@ -555,7 +592,13 @@ pub struct SearchSummary {
     pub mean_pool: Option<f64>,
     pub mean_jev_calls: Option<f64>,
     pub mean_llm_calls: Option<f64>,
-    pub llm_fallback: Metric,
+    /// Mean billed evaluator input tokens per case (runs that report usage).
+    #[serde(default)]
+    pub mean_jev_in: Option<f64>,
+    /// Mean LLM tokens (prompt + completion) per case.
+    #[serde(default)]
+    pub mean_llm_tokens: Option<f64>,
+    pub llm_decided: Metric,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -576,7 +619,7 @@ pub struct IngestSummary {
     pub probe_hit: Metric,
     pub probe_answer: Metric,
     pub p50_ms: Option<u64>,
-    pub llm_fallback: Metric,
+    pub llm_decided: Metric,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -833,7 +876,19 @@ pub fn summarize(router: &str, variant: &str, records: &[Record]) -> CellSummary
             .filter_map(|r| r.score.llm_calls.map(|v| v as f64)),
     )
     .value;
-    s.llm_fallback = Metric::rate(search.iter().filter_map(|r| r.score.llm_fallback));
+    s.mean_jev_in = Metric::mean(
+        search
+            .iter()
+            .filter_map(|r| r.score.jev_in.map(|v| v as f64)),
+    )
+    .value;
+    s.mean_llm_tokens = Metric::mean(
+        search
+            .iter()
+            .filter_map(|r| r.score.llm_tokens.map(|v| v as f64)),
+    )
+    .value;
+    s.llm_decided = Metric::rate(search.iter().filter_map(|r| r.score.llm_decided));
 
     // Level accuracy on forest cases: top k levels of the landed path match the gold path.
     let forest: Vec<&&Record> = search
@@ -1006,7 +1061,7 @@ pub fn summarize(router: &str, variant: &str, records: &[Record]) -> CellSummary
     g.probe_answer = Metric::rate(ingest.iter().filter_map(|r| r.score.probe_answer_ok));
     let ms: Vec<u64> = ingest.iter().map(|r| r.score.ms).collect();
     g.p50_ms = percentile(&ms, 50.0);
-    g.llm_fallback = Metric::rate(ingest.iter().filter_map(|r| r.score.llm_fallback));
+    g.llm_decided = Metric::rate(ingest.iter().filter_map(|r| r.score.llm_decided));
 
     // Contract
     cell.contract.n = contract.len();
