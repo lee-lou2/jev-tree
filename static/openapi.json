@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "jev-tree API",
-    "version": "0.9.0",
+    "version": "0.10.0",
     "description": "Hierarchical knowledge service: model-driven tree descent over SQLite. Search and ingest are the same descent. A `root` path (`products`, `products/products_stock`) makes that node the virtual tree. Settings and keys stay project-wide. Human companion: docs/api.md. Browsable: GET /docs."
   },
   "servers": [
@@ -194,7 +194,7 @@
           },
           "probability": {
             "type": ["number", "null"],
-            "description": "Beam edge probability. Null on a flat choice or an LLM route."
+            "description": "Null: the flat choice puts its probabilities on the step candidates and trace.score."
           },
           "confidence": {
             "type": [
@@ -289,7 +289,7 @@
           },
           "score": {
             "type": ["number", "null"],
-            "description": "Geometric mean along a beam. On a flat choice it is the chosen probability. Null on an LLM route."
+            "description": "The chosen probability on a flat choice. Null when the LLM reviewed the pick."
           }
         }
       },
@@ -304,8 +304,8 @@
           },
           "router": {
             "type": "string",
-            "enum": ["flat", "beam", "llm"],
-            "description": "flat: one Jev choice over every node in scope (default). beam: Jev walked the tree level by level, used only when the scope is too large to name in one call. llm: the optional model picked the node."
+            "enum": ["flat", "llm"],
+            "description": "flat: Jev picked the node with one choice over the walk's menu (every node in scope, or a coarse map plus BM25 recall when the scope is too big for one choice). llm: the optional model reviewed a Jev pick below 0.8 and chose from the same menu."
           },
           "steps": {
             "type": "array",
@@ -321,7 +321,7 @@
           },
           "score": {
             "type": ["number", "null"],
-            "description": "Chosen probability on a flat choice. Null on an LLM route."
+            "description": "Chosen probability on a flat choice. Null when the LLM reviewed the pick."
           },
           "final_beams": {
             "type": "array",
@@ -1136,7 +1136,7 @@
     "/api/run": {
       "post": {
         "summary": "Search or ingest (JSON)",
-        "description": "Text 1-8000 chars. A Jev API key is required (400 invalid_request without one). search: read role, not position. ingest without auto_publish = draft (published_id null, kind qa). When llm_base_url, llm_token, and llm_model are all set, that model chooses the category; a missing setting or a failed call keeps Jev routing: one choice over every node in scope, with the level-by-level beam only when the scope is too large to name in one call. Ranking always uses Jev, over every active item in the landed subtree.",
+        "description": "Text 1-8000 chars. A Jev API key is required (400 invalid_request without one). search: read role, not position. ingest without auto_publish = draft (published_id null, kind qa). Jev routes with one choice over every node in scope, or, when the scope is too big for one choice, over a coarse map of the tree plus BM25 recall. When llm_base_url, llm_token, and llm_model are all set, that model reviews a Jev pick below 0.8 from the same menu; a missing setting or a failed call keeps Jev's pick. Ranking always uses Jev, over every active item in the landed subtree, plus the two next-best nodes' items when the pick was below 0.9.",
         "responses": {
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1230,7 +1230,8 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 5,
-                    "default": 3
+                    "default": 3,
+                    "description": "Accepted and ignored: the level-by-level beam was removed in 0.10."
                   },
                   "limit": {
                     "type": "integer",
@@ -1348,7 +1349,8 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 5,
-                    "default": 3
+                    "default": 3,
+                    "description": "Accepted and ignored: the level-by-level beam was removed in 0.10."
                   },
                   "limit": {
                     "type": "integer",

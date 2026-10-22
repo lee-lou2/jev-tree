@@ -47,7 +47,7 @@ together with a session token. It fails with 400 if a password already exists. T
 | `cancelled` | 499 | The streaming client went away mid-run |
 | `internal_error` | 500 | Server fault |
 | `upstream_error` | 502 | Evaluator call failed. `detail` says when the input looks too large for it |
-| `timeout` | 504 | The run passed `JEV_TREE_RUN_TIMEOUT_SECS` (default 120). The LLM route gets a third of it; under about 20 s that route is usually cut off and Jev routes instead |
+| `timeout` | 504 | The run passed `JEV_TREE_RUN_TIMEOUT_SECS` (default 120). An LLM review gets a third of it; past that Jev's own pick stands |
 
 - Sessions last 30 days and slide on each call. `POST /api/auth/logout` revokes one.
 - API keys from `POST /api/keys` authenticate the same way but never slide.
@@ -76,7 +76,7 @@ The only endpoint most integrations need.
 | `context` | array | `[]` | Prior turns, max 32. Strings or `{"role","text"}` objects |
 | `start_node` | string \| null | `null` | Optional forced start; unknown id is 400. Must sit under `root` when both are set |
 | `root` | string \| null | `null` | Virtual tree: slash-separated child keys (`products`, `products/products_stock`). Each segment is a **direct child** of the previous node (forest roots at the first step), matched by id then name. Unknown path is 404. Settings and keys ignore this |
-| `beam_width` | int | `3` | 1–5. Beam only; the default flat route does not beam |
+| `beam_width` | int | `3` | 1–5. Accepted and ignored: the level-by-level beam is gone (0.10) |
 | `limit` | int | `8` | 1–20 ranked items |
 | `auto_publish` | bool | `false` | Ingest only. `false` stores a draft. Re-sending the question of a *published* row without it turns that row back into a draft: it leaves search until it is published again |
 | `item_id` + `expected_version` | string + int | — | Target an existing row; supply both or neither. The row keeps its category (no routing call: `trace.router` is `flat` with no `steps`) unless `start_node` is also given. If its category is gone or outside `root`, the request routes afresh |
@@ -114,28 +114,48 @@ Combined text must be 1–8000 characters.
 
 Pick the answer by `role`, not by position. When `abstained` is true every item is demoted
 to `reference` — do not answer from them. A `candidate` with `id: null` is the terminal
-choice (`__stop__` / `__none__`).
+choice (`__none__`).
 
-Jev scores every active item in the landed subtree, then `limit` is applied. A call carries
-up to 32 items and 24 KB of request, four calls run at a time, and text over 8,000
-characters (more than the API accepts, so only a row put in the database another way) is
-cut for the evaluator only (the result carries the stored text). `trace.router` says who
-picked the node:
+Jev scores every active item in the landed subtree, then `limit` is applied. When the route
+was unsure of its pick (chosen probability below 0.9) the pool also holds the items of the
+two next-best nodes — never the pick's own ancestors or descendants, and only a runner-up's
+own items when its subtree holds more than 64 — so an item's `category_id` can differ from
+`leaf_id`. The routed node's own items win near-ties. A call carries up to 32 items and 24 KB
+of request, four calls run at a time, and text over 8,000 characters (more than the API
+accepts, so only a row put in the database another way) is cut for the evaluator only (the
+result carries the stored text). `trace.router` says who picked the node:
 
 | `router` | who picked the node | what the trace carries |
 |---|---|---|
-| `flat` (default) | one Jev choice over every node in scope, `__none__` included | `steps[0].candidates` carries probabilities, `trace.score` is the chosen probability, per-edge `probability` is null. An uncertain pick adds a `steps[1]` scope judgment that can hold the request |
-| `beam` | Jev walked the tree level by level (`beam_width` paths), used only when the scope is too large to name in one call | per-depth `candidates`; `probability` and `trace.score` filled (geometric mean of edge probabilities) |
-| `llm` | the optional model | lists the options that call was shown and leaves `probability`, `confidence`, and `trace.score` null |
+| `flat` (default) | Jev: one choice over the walk's menu, `__none__` included | the choice step's `candidates` carry probabilities and `trace.score` is the chosen probability; per-edge `probability` is null |
+| `llm` | the optional model, reviewing a Jev pick below 0.8 | an `llm review` step listing the menu it read (with Jev's probabilities); `trace.score` is null |
 
-The flat menu is **every node in the walk**, so the evaluator judges meaning even when
-the request shares no characters with the taxonomy. A walk with `start_node` picks inside
-that subtree only and has no `__none__`. The forest walk can abstain, and so can a `root`
-scope: it walks the root's children as the forest, so `leaf_id: null` there means "outside
-this root". When one Jev choice cannot name every node in scope — more than 254 nodes (Jev
-takes at most 255 options, `__none__` included) or more than 80 KB of menu text — the menu
-falls back to the strongest lexical matches with their ancestors, filled up to what one
-choice can read, and, without lexical evidence, to the beam.
+`trace.steps` reads in order:
+
+| `node_name` | when | what it says |
+|---|---|---|
+| `coarse map` | the scope is too big for one choice | Jev's pick over the deepest tree level one choice can name; `reason` says how many branches it opened |
+| the walk's start (`the knowledge root` in a forest) | always | the choice over the menu, with probabilities |
+| `llm review` | a pick below 0.8 and an LLM configured | the model's pick from the same menu |
+| `scope check` | a pick below 0.85 that no LLM reviewed | whether the tree covers the request at all; only a confident `out` holds it |
+
+A pick whose subtree did not fit the menu repeats the coarse map and choice inside that
+subtree, so the steps can show two rounds.
+
+A search asked again with the same text, `context`, `root`, `start_node`, and `limit` is
+answered from a per-process cache for up to 10 minutes, unless an item, the taxonomy, or the
+settings changed in between (any of those invalidates every cached result). The cached
+answer is the earlier one, `trace.run_id` included.
+
+The menu is **every node in the walk** whenever one choice can name them (up to 254 nodes,
+Jev takes at most 255 options with `__none__`, and 80 KB of menu text), so the evaluator
+judges meaning even when the request shares no characters with the taxonomy. A walk with
+`start_node` picks inside that subtree only and has no `__none__`. The forest walk can
+abstain, and so can a `root` scope: it walks the root's children as the forest, so
+`leaf_id: null` there means "outside this root". A bigger scope builds the menu from two
+sources: a **coarse map** (one Jev choice over the deepest tree level that still fits, whose
+best branches are opened whole) and **BM25** over each node's path, description, examples,
+and the questions filed under it. Both stay within what one choice can read.
 
 ### `mode: "ingest"`
 
@@ -169,10 +189,12 @@ Same request body, `text/event-stream` response, one JSON object per `data:` lin
 | `type` | payload |
 |---|---|
 | `descent_step` (`status: asking`) | depth, frontiers with candidate children |
-| `descent_step` (`status: answered`) | chosen nodes, surviving beams |
+| `descent_step` (`status: answered`) | the step that chose |
 | `retrieval_completed` | `count`, `category_id` |
 | `candidate_evaluated` | `item_id`, `score`, `role` |
 | `descent_done` | `leaf_id`, `path`, `score`, `trace` |
+| `usage` | one model call: `source` (`jev` or `llm`), `input_tokens`, `output_tokens` (`llm` adds `calls`) |
+| `cache_hit` | the search was answered from the result cache; `descent_done` and `search_done` follow, no model call |
 | `search_done` | full search result |
 | `ingest_draft` | `item` (includes the draft id and version), `duplicate_ids`, `path`, `trace` |
 | `ingest_saved` | `item`, `updated`, `path`, `trace` |
@@ -219,7 +241,7 @@ Settings and keys need a login session; an API key gets 403.
 | `site_name` / `site_description` | ≤ 60 / ≤ 200 characters |
 | `site_logo` | PNG/JPEG/SVG/WebP data URL ≤ 500 KB, or `null` to clear |
 | `jev_api_key` | Required. Search, ingest, and ranking use it. `""` clears it; runs then return 400 and `evaluator` becomes `unconfigured` |
-| `llm_base_url` / `llm_token` / `llm_model` | Optional. When all three are set, search and ingest **route** with this model: one call picks a node from every node in scope (`__none__` abstains). A `start_node` keeps the walk inside that subtree, where it must land on a node; a `root` walks its children as the forest, where `__none__` means outside the root. Above 800 nodes in scope it falls back to two calls: the root topic, then a node inside that subtree. Clearing any of the three, or any failed call, keeps Jev routing (flat choice; beam only when one choice cannot name the scope). Item ranking always uses Jev. The same credentials list models. |
+| `llm_base_url` / `llm_token` / `llm_model` | Optional. When all three are set, the model **reviews** every route Jev is unsure of (chosen probability below 0.8): it reads the same menu Jev chose from and picks the node, or `__none__` where the walk may abstain. Confident picks never wait for it. Clearing any of the three, or a failed or slow call, keeps Jev's pick. Item ranking always uses Jev. The same credentials list models. |
 | `server_key` | Login password, ≥ 6 characters; `""` turns login off (open mode). Stored as an Argon2id hash; a hash from before 0.9 is replaced at the next login |
 
 In the UI, Jev and LLM settings live under **Settings → Models**. The login password and
@@ -228,7 +250,7 @@ create a second settings store.
 
 `POST /api/llm/models` probes `{base}/v1/models` then `{base}/models` with the supplied or
 stored LLM credentials and saves nothing. The Jev key is never used for this.
-Routing calls `{base}/chat/completions` (or `{base}/v1/chat/completions`) with the saved model.
+A review calls `{base}/chat/completions` (or `{base}/v1/chat/completions`) with the saved model.
 
 ## `POST /api/seed` — destructive
 

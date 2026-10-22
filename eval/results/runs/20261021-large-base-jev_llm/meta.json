@@ -1,0 +1,45 @@
+{
+  "beam_width": "case/default",
+  "cases": 600,
+  "command": "run --eval-dir eval/large --variant full --router jev_llm --sample 600 --seed final --concurrency 6 --no-history --allow-llm-fallback --note large: baseline jev_llm (LLM routes every request; stepped walk above 800 nodes) --out eval/results/runs/20261021-large-base-jev_llm",
+  "concurrency": 6,
+  "dataset": {
+    "cases_hash": "ddb5a5ae0f57",
+    "kb_hash": "ebdb61493e54",
+    "name": "large-kb",
+    "version": "1.0.0"
+  },
+  "filter": "--sample 600 --seed final",
+  "finished_at": "2026-10-21T15:46:09Z",
+  "git": {
+    "dirty": true,
+    "sha": "0d26b76"
+  },
+  "limit": "case/default",
+  "mock": "off",
+  "models": {
+    "jev_llm": {
+      "credentials": "env",
+      "jev_base_url": "https://api.typesafe.ai",
+      "jev_model": "jev-latest",
+      "llm_base_url": "https://proxy.zvzo.ai",
+      "llm_model": "meta/muse-spark-1.3-contributor"
+    }
+  },
+  "note": "large: baseline jev_llm (LLM routes every request; stepped walk above 800 nodes)",
+  "repeat": 1,
+  "routers": [
+    "jev_llm"
+  ],
+  "run_id": "20261021-152355-jev_llm",
+  "split": "all",
+  "started_at": "2026-10-21T15:23:55Z",
+  "suites": [
+    "all"
+  ],
+  "timeout_secs": 120,
+  "variants": [
+    "full"
+  ],
+  "verify_draft_search": false
+}

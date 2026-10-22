@@ -1,0 +1,45 @@
+{
+  "beam_width": "case/default",
+  "cases": 1500,
+  "command": "run --eval-dir eval/large --variant full --router jev_llm --sample 1500 --seed final --concurrency 8 --no-history --note large: final jev_llm (coarse map + BM25 + LLM review + rescue >= 0.75) --out eval/results/runs/20261021-large-jev_llm",
+  "concurrency": 8,
+  "dataset": {
+    "cases_hash": "ddb5a5ae0f57",
+    "kb_hash": "ebdb61493e54",
+    "name": "large-kb",
+    "version": "1.0.0"
+  },
+  "filter": "--sample 1500 --seed final",
+  "finished_at": "2026-10-21T15:34:21Z",
+  "git": {
+    "dirty": true,
+    "sha": "0d26b76"
+  },
+  "limit": "case/default",
+  "mock": "off",
+  "models": {
+    "jev_llm": {
+      "credentials": "env",
+      "jev_base_url": "https://api.typesafe.ai",
+      "jev_model": "jev-latest",
+      "llm_base_url": "https://proxy.zvzo.ai",
+      "llm_model": "meta/muse-spark-1.3-contributor"
+    }
+  },
+  "note": "large: final jev_llm (coarse map + BM25 + LLM review + rescue >= 0.75)",
+  "repeat": 1,
+  "routers": [
+    "jev_llm"
+  ],
+  "run_id": "20261021-151952-jev_llm",
+  "split": "all",
+  "started_at": "2026-10-21T15:19:52Z",
+  "suites": [
+    "all"
+  ],
+  "timeout_secs": 120,
+  "variants": [
+    "full"
+  ],
+  "verify_draft_search": false
+}

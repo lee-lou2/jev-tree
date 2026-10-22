@@ -129,7 +129,7 @@ run options
   --note TEXT                       free text stored with the run
   --no-history                      do not append to eval/results/history.csv
   --no-preflight                    skip the one-case check that the key and LLM work
-  --allow-llm-fallback              keep going when the LLM route falls back to the beam
+  --allow-llm-fallback              skip the check that the LLM review answers
   --dry-run                         print the plan and stop
 
 credentials (never written to results)
@@ -626,12 +626,32 @@ fn preflight(
                 error.message
             ));
         }
-        if *router == Router::JevLlm && out.router == "beam" && !args.flag("allow-llm-fallback") {
-            return Err(
-                "preflight (jev_llm): the LLM route failed and the Jev beam answered instead. \
-                 Check JEV_EVAL_LLM_BASE_URL/TOKEN/MODEL, or pass --allow-llm-fallback."
-                    .into(),
-            );
+        // The LLM only reviews unsure picks, so a confident preflight case never
+        // calls it: ask it once directly, or a broken LLM setting would leave
+        // the whole `jev_llm` cell quietly Jev-only.
+        if *router == Router::JevLlm && !args.flag("allow-llm-fallback") {
+            let client = jev_tree::jev::JevClient::with_config(creds.jev_config(*router))
+                .map_err(|error| error.to_string())?;
+            let menu: Vec<String> = variant
+                .nodes
+                .iter()
+                .take(12)
+                .map(|node| node.id.clone())
+                .collect();
+            let reviewed = runtime.block_on(client.review(
+                &pick.0.input.query,
+                &pick.0.input.query,
+                &variant.nodes,
+                &menu,
+                true,
+            ));
+            if let Err(error) = reviewed {
+                return Err(format!(
+                    "preflight (jev_llm): the LLM review failed ({error}), so every unsure pick \
+                     would keep Jev's answer. Check JEV_EVAL_LLM_BASE_URL/TOKEN/MODEL, or pass \
+                     --allow-llm-fallback."
+                ));
+            }
         }
     }
     Ok(())
