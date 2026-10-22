@@ -1,0 +1,4395 @@
+{
+  "cells": [
+    {
+      "breakdowns": {
+        "ctx": [
+          {
+            "e2e": 0.8288854003139717,
+            "hit1": 0.8349097162510748,
+            "key": "-",
+            "mrr": 0.8458225852679853,
+            "n": 1274,
+            "p50_ms": 3395,
+            "route_acc": 0.7456828885400314
+          },
+          {
+            "e2e": 0.9655172413793104,
+            "hit1": 0.9655172413793104,
+            "key": "coref",
+            "mrr": 0.9655172413793104,
+            "n": 29,
+            "p50_ms": 4651,
+            "route_acc": 0.7931034482758621
+          },
+          {
+            "e2e": 0.9310344827586207,
+            "hit1": 1.0,
+            "key": "correct",
+            "mrr": 1.0,
+            "n": 29,
+            "p50_ms": 785,
+            "route_acc": 0.9310344827586207
+          },
+          {
+            "e2e": 0.8571428571428571,
+            "hit1": 0.8571428571428571,
+            "key": "ellipsis",
+            "mrr": 0.8571428571428571,
+            "n": 21,
+            "p50_ms": 3462,
+            "route_acc": 0.8095238095238095
+          },
+          {
+            "e2e": 0.9090909090909091,
+            "hit1": 0.90625,
+            "key": "refine",
+            "mrr": 0.90625,
+            "n": 33,
+            "p50_ms": 777,
+            "route_acc": 0.7575757575757576
+          },
+          {
+            "e2e": 0.9,
+            "hit1": 0.9230769230769231,
+            "key": "shift",
+            "mrr": 0.9230769230769231,
+            "n": 30,
+            "p50_ms": 739,
+            "route_acc": 0.8333333333333334
+          },
+          {
+            "e2e": 0.85,
+            "hit1": 0.8421052631578947,
+            "key": "slot",
+            "mrr": 0.8421052631578947,
+            "n": 20,
+            "p50_ms": 5206,
+            "route_acc": 0.85
+          }
+        ],
+        "depth": [
+          {
+            "e2e": 0.9324324324324325,
+            "hit1": null,
+            "key": "-",
+            "mrr": null,
+            "n": 74,
+            "p50_ms": 513,
+            "route_acc": 0.8378378378378378
+          },
+          {
+            "e2e": 0.8316831683168316,
+            "hit1": 0.8316831683168316,
+            "key": "d2",
+            "mrr": 0.8683168316831683,
+            "n": 101,
+            "p50_ms": 1883,
+            "route_acc": 0.8910891089108911
+          },
+          {
+            "e2e": 0.8314350797266514,
+            "hit1": 0.8469750889679716,
+            "key": "d3",
+            "mrr": 0.8554665875840254,
+            "n": 878,
+            "p50_ms": 923,
+            "route_acc": 0.7517084282460137
+          },
+          {
+            "e2e": 0.835509138381201,
+            "hit1": 0.8440860215053764,
+            "key": "d4",
+            "mrr": 0.8490143369175627,
+            "n": 383,
+            "p50_ms": 5416,
+            "route_acc": 0.7101827676240209
+          }
+        ],
+        "diff": [
+          {
+            "e2e": 0.7755102040816326,
+            "hit1": 0.7755102040816326,
+            "key": "hard",
+            "mrr": 0.8258078231292516,
+            "n": 196,
+            "p50_ms": 1883,
+            "route_acc": 0.8571428571428571
+          },
+          {
+            "e2e": 0.8475806451612903,
+            "hit1": 0.8571428571428571,
+            "key": "medium",
+            "mrr": 0.8596726190476189,
+            "n": 1240,
+            "p50_ms": 1703,
+            "route_acc": 0.7387096774193549
+          }
+        ],
+        "domain": [
+          {
+            "e2e": 0.868421052631579,
+            "hit1": 0.8918918918918919,
+            "key": "abroad",
+            "mrr": 0.8918918918918919,
+            "n": 38,
+            "p50_ms": 859,
+            "route_acc": 0.8421052631578947
+          },
+          {
+            "e2e": 0.8205128205128205,
+            "hit1": 0.8421052631578947,
+            "key": "appliance",
+            "mrr": 0.8552631578947368,
+            "n": 39,
+            "p50_ms": 3336,
+            "route_acc": 0.7692307692307693
+          },
+          {
+            "e2e": 0.8823529411764706,
+            "hit1": 0.9,
+            "key": "bank",
+            "mrr": 0.91,
+            "n": 51,
+            "p50_ms": 848,
+            "route_acc": 0.803921568627451
+          },
+          {
+            "e2e": 0.8780487804878049,
+            "hit1": 0.9210526315789473,
+            "key": "car",
+            "mrr": 0.9342105263157895,
+            "n": 41,
+            "p50_ms": 797,
+            "route_acc": 0.8048780487804879
+          },
+          {
+            "e2e": 0.7804878048780488,
+            "hit1": 0.7692307692307693,
+            "key": "card",
+            "mrr": 0.7692307692307693,
+            "n": 41,
+            "p50_ms": 5148,
+            "route_acc": 0.6585365853658537
+          },
+          {
+            "e2e": 0.88,
+            "hit1": 0.8913043478260869,
+            "key": "career",
+            "mrr": 0.9021739130434783,
+            "n": 50,
+            "p50_ms": 4262,
+            "route_acc": 0.78
+          },
+          {
+            "e2e": 0.7380952380952381,
+            "hit1": 0.75,
+            "key": "civil",
+            "mrr": 0.7708333333333333,
+            "n": 42,
+            "p50_ms": 5698,
+            "route_acc": 0.6904761904761905
+          },
+          {
+            "e2e": 0.8717948717948718,
+            "hit1": 0.918918918918919,
+            "key": "cook",
+            "mrr": 0.918918918918919,
+            "n": 39,
+            "p50_ms": 720,
+            "route_acc": 0.8461538461538461
+          },
+          {
+            "e2e": 0.8979591836734694,
+            "hit1": 0.8979591836734694,
+            "key": "fitness",
+            "mrr": 0.9183673469387755,
+            "n": 49,
+            "p50_ms": 728,
+            "route_acc": 0.8571428571428571
+          },
+          {
+            "e2e": 0.8666666666666667,
+            "hit1": 0.896551724137931,
+            "key": "health",
+            "mrr": 0.896551724137931,
+            "n": 30,
+            "p50_ms": 884,
+            "route_acc": 0.8
+          },
+          {
+            "e2e": 0.8518518518518519,
+            "hit1": 0.8490566037735849,
+            "key": "homecare",
+            "mrr": 0.8584905660377359,
+            "n": 54,
+            "p50_ms": 3462,
+            "route_acc": 0.7037037037037037
+          },
+          {
+            "e2e": 0.775,
+            "hit1": 0.8108108108108109,
+            "key": "house",
+            "mrr": 0.8108108108108109,
+            "n": 40,
+            "p50_ms": 3452,
+            "route_acc": 0.75
+          },
+          {
+            "e2e": 0.9166666666666666,
+            "hit1": 0.9166666666666666,
+            "key": "hr",
+            "mrr": 0.9166666666666666,
+            "n": 36,
+            "p50_ms": 5278,
+            "route_acc": 0.7222222222222222
+          },
+          {
+            "e2e": 0.8163265306122449,
+            "hit1": 0.8163265306122449,
+            "key": "insure",
+            "mrr": 0.8231292517006803,
+            "n": 49,
+            "p50_ms": 872,
+            "route_acc": 0.7346938775510204
+          },
+          {
+            "e2e": 0.7647058823529411,
+            "hit1": 0.7755102040816326,
+            "key": "itdesk",
+            "mrr": 0.7755102040816326,
+            "n": 51,
+            "p50_ms": 5056,
+            "route_acc": 0.7058823529411765
+          },
+          {
+            "e2e": 0.7857142857142857,
+            "hit1": 0.775,
+            "key": "legal",
+            "mrr": 0.7875,
+            "n": 42,
+            "p50_ms": 6789,
+            "route_acc": 0.6428571428571429
+          },
+          {
+            "e2e": 0.7777777777777778,
+            "hit1": 0.7777777777777778,
+            "key": "loan",
+            "mrr": 0.7777777777777778,
+            "n": 36,
+            "p50_ms": 5187,
+            "route_acc": 0.6388888888888888
+          },
+          {
+            "e2e": 0.868421052631579,
+            "hit1": 0.8648648648648649,
+            "key": "medical",
+            "mrr": 0.8851351351351351,
+            "n": 38,
+            "p50_ms": 4651,
+            "route_acc": 0.7631578947368421
+          },
+          {
+            "e2e": 0.8545454545454545,
+            "hit1": 0.8679245283018868,
+            "key": "member",
+            "mrr": 0.9,
+            "n": 55,
+            "p50_ms": 5720,
+            "route_acc": 0.7636363636363637
+          },
+          {
+            "e2e": 0.875,
+            "hit1": 0.8709677419354839,
+            "key": "net",
+            "mrr": 0.8709677419354839,
+            "n": 32,
+            "p50_ms": 6009,
+            "route_acc": 0.78125
+          },
+          {
+            "e2e": 0.9166666666666666,
+            "hit1": 0.9142857142857143,
+            "key": "office",
+            "mrr": 0.9321428571428572,
+            "n": 36,
+            "p50_ms": 4938,
+            "route_acc": 0.8055555555555556
+          },
+          {
+            "e2e": 0.9324324324324325,
+            "hit1": null,
+            "key": "oos",
+            "mrr": null,
+            "n": 74,
+            "p50_ms": 513,
+            "route_acc": 0.8378378378378378
+          },
+          {
+            "e2e": 0.9736842105263158,
+            "hit1": 0.9722222222222222,
+            "key": "parent",
+            "mrr": 0.9861111111111112,
+            "n": 38,
+            "p50_ms": 746,
+            "route_acc": 0.9210526315789473
+          },
+          {
+            "e2e": 0.6808510638297872,
+            "hit1": 0.7441860465116279,
+            "key": "payroll",
+            "mrr": 0.75,
+            "n": 47,
+            "p50_ms": 7098,
+            "route_acc": 0.5957446808510638
+          },
+          {
+            "e2e": 0.9,
+            "hit1": 0.9,
+            "key": "pc",
+            "mrr": 0.925,
+            "n": 30,
+            "p50_ms": 714,
+            "route_acc": 0.8666666666666667
+          },
+          {
+            "e2e": 0.7843137254901961,
+            "hit1": 0.7959183673469388,
+            "key": "pension",
+            "mrr": 0.8180272108843538,
+            "n": 51,
+            "p50_ms": 876,
+            "route_acc": 0.7254901960784313
+          },
+          {
+            "e2e": 0.8611111111111112,
+            "hit1": 0.8611111111111112,
+            "key": "pet",
+            "mrr": 0.8657407407407408,
+            "n": 36,
+            "p50_ms": 684,
+            "route_acc": 0.7777777777777778
+          },
+          {
+            "e2e": 0.8709677419354839,
+            "hit1": 0.8709677419354839,
+            "key": "phone",
+            "mrr": 0.8709677419354839,
+            "n": 31,
+            "p50_ms": 4425,
+            "route_acc": 0.8387096774193549
+          },
+          {
+            "e2e": 0.8301886792452831,
+            "hit1": 0.86,
+            "key": "returns",
+            "mrr": 0.86,
+            "n": 53,
+            "p50_ms": 5610,
+            "route_acc": 0.7358490566037735
+          },
+          {
+            "e2e": 0.6756756756756757,
+            "hit1": 0.6666666666666666,
+            "key": "security",
+            "mrr": 0.6805555555555556,
+            "n": 37,
+            "p50_ms": 6878,
+            "route_acc": 0.4864864864864865
+          },
+          {
+            "e2e": 0.825,
+            "hit1": 0.825,
+            "key": "shop",
+            "mrr": 0.8375,
+            "n": 40,
+            "p50_ms": 6932,
+            "route_acc": 0.7
+          },
+          {
+            "e2e": 0.8214285714285714,
+            "hit1": 0.8214285714285714,
+            "key": "tax",
+            "mrr": 0.8392857142857143,
+            "n": 28,
+            "p50_ms": 4569,
+            "route_acc": 0.7857142857142857
+          },
+          {
+            "e2e": 0.813953488372093,
+            "hit1": 0.8536585365853658,
+            "key": "transit",
+            "mrr": 0.8536585365853658,
+            "n": 43,
+            "p50_ms": 4096,
+            "route_acc": 0.7441860465116279
+          },
+          {
+            "e2e": 0.8205128205128205,
+            "hit1": 0.8378378378378378,
+            "key": "utility",
+            "mrr": 0.8432432432432432,
+            "n": 39,
+            "p50_ms": 786,
+            "route_acc": 0.8205128205128205
+          }
+        ],
+        "entry": [
+          {
+            "e2e": 0.8377437325905293,
+            "hit1": 0.8449848024316109,
+            "key": "forest",
+            "mrr": 0.8546289260385006,
+            "n": 1436,
+            "p50_ms": 1805,
+            "route_acc": 0.754874651810585
+          }
+        ],
+        "expect": [
+          {
+            "e2e": 0.7755102040816326,
+            "hit1": 0.7755102040816326,
+            "key": "internal",
+            "mrr": 0.8258078231292516,
+            "n": 196,
+            "p50_ms": 1883,
+            "route_acc": 0.8571428571428571
+          },
+          {
+            "e2e": 0.8571428571428571,
+            "hit1": 0.8571428571428571,
+            "key": "leaf",
+            "mrr": 0.8596726190476189,
+            "n": 1120,
+            "p50_ms": 3529,
+            "route_acc": 0.7330357142857142
+          },
+          {
+            "e2e": 0.4782608695652174,
+            "hit1": null,
+            "key": "no_answer",
+            "mrr": null,
+            "n": 46,
+            "p50_ms": 4574,
+            "route_acc": 0.717391304347826
+          },
+          {
+            "e2e": 0.9324324324324325,
+            "hit1": null,
+            "key": "oos",
+            "mrr": null,
+            "n": 74,
+            "p50_ms": 513,
+            "route_acc": 0.8378378378378378
+          }
+        ],
+        "level": [
+          {
+            "e2e": 0.7755102040816326,
+            "hit1": 0.7755102040816326,
+            "key": "internal",
+            "mrr": 0.8258078231292516,
+            "n": 196,
+            "p50_ms": 1883,
+            "route_acc": 0.8571428571428571
+          },
+          {
+            "e2e": 0.8421955403087479,
+            "hit1": 0.8571428571428571,
+            "key": "leaf",
+            "mrr": 0.8596726190476189,
+            "n": 1166,
+            "p50_ms": 3682,
+            "route_acc": 0.7324185248713551
+          },
+          {
+            "e2e": 0.9324324324324325,
+            "hit1": null,
+            "key": "none",
+            "mrr": null,
+            "n": 74,
+            "p50_ms": 513,
+            "route_acc": 0.8378378378378378
+          }
+        ],
+        "pool": [
+          {
+            "e2e": 0.9324324324324325,
+            "hit1": null,
+            "key": "0",
+            "mrr": null,
+            "n": 74,
+            "p50_ms": 513,
+            "route_acc": 0.8378378378378378
+          },
+          {
+            "e2e": 1.0,
+            "hit1": 1.0,
+            "key": "101+",
+            "mrr": 1.0,
+            "n": 4,
+            "p50_ms": 5064,
+            "route_acc": 1.0
+          },
+          {
+            "e2e": 0.8742138364779874,
+            "hit1": 0.8758169934640523,
+            "key": "2-5",
+            "mrr": 0.8823529411764706,
+            "n": 159,
+            "p50_ms": 3529,
+            "route_acc": 0.779874213836478
+          },
+          {
+            "e2e": 0.7947019867549668,
+            "hit1": 0.8,
+            "key": "33-100",
+            "mrr": 0.8348888888888889,
+            "n": 151,
+            "p50_ms": 3667,
+            "route_acc": 0.8211920529801324
+          },
+          {
+            "e2e": 0.8311068702290076,
+            "hit1": 0.846382556987116,
+            "key": "6-32",
+            "mrr": 0.8527832837793194,
+            "n": 1048,
+            "p50_ms": 3336,
+            "route_acc": 0.7347328244274809
+          }
+        ],
+        "split": [
+          {
+            "e2e": 0.84560327198364,
+            "hit1": 0.8560354374307863,
+            "key": "dev",
+            "mrr": 0.8653008490217793,
+            "n": 978,
+            "p50_ms": 3742,
+            "route_acc": 0.7576687116564417
+          },
+          {
+            "e2e": 0.8209606986899564,
+            "hit1": 0.8208232445520581,
+            "key": "test",
+            "mrr": 0.8312953995157386,
+            "n": 458,
+            "p50_ms": 933,
+            "route_acc": 0.7489082969432315
+          }
+        ],
+        "style": [
+          {
+            "e2e": 0.8479087452471483,
+            "hit1": 0.8725099601593626,
+            "key": "colloquial",
+            "mrr": 0.8764940239043825,
+            "n": 263,
+            "p50_ms": 946,
+            "route_acc": 0.7680608365019012
+          },
+          {
+            "e2e": 0.8736842105263158,
+            "hit1": 0.8817204301075269,
+            "key": "condition",
+            "mrr": 0.8906810035842293,
+            "n": 95,
+            "p50_ms": 956,
+            "route_acc": 0.7684210526315789
+          },
+          {
+            "e2e": 0.7777777777777778,
+            "hit1": 0.7727272727272727,
+            "key": "english",
+            "mrr": 0.7727272727272727,
+            "n": 45,
+            "p50_ms": 756,
+            "route_acc": 0.7555555555555555
+          },
+          {
+            "e2e": 0.77,
+            "hit1": 0.7731958762886598,
+            "key": "keyword",
+            "mrr": 0.7731958762886598,
+            "n": 100,
+            "p50_ms": 4880,
+            "route_acc": 0.6
+          },
+          {
+            "e2e": 0.891566265060241,
+            "hit1": 0.91875,
+            "key": "long",
+            "mrr": 0.91875,
+            "n": 166,
+            "p50_ms": 3251,
+            "route_acc": 0.7951807228915663
+          },
+          {
+            "e2e": 0.9272727272727272,
+            "hit1": 0.9245283018867925,
+            "key": "mixed",
+            "mrr": 0.9245283018867925,
+            "n": 55,
+            "p50_ms": 725,
+            "route_acc": 0.7454545454545455
+          },
+          {
+            "e2e": 0.8974358974358975,
+            "hit1": 0.918918918918919,
+            "key": "negation",
+            "mrr": 0.918918918918919,
+            "n": 39,
+            "p50_ms": 4620,
+            "route_acc": 0.5384615384615384
+          },
+          {
+            "e2e": 0.975609756097561,
+            "hit1": null,
+            "key": "oos_far",
+            "mrr": null,
+            "n": 41,
+            "p50_ms": 485,
+            "route_acc": 0.9024390243902439
+          },
+          {
+            "e2e": 0.8787878787878788,
+            "hit1": null,
+            "key": "oos_near",
+            "mrr": null,
+            "n": 33,
+            "p50_ms": 1898,
+            "route_acc": 0.7575757575757576
+          },
+          {
+            "e2e": 0.8138138138138138,
+            "hit1": 0.821875,
+            "key": "paraphrase",
+            "mrr": 0.825,
+            "n": 333,
+            "p50_ms": 5036,
+            "route_acc": 0.7147147147147147
+          },
+          {
+            "e2e": 0.8428571428571429,
+            "hit1": 0.8769230769230769,
+            "key": "typo",
+            "mrr": 0.8769230769230769,
+            "n": 70,
+            "p50_ms": 901,
+            "route_acc": 0.7571428571428571
+          },
+          {
+            "e2e": 0.7755102040816326,
+            "hit1": 0.7755102040816326,
+            "key": "vague",
+            "mrr": 0.8258078231292516,
+            "n": 196,
+            "p50_ms": 1883,
+            "route_acc": 0.8571428571428571
+          }
+        ],
+        "turns": [
+          {
+            "e2e": 0.9074074074074074,
+            "hit1": 0.9215686274509803,
+            "key": "multi",
+            "mrr": 0.9215686274509803,
+            "n": 162,
+            "p50_ms": 833,
+            "route_acc": 0.8271604938271605
+          },
+          {
+            "e2e": 0.8288854003139717,
+            "hit1": 0.8349097162510748,
+            "key": "single",
+            "mrr": 0.8458225852679853,
+            "n": 1274,
+            "p50_ms": 3395,
+            "route_acc": 0.7456828885400314
+          }
+        ]
+      },
+      "confusions": [
+        [
+          "itdesk_06_01",
+          "pc_02_05",
+          2
+        ],
+        [
+          "legal_01_02_2",
+          "returns_05_03_1",
+          2
+        ],
+        [
+          "loan_01_05_2",
+          "loan_01_02",
+          2
+        ],
+        [
+          "null",
+          "car",
+          2
+        ],
+        [
+          "null",
+          "transit_07_01_3",
+          2
+        ],
+        [
+          "abroad_01_04_1",
+          "abroad_02_02",
+          1
+        ],
+        [
+          "abroad_01_04_2",
+          "abroad_01_04",
+          1
+        ],
+        [
+          "abroad_01_04_2",
+          "abroad_02_01",
+          1
+        ],
+        [
+          "abroad_04_04_1",
+          "abroad_04",
+          1
+        ],
+        [
+          "abroad_06_02_2",
+          "legal_03",
+          1
+        ],
+        [
+          "abroad_07_02",
+          "phone_07_03",
+          1
+        ],
+        [
+          "appliance_02_02",
+          "appliance_02",
+          1
+        ],
+        [
+          "appliance_02_02",
+          "appliance_02_01",
+          1
+        ],
+        [
+          "appliance_03_05_1",
+          "appliance_03_02",
+          1
+        ],
+        [
+          "appliance_04_01",
+          "appliance_04_02",
+          1
+        ],
+        [
+          "appliance_04_02",
+          "null",
+          1
+        ],
+        [
+          "appliance_05_03",
+          "parent_07_03_2",
+          1
+        ],
+        [
+          "appliance_06_05",
+          "appliance_01_04",
+          1
+        ],
+        [
+          "appliance_07_02",
+          "appliance",
+          1
+        ],
+        [
+          "appliance_07_03",
+          "appliance_07",
+          1
+        ]
+      ],
+      "contract": {
+        "failed": [],
+        "n": 0,
+        "pass": {
+          "hi": null,
+          "lo": null,
+          "n": 0,
+          "value": null
+        }
+      },
+      "ingest": {
+        "draft_ok": {
+          "hi": 0.9999999999999999,
+          "lo": 0.9425268096514744,
+          "n": 63,
+          "value": 1.0
+        },
+        "dup_precision": null,
+        "dup_recall": null,
+        "errors": 0,
+        "file_acc": {
+          "hi": 0.8525023278036498,
+          "lo": 0.6486650974929234,
+          "n": 64,
+          "value": 0.765625
+        },
+        "hf": {
+          "hi": 0.9223793961870763,
+          "lo": 0.7695848895272093,
+          "n": 64,
+          "value": 0.8459821428571428
+        },
+        "ingest_acc": {
+          "hi": 0.8525023278036498,
+          "lo": 0.6486650974929234,
+          "n": 64,
+          "value": 0.765625
+        },
+        "live_demoted": 0,
+        "llm_fallback": {
+          "hi": 0.057473190348525466,
+          "lo": 0.0,
+          "n": 63,
+          "value": 0.0
+        },
+        "n": 64,
+        "p50_ms": 1134,
+        "probe_answer": {
+          "hi": null,
+          "lo": null,
+          "n": 0,
+          "value": null
+        },
+        "probe_hit": {
+          "hi": null,
+          "lo": null,
+          "n": 0,
+          "value": null
+        },
+        "publish_ok": {
+          "hi": 0.9999999999999999,
+          "lo": 0.9425268096514744,
+          "n": 63,
+          "value": 1.0
+        },
+        "reject_acc": {
+          "hi": null,
+          "lo": null,
+          "n": 0,
+          "value": null
+        },
+        "stable": {
+          "hi": 0.9999999999999999,
+          "lo": 0.9425268096514744,
+          "n": 63,
+          "value": 1.0
+        },
+        "update_ok": {
+          "hi": 0.9999999999999999,
+          "lo": 0.9425268096514744,
+          "n": 63,
+          "value": 1.0
+        }
+      },
+      "levels": [
+        {
+          "hi": 0.9101915622655488,
+          "lo": 0.877601107104018,
+          "n": 1362,
+          "value": 0.895007342143906
+        },
+        {
+          "hi": 0.837506851719467,
+          "lo": 0.7965344602452586,
+          "n": 1362,
+          "value": 0.8179148311306902
+        },
+        {
+          "hi": 0.7801925229221492,
+          "lo": 0.7329152053499125,
+          "n": 1261,
+          "value": 0.7573354480570975
+        },
+        {
+          "hi": 0.7533538897541662,
+          "lo": 0.6628371300327439,
+          "n": 383,
+          "value": 0.7101827676240209
+        }
+      ],
+      "misses": [
+        {
+          "case_id": "I-BANK-005",
+          "expected": "bank_03_02",
+          "got": "bank_02_04",
+          "kind": "ingest",
+          "text": "매달 나가는 자동송금 내역을 한 번에 조회하고 싶을 때 어디서 보나요?",
+          "why": "branch"
+        },
+        {
+          "case_id": "I-CAR-002",
+          "expected": "car_05_02_1",
+          "got": "car_05_02",
+          "kind": "ingest",
+          "text": "내 차 다음 검사 유효기간은 어디서 확인하나요?",
+          "why": "shallow"
+        },
+        {
+          "case_id": "I-CAREER-003",
+          "expected": "career_04_02",
+          "got": "career_01_01_3",
+          "kind": "ingest",
+          "text": "이직이 잦은 경력 3년차가 임원 앞에서 퇴사 사유를 어떻게 말할까요?",
+          "why": "branch"
+        },
+        {
+          "case_id": "I-FITNESS-002",
+          "expected": "fitness_04_01",
+          "got": "fitness_08_04",
+          "kind": "ingest",
+          "text": "퇴근 후 밤 9시에 처음 러닝할 때 식사와 간격은 어떻게 두나요",
+          "why": "branch"
+        },
+        {
+          "case_id": "I-HOUSE-004",
+          "expected": "house_05_02",
+          "got": "legal_05_02_1",
+          "kind": "ingest",
+          "text": "임차권등기명령은 관할 법원에 직접 가야만 신청되나요?",
+          "why": "domain"
+        },
+        {
+          "case_id": "I-INSURE-005",
+          "expected": "insure_04_02",
+          "got": "insure_07_04",
+          "kind": "ingest",
+          "text": "정기보험 만기가 되었는데 받은 만기축하금이 없는 이유는 무엇인가요?",
+          "why": "branch"
+        },
+        {
+          "case_id": "I-LOAN-004",
+          "expected": "loan_01_05_2",
+          "got": "loan_01_04",
+          "kind": "ingest",
+          "text": "공동인증서 없이 간편인증으로 평가사 상세 보고서를 발급받는 순서가 궁금해요?",
+          "why": "branch"
+        },
+        {
+          "case_id": "I-LOAN-005",
+          "expected": "loan_03_04",
+          "got": "loan_06_01_2",
+          "kind": "ingest",
+          "text": "10년 단기로 갚을 때 원금균등의 이자 절감 체감이 큰 이유는 무엇인가요?",
+          "why": "branch"
+        },
+        {
+          "case_id": "I-PAYROLL-001",
+          "expected": "payroll_02_02",
+          "got": "career_05_04",
+          "kind": "ingest",
+          "text": "수습 3개월 동안 첫급여가 기본급의 90%로 지급되는 조건은?",
+          "why": "domain"
+        },
+        {
+          "case_id": "I-PAYROLL-003",
+          "expected": "payroll_07_04",
+          "got": "error invalid_request",
+          "kind": "ingest",
+          "text": "산재 치료는 꼭 산재 지정병원에서 받아야 하나요?",
+          "why": "false_none"
+        },
+        {
+          "case_id": "I-PENSION-002",
+          "expected": "pension_03_03_1",
+          "got": "pension_03",
+          "kind": "ingest",
+          "text": "본인 노령연금과 배우자 유족연금을 동시에 받을 수 있나요?",
+          "why": "shallow"
+        },
+        {
+          "case_id": "I-PENSION-004",
+          "expected": "pension_05_01",
+          "got": "pension_04_02_2",
+          "kind": "ingest",
+          "text": "육아휴직이나 장기휴직 기간도 DB형 근속연수에 포함되나요?",
+          "why": "branch"
+        },
+        {
+          "case_id": "I-PHONE-002",
+          "expected": "phone_02_03_2",
+          "got": "phone_02_03",
+          "kind": "ingest",
+          "text": "밤에 스마트폰 화면이 너무 하얘서 따뜻한 색온도로 바꾸려면 어떻게 하나요?",
+          "why": "shallow"
+        },
+        {
+          "case_id": "I-SHOP-003",
+          "expected": "shop_03_04",
+          "got": "member_05_02_2",
+          "kind": "ingest",
+          "text": "배송비 쿠폰과 상품 할인쿠폰을 같은 주문에 같이 쓸 수 있나요?",
+          "why": "domain"
+        },
+        {
+          "case_id": "I-SHOP-005",
+          "expected": "shop_06_01",
+          "got": "shop_01_01",
+          "kind": "ingest",
+          "text": "국내상품과 해외직구 상품을 한 번에 같이 주문할 수 있나요?",
+          "why": "branch"
+        },
+        {
+          "case_id": "S-ABROAD-007",
+          "expected": "abroad_01_04_1",
+          "got": "abroad_02_02 · top abroad_02_02#7 0.66 recommended",
+          "kind": "search",
+          "text": "할인표로 산 비행기 타는 날 아침에 갑자기 못 가게 되면 낸 돈은 한 푼도 못 되돌려받나요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-ABROAD-009",
+          "expected": "abroad_01_04_2",
+          "got": "abroad_02_01 · top abroad_02_01#5 0.80 recommended",
+          "kind": "search",
+          "text": "왕복 귀국편 변경 차액",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-ABROAD-010",
+          "expected": "abroad_01_04_2",
+          "got": "abroad_01_04 · top abroad_01_04_2#5 0.79 recommended",
+          "kind": "search",
+          "text": "12월 붐빌 때 날짜 바꾸기 편한 표 종류마다 비행 점수 쌓이는 퍼센트가 어느 정도 벌어지나요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-ABROAD-055",
+          "expected": "abroad_04_04_1",
+          "got": "abroad_04 · top abroad_04_04_1#11 0.86 recommended",
+          "kind": "search",
+          "text": "장기체류 비자 체류목적 기재",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-ABROAD-072",
+          "expected": "abroad_05_04 · no answer",
+          "got": "abroad_05_04 · top abroad_05_04#10 0.66 recommended",
+          "kind": "search",
+          "text": "어제 시내 환급처에서 카드 보증 걸고 돈 먼저 받았거든요 근데 출국할 때 세관 확인 깜빡하면 카드에서 다시 빠져나가는 거예요?",
+          "why": "answered unanswerable"
+        },
+        {
+          "case_id": "S-ABROAD-081",
+          "expected": "abroad_06_02_2",
+          "got": "legal_03 · top legal_03_01#5 0.54 alternative",
+          "kind": "search",
+          "text": "이웃 세대에서 하는 인테리어 작업이 너무 시끄러워 밤에 눈 붙이기가 힘든데 어떻게 해결하고 보상받나요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-ABROAD-094",
+          "expected": "abroad_07_02",
+          "got": "phone_07_03 · top phone_07_03#5 0.68 recommended",
+          "kind": "search",
+          "text": "스마트폰 보상청구 순서",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-APPLIANCE-017",
+          "expected": "appliance_02_02",
+          "got": "appliance_02_01 · top appliance_02_01#5 0.71 recommended",
+          "kind": "search",
+          "text": "그거 물 고이면 어떡해? 거기 잎채소랑 과일 고습 저습 어떻게 나눠 넣음?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-APPLIANCE-018",
+          "expected": "appliance_02_02 · no answer",
+          "got": "appliance_02 · top appliance_02_02#8 0.46 alternative",
+          "kind": "search",
+          "text": "지난주 이사하고 냉장고 자리 잡았는데 문이 자꾸 저절로 벌어져요. 앞다리 수평이 안 맞는 느낌인데 기울기가 이상해요. 조절다리 어느 방향으로 돌",
+          "why": "route shallow, answered unanswerable"
+        },
+        {
+          "case_id": "S-APPLIANCE-039",
+          "expected": "appliance_03_05_1",
+          "got": "appliance_03_02 · top appliance_03_05_1#4 0.85 recommended",
+          "kind": "search",
+          "text": "2021년형 삼성 스탠드 에어컨 17평형인데 3일 전에 극세필터 물세척해서 끼웠거든요. 오늘 25도 냉방으로 1시간 틀었더니 시큼한 냄새가 계속",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-APPLIANCE-044",
+          "expected": "appliance_04_01",
+          "got": "appliance_04_02 · top appliance_04_02#3 0.95 recommended",
+          "kind": "search",
+          "text": "약하게나 보통으로 돌릴 때는 멀쩡한데 그게 아니라 제일 센 강력으로 올리면 1분도 안 돼서 바로 꺼져버려요",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-APPLIANCE-045",
+          "expected": "appliance_04_02",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "한겨울에 창가 쪽 창고에 보관했더니 금방 방전돼서 멈추는데 이유가 뭘까요?",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-APPLIANCE-065",
+          "expected": "appliance_05_03",
+          "got": "parent_07_03_2 · top parent_07_03_2#6 0.73 recommended",
+          "kind": "search",
+          "text": "초등생 애가 밤마다 야한 영상 멋대로 틀까 봐 걱정돼요 비번 눌러야 켜지도록 차단하는 기능 있어요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-APPLIANCE-083",
+          "expected": "appliance_06_05",
+          "got": "appliance_01_04 · top appliance_01_04#5 0.81 recommended",
+          "kind": "search",
+          "text": "깨끗이 훔쳐냈는데도 묵은 향이 가시지 않아요. 시판 약품 없이 평소 문 틈 벌려두고 바람 통하게 두는 요령이 궁금해요.",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-APPLIANCE-088",
+          "expected": "appliance_07_02",
+          "got": "appliance · top appliance_07_02#6 0.96 recommended",
+          "kind": "search",
+          "text": "출근 전에 reservation 걸어서 오후 5시에 finish 되게 설정 가능해요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-APPLIANCE-111",
+          "expected": "appliance_07_03",
+          "got": "appliance_07 · top appliance_07#article 0.91 recommended",
+          "kind": "search",
+          "text": "식기세척기 세척 결과가 이상해요",
+          "why": "route shallow, wrong top1"
+        },
+        {
+          "case_id": "S-BANK-003",
+          "expected": "bank_01_01_1 · no answer",
+          "got": "abroad_04 · top civil_06_04#7 0.82 recommended",
+          "kind": "search",
+          "text": "기한이 끝난 패스포트나 폰에 저장해둔 주민증 사진으로 통과될까요?",
+          "why": "route domain, answered unanswerable"
+        },
+        {
+          "case_id": "S-BANK-007",
+          "expected": "bank_01_02",
+          "got": "bank_01 · top bank_01_02#10 0.91 recommended",
+          "kind": "search",
+          "text": "계좌개설 첫입금 금액",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-BANK-013",
+          "expected": "bank_01_05",
+          "got": "bank_01 · top bank_01_05#10 0.86 recommended",
+          "kind": "search",
+          "text": "한도계좌 걸렸는데 풀려면 뭐 해야됨?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-BANK-026",
+          "expected": "bank_02_04_2",
+          "got": "insure_06_02_1 · top bank_02_04_2#3 0.91 recommended",
+          "kind": "search",
+          "text": "보험료 나가는 날이 월급 들어오기 전이라 맨날 잔부족 뜸ㅠ 뒤로 미룰 수 있음?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-BANK-046",
+          "expected": "bank_04_03_1",
+          "got": "security_02 · top security_02_02_3#11 0.68 recommended",
+          "kind": "search",
+          "text": "업무용이랑 일상용 기기를 번갈아 쓰는데 양쪽 모두에 인증수단을 함께 설정해 쓸 수 있을까요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-BANK-062",
+          "expected": "bank_05_05",
+          "got": "bank_06_04 · top bank_06_04#7 0.91 recommended",
+          "kind": "search",
+          "text": "외국으로 돈 보내는 거 신청해놨는데 아직 발송되기 전이면 철회할 수 있어요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-BANK-063",
+          "expected": "bank_05_05",
+          "got": "payroll · top payroll_04_05#7 0.48 alternative",
+          "kind": "search",
+          "text": "월급 여러 명꺼 한 번에 보내기 직전인데 전부 취소됨?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-BANK-082",
+          "expected": "bank_07_02_2",
+          "got": "bank_07_02 · top bank_07_02_2#37 0.95 recommended",
+          "kind": "search",
+          "text": "인증서 비번 바꿨는데 다시 등록해야됨?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-BANK-086",
+          "expected": "bank_07_04",
+          "got": "phone_05_03_1 · top bank_07_04#2 0.93 recommended",
+          "kind": "search",
+          "text": "어제 뱅킹앱 최신버전으로 업데이트했더니 켜자마자 튕겨버려요. 급하게 확인해야 하는데 로그인은 커녕 실행 자체가 안 돼요. 캐시 지우고 재부팅한 ",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-BANK-102",
+          "expected": "bank_02",
+          "got": "bank_02_03 · top bank_02_03#2 0.94 recommended",
+          "kind": "search",
+          "text": "안 쓰는 계좌들 전체적으로 정리하고 싶어요",
+          "why": "route deep, wrong top1"
+        },
+        {
+          "case_id": "S-BANK-107",
+          "expected": "bank_05",
+          "got": "bank_05 · top bank_05_01#1 0.79 recommended",
+          "kind": "search",
+          "text": "돈을 잘못 보낸 것 같은데 어떡하죠",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-CAR-003",
+          "expected": "car_01_02_1",
+          "got": "car_02_03 · top car_02_03#5 0.83 recommended",
+          "kind": "search",
+          "text": "타이어 공기압 경고등 대처",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-CAR-028",
+          "expected": "car_02_04_2",
+          "got": "car_02_04 · top car_02_04_2#20 0.93 recommended",
+          "kind": "search",
+          "text": "지난주에 스마트키 겉에 금속 커버를 씌웠는데요. 그 뒤로 멀리서는 문이 안 열리고 바로 앞에 가야 열려요. 뭘 점검해봐야 할까요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-CAR-035",
+          "expected": "car_03_01_2",
+          "got": "car_03_01 · top car_03_01_2#1 0.91 recommended",
+          "kind": "search",
+          "text": "길 가던 분을 차로 쳤는데 차를 멈춘 뒤에 앰뷸런스 부르기와 경찰에 알리기를 어떤 차례로 진행해야 하나요? 쓰러진 분은 옮기지 말고 기다려야 하",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-CAR-038",
+          "expected": "car_03_02 · no answer",
+          "got": "insure_03_04 · top insure_03_04#2 0.80 recommended",
+          "kind": "search",
+          "text": "어제 오후 3시쯤 대형마트 지하주차장에서 후진 빼다가 통로 지나던 차랑 부딪혔어요. 상대는 제가 100% 잘못이라는데 후진·문열림 과실비율표 어",
+          "why": "route domain, answered unanswerable"
+        },
+        {
+          "case_id": "S-CAR-055",
+          "expected": "car_04_04 · no answer",
+          "got": "car_04_04 · top car_04_04#2 0.38 reference",
+          "kind": "search",
+          "text": "확인해보니 만 73세시고 2종 보통 맞으세요. 5년마다 갱신에 2시간 교육 들어야 한다던데 병원 검사부터 받아야 하나요, 준비물이랑 비용도 알려",
+          "why": "answered unanswerable"
+        },
+        {
+          "case_id": "S-CAR-066",
+          "expected": "car_05_03",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "리스차 승게받으려고 하는데 어케 내명의로 바꾸나요? 리스회사 동의서 받아야되나여ㅠ 신용심사 통과해야된다던데 수수료도 있나요?",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-CAR-089",
+          "expected": "car_08_01",
+          "got": "car_01_02 · top car_08_01#8 0.96 recommended",
+          "kind": "search",
+          "text": "겨울타이어 교체시기 공기압",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-CAR-090",
+          "expected": "car_08_01",
+          "got": "car_08 · top car_08_01#2 0.95 recommended",
+          "kind": "search",
+          "text": "수막으로 차가 둥둥 떴을 때가 아니라 그냥 폭우 쏟아질 때 고속도로 몇 키로로 가야 돼요? 앞차랑 간격은 얼마나 벌려야 해요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-CAR-108",
+          "expected": "car_06_03",
+          "got": "car_06 · top car_06#article 0.80 recommended",
+          "kind": "search",
+          "text": "과태료 관련해서 전반적으로 알려주세요",
+          "why": "route shallow, wrong top1"
+        },
+        {
+          "case_id": "S-CARD-006",
+          "expected": "card_01_01_3",
+          "got": "loan_02_04 · top loan_02_04#7 0.76 recommended",
+          "kind": "search",
+          "text": "월급에서 집세랑 빚 갚고 남는 돈이 적다고 승인 안 났는데, 또 넣어보려면 뭘 준비해야 할까요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-CARD-012",
+          "expected": "card_01_03",
+          "got": "card_02_03 · top card_01_03#8 0.94 recommended",
+          "kind": "search",
+          "text": "자녀카드 온라인 업종 차단",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-CARD-015",
+          "expected": "card_01_04",
+          "got": "bank_04_03_2 · top card_01_04#7 0.82 recommended",
+          "kind": "search",
+          "text": "영업점에서 그 자리에서 바로 뽑는 게 아니라 앱으로 우편 재발급 신청하려는데 돈은 얼마나 나가고 도착까지 며칠 걸려요?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-CARD-019",
+          "expected": "card_02_01",
+          "got": "card_02 · top card_02_01#14 0.87 recommended",
+          "kind": "search",
+          "text": "그거 매달 문자로 받아보려면 어디 들어가서 켜야 돼요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-CARD-023",
+          "expected": "card_02_03",
+          "got": "bank_04_04 · top card_02_03#17 0.86 recommended",
+          "kind": "search",
+          "text": "65세 넘은 아빠 보이스피싱 걱정됨ㅠ 해외랑 온라인 현금인출 한방에 잠그는거 어케함?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-CARD-025",
+          "expected": "card_02_03",
+          "got": "card_04_04 · abstained · top card_04_04#article 0.31 reference",
+          "kind": "search",
+          "text": "분할 납부 승인을 금지하고 전액 즉시 납부 방식으로만 이용하려면 뭘 해야 돼요?",
+          "why": "route branch, abstained"
+        },
+        {
+          "case_id": "S-CARD-034",
+          "expected": "card_03_01",
+          "got": "card_07 · top card_03_01#15 0.95 recommended",
+          "kind": "search",
+          "text": "실물카드는 멀쩡히 있는데 폰 속 모바일카드만 털린듯ㅠ 이거만 따로 정지됨?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-CARD-054",
+          "expected": "card_04_05",
+          "got": "loan_06_02 · top card_04_05#7 0.80 recommended",
+          "kind": "search",
+          "text": "토요일 밤 11시쯤 부여받은 계좌로 미리 갚을 돈을 보냈어요. 통장에서는 출금됐는데 앱 상환내역에는 아직 안 뜨더라고요. 이럴 때 보통 언제 반",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-CARD-058",
+          "expected": "card_05_01_2",
+          "got": "card_05_04 · top card_05_04#3 0.92 recommended",
+          "kind": "search",
+          "text": "미국 직구 사이트에서 150만원짜리 카메라 결제하려는데 국내 한도는 남았는데 계속 거절돼요. 해외이용한도가 따로 있는 건가요, 이럴 땐 어떻게 ",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-CARD-061",
+          "expected": "card_05_02",
+          "got": "card_02_04 · top card_02_04#3 0.72 recommended",
+          "kind": "search",
+          "text": "My card was declined at a restaurant for exceeding the limit, how can I raise it",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-CARD-062",
+          "expected": "card_05_03",
+          "got": "card_05_03 · top card_05_03#21 0.91 recommended",
+          "kind": "search",
+          "text": "눈 맞추는 집에서 도수 알 다시 맞추느라 카드를 또 긁었는데, 처음에 빠져나간 돈이 되돌아왔는지 어떻게 알아보죠?",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-CARD-077",
+          "expected": "card_06_05",
+          "got": "card_01_03 · abstained · top card_01_03#3 0.27 reference",
+          "kind": "search",
+          "text": "I want to keep using my own credit card but cancel only the supplementary card I",
+          "why": "route branch, abstained"
+        },
+        {
+          "case_id": "S-CARD-079",
+          "expected": "card_07_01_1",
+          "got": "card_07_04 · top card_07_04#2 0.93 recommended",
+          "kind": "search",
+          "text": "지난달부터 폰으로 버스랑 지하철을 타고 다녔어요. 아직 돈이 빠져나간 건지 확인을 못 했는데. 후불교통 이용요금은 언제 어떻게 청구되나요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-CARD-086",
+          "expected": "card_07_03",
+          "got": "bank_04_05 · top bank_04_05#6 0.89 recommended",
+          "kind": "search",
+          "text": "인증 암호를 다섯 차례 잘못 눌러서 삼십 분 동안 이용이 정지됐는데 다시 쓸 수 있게 하려면 뭘 해야 돼요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-CARD-089",
+          "expected": "card_07_05",
+          "got": "member_05_02_1 · top member_05_02_1#2 0.58 alternative",
+          "kind": "search",
+          "text": "만원 넘게 담았는데 저장해둔 할인티켓이 금액 지불하는 창에 안 나타나면 뭐가 문제일까요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-CAREER-016",
+          "expected": "career_01_05",
+          "got": "career_01_01_2 · top career_01_01_2#7 0.59 alternative",
+          "kind": "search",
+          "text": "월별로 틀리지 않게 정리하려면요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-CAREER-017",
+          "expected": "career_01_05 · no answer",
+          "got": "career_01_05 · top career_01_05#8 0.68 recommended",
+          "kind": "search",
+          "text": "밖에 있는데 마감이 얼마 안 남아서 폰으로 원서를 내야 해요. 번호랑 메일주소를 잘못 적을까봐 걱정인데 미리 체크할 요령 있을까요?",
+          "why": "answered unanswerable"
+        },
+        {
+          "case_id": "S-CAREER-023",
+          "expected": "career_02_03",
+          "got": "career_04_04 · top career_02_03#20 0.92 recommended",
+          "kind": "search",
+          "text": "자소서용으로만 포부 그럴듯하게 쓰는 게 아니라 자소서에 쓴 1년 3년 목표 면접에서 파고들 때 대비하는 법이 궁금한데 어떻게 준비해요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-CAREER-036",
+          "expected": "career_03_03_2",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "전부 맞추긴 어려울 것 같은데 조금이라도 건지려면 극단적인 입력값은 어떻게 챙기면 좋을까요?",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-CAREER-054",
+          "expected": "career_04_04_3",
+          "got": "career_01_01_3 · top career_04_04_3#2 0.92 recommended",
+          "kind": "search",
+          "text": "1년만에 퇴사함ㅠ 면접서 퇴사 이유 계속 파고들면 뭐라해?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-CAREER-059",
+          "expected": "career_05_01_1",
+          "got": "career_05_01 · top career_05_01_1#16 0.58 alternative",
+          "kind": "search",
+          "text": "작년에 회사 주식 싸게 사서 판 차액이 컸는데, 새 곳에 얘기하는 받는 돈 셈할 때 그 일회성 돈까지 합해서 말해야 할까요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-CAREER-060",
+          "expected": "career_05_01_1",
+          "got": "payroll_03_04_2 · top payroll_03_04_2#9 0.67 recommended",
+          "kind": "search",
+          "text": "옮겨갈 회사에서 예전에 다니던 곳 세금 종이 꼭 달라고 하는데, 이거 안 넘겨주면 법에 걸리거나 불이익 있나요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-CAREER-062",
+          "expected": "career_05_01_1 · no answer",
+          "got": "payroll_01_05 · abstained · top payroll_01_05#5 0.40 reference",
+          "kind": "search",
+          "text": "공단 홈페이지에서 뽑는 보험 가입 기록에 나와 있는 월급 금액으로 예전에 얼마 벌었는지 보여줘도 통과될까요?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-CAREER-070",
+          "expected": "career_05_04",
+          "got": "legal_04_04 · top legal_04_04#4 0.91 recommended",
+          "kind": "search",
+          "text": "1년 계약했는데 수습 3개월은 월급 90%만 준대ㅠ 이거 최저임금 위반 아님?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-CAREER-071",
+          "expected": "career_05_04",
+          "got": "pension_04_01 · top pension_04_01#2 0.74 recommended",
+          "kind": "search",
+          "text": "수습 탈락해서 2개월만에 짤리게 됐는데 퇴직금이랑 실업급여 받을 수 있음?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-CAREER-073",
+          "expected": "career_06_01",
+          "got": "legal_06_02 · top career_06_01#12 0.84 recommended",
+          "kind": "search",
+          "text": "사직서 자꾸 반려당한대ㅠ 내용증명으로 보낸다는데 그거 우체국 가서 어케 보냄? 뭐 적어야됨?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-CAREER-114",
+          "expected": "career_07_03",
+          "got": "career_07 · top career_07_03#article 0.41 alternative",
+          "kind": "search",
+          "text": "내일배움카드가 뭔가요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-CIVIL-015",
+          "expected": "civil_01_05",
+          "got": "civil_01_01 · abstained · top civil_01_01#article 0.35 reference",
+          "kind": "search",
+          "text": "개명 등본 이전이름",
+          "why": "route branch, abstained"
+        },
+        {
+          "case_id": "S-CIVIL-019",
+          "expected": "civil_02_02_1",
+          "got": "civil_02_02 · top civil_02_02_1#2 0.86 recommended",
+          "kind": "search",
+          "text": "폰으로 전입신고 할건데 뭐 챙겨야 돼? 앱 깔아야 됨?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-CIVIL-031",
+          "expected": "civil_03_01_1",
+          "got": "civil_03_05 · top civil_03_05#6 0.47 alternative",
+          "kind": "search",
+          "text": "지난번에 여러 번 쓸 수 있는 걸로 넣었는데 손에 들어오기까지 며칠쯤 걸리고 찾을 곳을 다른 구청으로 고를 수 있나요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-CIVIL-035",
+          "expected": "civil_03_01_2",
+          "got": "abroad_07_01 · abstained · top abroad_07_01_2#5 0.36 reference",
+          "kind": "search",
+          "text": "아파서 외국 병원 진료가야됨 1회용으로 끊으려면 뭐 내야돼? 보호자도 같이 가는데",
+          "why": "route domain, abstained"
+        },
+        {
+          "case_id": "S-CIVIL-041",
+          "expected": "civil_03_03_2",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "미성년 분실재발급 보호자 준비물",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-CIVIL-042",
+          "expected": "civil_03_03_2 · no answer",
+          "got": "abroad_07_03 · top abroad_07_03#1 0.78 recommended",
+          "kind": "search",
+          "text": "국내에서 잃어버린 게 아니라 해외여행 중에 여권 잃어버렸는데 현지 대사관에서 어떻게 다시 받나요?",
+          "why": "route domain, answered unanswerable"
+        },
+        {
+          "case_id": "S-CIVIL-046",
+          "expected": "civil_03_05",
+          "got": "civil_03 · top civil_03_05#5 0.91 recommended",
+          "kind": "search",
+          "text": "여권 어제 신청했는데 취소하면 낸 돈 돌려받을 수 있음?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-CIVIL-068",
+          "expected": "civil_05_03",
+          "got": "civil_05 · top civil_05_03#12 0.93 recommended",
+          "kind": "search",
+          "text": "혼인무효 판결받았는데 증멍서 기록 정정하려면 머 해야돼요? 확정판견문 챙겨가지고 시청가면 일주일안에 고쳐지나여 ㅠ",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-CIVIL-073",
+          "expected": "civil_05_05",
+          "got": "civil_01_05 · top civil_01_05#17 0.68 recommended",
+          "kind": "search",
+          "text": "돌아가신 아버지 제적등본을 발급받았는데 할아버지 성함 한자가 잘못 적혀 있습니다. 족보와 비교해도 명백한 오기라 바로잡고 싶습니다. 제적부 한자",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-CIVIL-084",
+          "expected": "civil_07_01_1",
+          "got": "security_02_02 · top security_02_02_1#1 0.48 alternative",
+          "kind": "search",
+          "text": "갤럭시 S23 쓰고 있는데 어제 저녁에 인증 앱 승인 비번을 5번 넘게 틀렸더니 잠겼다고 떠요. 이거 언제 풀리고 비번 까먹었으면 어디서 다시 ",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-CIVIL-086",
+          "expected": "civil_07_01_2",
+          "got": "bank_07_02 · top bank_07_02_2#7 0.68 recommended",
+          "kind": "search",
+          "text": "I already set up my certificate on my home desktop, can I copy that same one to ",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-CIVIL-097",
+          "expected": "civil_07_05",
+          "got": "civil_01_04 · top civil_01_04#10 0.96 recommended",
+          "kind": "search",
+          "text": "엄마 거동 불편해서 못 가는데 내가 대신 뽑아줄 수 있음?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-CIVIL-098",
+          "expected": "civil_07_05",
+          "got": "hr_08_04_2 · top civil_07_05#5 0.91 recommended",
+          "kind": "search",
+          "text": "진짜 맞는 건지 어디서 봐?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-CIVIL-102",
+          "expected": "civil_02_02",
+          "got": "civil_02_02 · top civil_02_02_1#1 0.86 recommended",
+          "kind": "search",
+          "text": "인터넷으로 전입신고 하는 방법 알려줘요",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-CIVIL-104",
+          "expected": "civil_03_01",
+          "got": "civil_03_01 · top civil_03_01_1#1 0.75 recommended",
+          "kind": "search",
+          "text": "성인 여권 처음 만드는데 어떻게 해요?",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-COOK-018",
+          "expected": "cook_02_04_1",
+          "got": "cook_05 · abstained · top cook_05#article 0.16 reference",
+          "kind": "search",
+          "text": "계란 완전히 익혔는데 잘라보면 가운데 노란 알맹이 둘레가 칙칙한 푸르스름한 빛 도는 이유가 뭐고 그거 방지하려면 뭘 조심해야 돼요?",
+          "why": "route branch, abstained"
+        },
+        {
+          "case_id": "S-COOK-024",
+          "expected": "cook_02_05",
+          "got": "cook_01_04 · top cook_02_05#40 0.96 recommended",
+          "kind": "search",
+          "text": "dried 고사리 boiling한 다음에 cold water에 몇 hours 우려내야 돼요? water 갈아줘야 하나요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-COOK-033",
+          "expected": "cook_03_03 · no answer",
+          "got": "cook_03_03 · top cook_03_03#1 0.51 alternative",
+          "kind": "search",
+          "text": "양념불고기 내일 구울건데 하루 재워둘겸 냉장 어떻게 함? 그냥 뚜껑 덮어두면 돼?",
+          "why": "answered unanswerable"
+        },
+        {
+          "case_id": "S-COOK-041",
+          "expected": "cook_04_01",
+          "got": "homecare_06_02 · top cook_04_01#8 0.94 recommended",
+          "kind": "search",
+          "text": "소분 냉동해둔 고기들 date 쓰고 first-in first-out으로 관리하는 labeling 팁 있어? expiration 안 넘기게 st",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-COOK-068",
+          "expected": "cook_05_06 · no answer",
+          "got": "cook_05_06 · top cook_01_04#5 0.92 recommended",
+          "kind": "search",
+          "text": "시금치 한 단 데치는데 소금 얼마나 넣고 몇 초 삶아?",
+          "why": "answered unanswerable"
+        },
+        {
+          "case_id": "S-COOK-071",
+          "expected": "cook_06_02_1",
+          "got": "cook_02_04_1 · top cook_02_04_1#8 0.86 recommended",
+          "kind": "search",
+          "text": "메추리알 삶기 껍질 식초",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-COOK-083",
+          "expected": "cook_07_03_1",
+          "got": "cook_07_03 · top cook_07_03_1#8 0.87 recommended",
+          "kind": "search",
+          "text": "어제 닭갈비용 고기를 양념에 재워뒀는데 양이 많이 남았어요. 버리기 아까워서 불판에 찍어먹는 소스로 쓰려는데 그대로 써도 될까요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-COOK-105",
+          "expected": "cook_06_02",
+          "got": "cook_06 · top cook_06#article 0.68 recommended",
+          "kind": "search",
+          "text": "이 재료 반찬이 서툴러서 기초가 궁금해요",
+          "why": "route shallow, wrong top1"
+        },
+        {
+          "case_id": "S-FITNESS-021",
+          "expected": "fitness_03_01",
+          "got": "fitness_01_03 · top fitness_03_01#2 0.94 recommended",
+          "kind": "search",
+          "text": "그거 처음 할 때 무게는 어느 정도로 맞추면 될까요? 몇 번씩 몇 세트가 적당해요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-FITNESS-043",
+          "expected": "fitness_04_04",
+          "got": "fitness_06_01 · top fitness_06_01#2 0.58 alternative",
+          "kind": "search",
+          "text": "무릎이 안조아서 사이클이랑 일립티칼 번갈아타려는데 몇분씩타고 통증느끼면 어케해야돼요 ㅠㅠ",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-FITNESS-064",
+          "expected": "fitness_06_02",
+          "got": "homecare_02 · top fitness_06_02#9 0.94 recommended",
+          "kind": "search",
+          "text": "리프팅벨트 세탁 관리",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-FITNESS-066",
+          "expected": "fitness_06_03_1",
+          "got": "fitness_05_01 · top health_02_04#5 0.84 recommended",
+          "kind": "search",
+          "text": "하루 종일 앉을 틈 없이 매장 돌아다니며 근무했는데 집에 돌아오니 하반신이 무겁고 찌뿌둥해요. 가라앉히는 순서 좀 알려주세요.",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-FITNESS-072",
+          "expected": "fitness_07_01",
+          "got": "legal_01_03 · top legal_01_03#6 0.96 recommended",
+          "kind": "search",
+          "text": "석 달치를 결제해두고 30일만 이용해보다가 중간에 끊으면 되돌려받을 금액은 어떤 식으로 산정되나요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-FITNESS-101",
+          "expected": "fitness_09_03",
+          "got": "fitness_08_01 · top fitness_09_03#6 0.91 recommended",
+          "kind": "search",
+          "text": "50대 중반 완경 오고 뼈 약해진다던데 집에서 맨몸 하체 뭐하면 좋음?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-FITNESS-103",
+          "expected": "fitness_09_04",
+          "got": "health_07_03 · top fitness_09_04#9 0.86 recommended",
+          "kind": "search",
+          "text": "동네 한 바퀴 돌거나 한두 시간 정도 가볍게 오를 때 목 마르기 전에 미리 챙기면 좋은 음료 양이나 간격이 있을까요? 카페인 든 음료는 괜찮은지",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-FITNESS-107",
+          "expected": "fitness_03",
+          "got": "fitness_03 · top fitness_03_02_1#1 0.63 alternative",
+          "kind": "search",
+          "text": "하체랑 코어 운동 어떻게 시작해요?",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-FITNESS-108",
+          "expected": "fitness_03_02",
+          "got": "fitness_03_02 · top fitness_03_02_1#1 0.75 recommended",
+          "kind": "search",
+          "text": "엉덩이 운동이 고민인데 뭐부터 해요?",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-HEALTH-014",
+          "expected": "health_01_05 · no answer",
+          "got": "health_01_05 · top health_01_05#3 0.60 alternative",
+          "kind": "search",
+          "text": "아이가 사흘째 미열이랑 콧물, 밤기침을 해요. 내일 소아과 가려고 메모 중인데 뭘 적어야 할지 모르겠어요. 진료 때 뭘 정리해서 가져가면 도움이",
+          "why": "answered unanswerable"
+        },
+        {
+          "case_id": "S-HEALTH-031",
+          "expected": "health_03_03",
+          "got": "health_07_04 · top health_07_04#1 0.83 recommended",
+          "kind": "search",
+          "text": "내일 중요한 발표가 있는데 생각만 하면 속이 울렁거리고 가슴이 답답해요. 긴장할 때마다 이래서 아무것도 못 하겠어요. 빨리 진정하려면 어떻게 해",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-HEALTH-032",
+          "expected": "health_03_04",
+          "got": "cook_07_03 · top cook_03_05#5 0.86 recommended",
+          "kind": "search",
+          "text": "어제 저녁에 만든 반찬을 식탁에 그대로 뒀어요. 아침에 보니 냄새가 좀 이상한데 버리기 아까워요. 끓여서 먹으면 괜찮을까요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-HEALTH-046",
+          "expected": "health_05_02",
+          "got": "health_02 · top health_05_02#19 0.86 recommended",
+          "kind": "search",
+          "text": "냉동실에 얼려둔 젤 아이스팩 있는데 수건에 싸서 한 번에 10분 이내로 하루 2~3번 갖다 대면 되나요? 피부에 바로 대면 안 된다던데 맞는 방",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-HEALTH-049",
+          "expected": "health_05_03",
+          "got": "medical_06_01 · top health_05_03#5 0.93 recommended",
+          "kind": "search",
+          "text": "심방세동으로 피를 묽게 만드는 처방약을 복용 중인데 비강 양쪽에서 줄줄 멈추지 않고 흐를 땐 긴급 진료가 필요할까요?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-HEALTH-054",
+          "expected": "health_05_05",
+          "got": "medical_01_04 · top health_05_05#12 0.95 recommended",
+          "kind": "search",
+          "text": "어제 알레르기때문에 응급실 갔다왔음 원인 검사는 언제 어디서 받음?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-HEALTH-071",
+          "expected": "health_07_04",
+          "got": "fitness_04 · abstained · top fitness_04_01#7 0.24 reference",
+          "kind": "search",
+          "text": "어떻게 걸으면 좋아?",
+          "why": "route domain, abstained"
+        },
+        {
+          "case_id": "S-HOMECARE-010",
+          "expected": "homecare_01_05",
+          "got": "homecare_02_04 · top homecare_02_04#2 0.85 recommended",
+          "kind": "search",
+          "text": "운동화에 묻은 거가 아니라 등산 다녀오고 방수 재킷이랑 등산복에 튄 흙탕물인데 어떻게 빨아야 돼요? 방수 옷은 섬유유연제 넣으면 안 된다던데 맞",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-HOMECARE-011",
+          "expected": "homecare_01_05",
+          "got": "cook_08_03 · top cook_08_03#2 1.01 recommended",
+          "kind": "search",
+          "text": "김치통을 한동안 안 열었더니 뚜껑이랑 고무패킹에 까만 점이 꼈어요. 냄새도 좀 나고 찝찝하네요. 패킹 분리해서 어떻게 닦고 소독해야 돼요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-HOMECARE-013",
+          "expected": "homecare_02_01_1",
+          "got": "homecare_02_01 · top homecare_02_01_1#6 0.94 recommended",
+          "kind": "search",
+          "text": "비 주룩주룩 올 때 기계 바람 안 쓰고 평평한 곳에 뉘라는 택 기호 봤는데 줄 한 개랑 줄 세 개는 뭐가 달라? 스웨터 늘어나?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-HOMECARE-018",
+          "expected": "homecare_02_03_1",
+          "got": "homecare_02_01_1 · top homecare_02_03_1#4 0.93 recommended",
+          "kind": "search",
+          "text": "건조기 니트 수축 뻣뻣",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-HOMECARE-020",
+          "expected": "homecare_02_03_2",
+          "got": "homecare_02_03 · top homecare_02_03_2#7 0.93 recommended",
+          "kind": "search",
+          "text": "겨울에 매일 맨 울 목도리에 보풀이 잔뜩 일었어요. 끝에 술 장식이 있어서 올 나갈까봐 손대기 무서워요. 양면 다 어떻게 빗질하고 보관해야 할까",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-HOMECARE-021",
+          "expected": "homecare_02_03_2",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "단추 자수 보풀 가위",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-HOMECARE-027",
+          "expected": "homecare_03_01",
+          "got": "homecare_03 · top homecare_03_01#4 0.96 recommended",
+          "kind": "search",
+          "text": "북향 작은방에 사는데 겨울만 되면 바깥벽 쪽 벽지에 결로 곰팡이가 자꾸 펴요. 장롱이랑 침대를 외벽에 바짝 붙여놓고 쓰고 있거든요. 곰팡이 줄이",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-HOMECARE-034",
+          "expected": "homecare_03_03",
+          "got": "homecare_06_01_2 · top homecare_03_03#6 0.96 recommended",
+          "kind": "search",
+          "text": "신발장 제습제 위치 교체주기",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-HOMECARE-036",
+          "expected": "homecare_03_04",
+          "got": "homecare_03_04 · top homecare_03_04#3 0.96 recommended",
+          "kind": "search",
+          "text": "무더울 때 천장에 박힌 냉기 틀었다 끈 뒤에 퀴퀴함 안 생기게 스스로 말리는 모드 어떻게 맞춰둬?",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-HOMECARE-051",
+          "expected": "homecare_05_02_1",
+          "got": "homecare_05_02 · top homecare_05_02_1#10 0.93 recommended",
+          "kind": "search",
+          "text": "후드 금속필터 어제 중성세제로 불려서 완전히 말려 다시 꼈는데, 5년 쓴 빌라 주방후드 흡입이 여전히 약해요. 댐퍼 고착이나 덕트 막힘 중에 뭘",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-HOMECARE-055",
+          "expected": "homecare_05_03",
+          "got": "appliance_02_05 · top homecare_05_03#8 0.95 recommended",
+          "kind": "search",
+          "text": "마트 탈취제 안 사고 집에 있는 베이킹소다로 냉장고 냄새 잡아보려는데요, 300L 양문형 쓰면서 김치랑 생선 자주 넣거든요. 컵에 몇 숟갈 담아",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-HOMECARE-061",
+          "expected": "homecare_06_01_2",
+          "got": "homecare_07_03 · top homecare_07_03#9 0.56 alternative",
+          "kind": "search",
+          "text": "붙박이장 위쪽 선반이랑 서랍 두 칸에 좀 나방벌레 안 생기게 약 사다 놨는데 한 칸당 몇 개씩 놓아야 돼요? 니트에 직접 닿아도 괜찮나요? 그리",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-HOMECARE-064",
+          "expected": "homecare_06_02",
+          "got": "cook_03_04_1 · top cook_03_04_1#8 0.92 recommended",
+          "kind": "search",
+          "text": "포대로 많이 사 온 밥 지을 곡류를 좀 안 생기게 나눠 담아 주방 창고에 두는 법은?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-HOMECARE-072",
+          "expected": "homecare_07_01_2",
+          "got": "homecare_08_02 · top homecare_08_02#5 0.46 alternative",
+          "kind": "search",
+          "text": "음식물쓰레기 밀폐통 기름받이",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-HOMECARE-076",
+          "expected": "homecare_07_03",
+          "got": "homecare_03_02_2 · top homecare_07_03#5 0.93 recommended",
+          "kind": "search",
+          "text": "장마철이라 집이 눅눅하고 아이 알레르기 때문에 진드기가 걱정돼요. 카페트랑 패브릭 소파가 있어서 관리가 고민이에요. 환기는 얼마나 하고 습도는 ",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-HOMECARE-094",
+          "expected": "homecare_08_05",
+          "got": "homecare_02 · abstained · top homecare_02_02#1 0.43 reference",
+          "kind": "search",
+          "text": "신생아 때 입히던 작은 유아복들 나눠주려고 하는데 따로 빨래하는 방법 정해져 있어요?",
+          "why": "route branch, abstained"
+        },
+        {
+          "case_id": "S-HOMECARE-109",
+          "expected": "homecare_06_01",
+          "got": "homecare_06 · top homecare_06_01#article 0.64 alternative",
+          "kind": "search",
+          "text": "옷장이 자꾸 어지러워져서困해요",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-HOUSE-002",
+          "expected": "house_01_01",
+          "got": "civil_01 · top civil_01_05#4 0.51 alternative",
+          "kind": "search",
+          "text": "등본에 빨간 줄 그어진 거 있던데 그건 끝난 거 맞지? 아직 살아있는 거랑 어떻게 구분해?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-HOUSE-008",
+          "expected": "house_01_04",
+          "got": "house_02_03 · top house_01_04#3 0.91 recommended",
+          "kind": "search",
+          "text": "도장 찍기 전에 예약금 백만원 미리 송금하래요, 트러블 없이 전달하려면 어떻게 하면 될까요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-HOUSE-011",
+          "expected": "house_01_05",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "현관 비번키 지문 잘 먹는지 어케 봄?",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-HOUSE-012",
+          "expected": "house_01_05",
+          "got": "house_07_01 · top house_07_01#3 0.65 recommended",
+          "kind": "search",
+          "text": "폭우가 지나간 이튿날 거실 윗쪽 면에 스며든 물 자국은 어떻게 살펴봐요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-HOUSE-020",
+          "expected": "house_02_04",
+          "got": "civil_04_03 · top house_02_04#3 0.87 recommended",
+          "kind": "search",
+          "text": "집주인이 인감도장이 없다면서 본인서명사실확인서로 대신하겠다고 하는데요, 보증금 8000만원짜리 반전세 계약할 때 그걸로 위임장이랑 같이 확인해도",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-HOUSE-026",
+          "expected": "house_03_02 · no answer",
+          "got": "house_03_02 · top house_03_02#1 0.77 recommended",
+          "kind": "search",
+          "text": "나 말고 와이프랑 애만 먼저 들어간다는데 대항력 괜찮아?",
+          "why": "answered unanswerable"
+        },
+        {
+          "case_id": "S-HOUSE-029",
+          "expected": "house_03_03 · no answer",
+          "got": "house_03_03 · top loan_04_03#2 0.88 recommended",
+          "kind": "search",
+          "text": "신규계약 보증보험 신청기한",
+          "why": "answered unanswerable"
+        },
+        {
+          "case_id": "S-HOUSE-030",
+          "expected": "house_03_04",
+          "got": "legal_05_03 · top house_03_04#2 0.92 recommended",
+          "kind": "search",
+          "text": "수도권 과밀억제권역 빌라에 전세 1억 4천으로 살고 있는데 경매로 넘어가면 선순위 대출보다 먼저 얼마까지 돌려받을 수 있나요? 낙찰금액 절반까지",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-HOUSE-038",
+          "expected": "house_04_04",
+          "got": "house_02 · abstained · top house_02#article 0.26 reference",
+          "kind": "search",
+          "text": "순서대로 어떻게 하면 돼요?",
+          "why": "route branch, abstained"
+        },
+        {
+          "case_id": "S-HOUSE-042",
+          "expected": "house_05_02",
+          "got": "house_03_02 · top house_03_02#2 0.75 recommended",
+          "kind": "search",
+          "text": "임차권 등기 끝나기전에 전입신고 부터 옮기면 어케되나요 ㅠㅠ 걍 이사부터 가야될거같아서요",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-HOUSE-074",
+          "expected": "house_08_04",
+          "got": "insure_06 · top insure_06_01#1 0.70 recommended",
+          "kind": "search",
+          "text": "지난달 15일에 이사했는데 갤럭시 보험사 앱에서 계약자 정보를 아직 안 고쳤어요. 300만 원 입원비 청구 서류가 옛날 집으로 가면 어떡하죠? ",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-HOUSE-075",
+          "expected": "house_08_04",
+          "got": "card · top card_01_04#5 0.44 alternative",
+          "kind": "search",
+          "text": "새집에 들어가는 그날 홈페이지로 카드값 명세서 받을 거주지 고치는 법 좀 알려주세요",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-HR-033",
+          "expected": "hr_03_03",
+          "got": "hr_03_01_2 · top hr_03_01_2#3 0.71 recommended",
+          "kind": "search",
+          "text": "외근 나와있는데 전산망 장애로 앱 인증 안돼ㅠ 어떡함?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-HR-040",
+          "expected": "hr_04_01",
+          "got": "hr_03_02 · top hr_03_02#1 0.80 recommended",
+          "kind": "search",
+          "text": "B형으로 다니는데 5분정도 늦음 지각으로 찍히나요? 월3회 넘으면 인사고과 깜점 있다던데 진짜임? 그리구 30분이상 늦을때는 반차써야되나요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-HR-043",
+          "expected": "hr_04_02",
+          "got": "hr_04 · top hr_04_02#3 0.91 recommended",
+          "kind": "search",
+          "text": "여덟살 아이 돌보고 있는데 근로시간 줄인 형태로 탄력 출퇴근 병행이 될까요? 주30시간에 코어는 10시부터 3시까지라던데 맞나요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-HR-053",
+          "expected": "hr_05_01",
+          "got": "hr_05 · top hr_05_01#7 0.92 recommended",
+          "kind": "search",
+          "text": "폰으로 출장 신청하고 숙소 교통 결제까지 바로 돼?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-HR-054",
+          "expected": "hr_05_02_1",
+          "got": "abroad_04_01 · top abroad_04_01#1 0.67 recommended",
+          "kind": "search",
+          "text": "여권 5개월 남았는데 비자 나옴? ㅠ",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-HR-060",
+          "expected": "hr_05_04",
+          "got": "hr_05 · top hr_05_04#3 0.91 recommended",
+          "kind": "search",
+          "text": "아침에 나갔다 저녁에 돌아오는 일정도 서류로 정리해서 올려야 하나요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-HR-073",
+          "expected": "hr_06_04",
+          "got": "hr · top hr_06_04#4 0.92 recommended",
+          "kind": "search",
+          "text": "휴가 출장 발령효력",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-HR-078",
+          "expected": "hr_07_02",
+          "got": "hr · top hr_07_02#4 0.88 recommended",
+          "kind": "search",
+          "text": "출장 휴가 화상면담",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-HR-093",
+          "expected": "hr_08_03",
+          "got": "career_06_04 · top hr_08_03#8 0.88 recommended",
+          "kind": "search",
+          "text": "돌아가신 아버지가 예전에 다니던 회사에서 일했다는 확인 문서를 보험사에 내려고 하는데 남은 가족이 대신 받으려면 어떤 서류를 챙기고 어디로 가야",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-HR-097",
+          "expected": "hr_08_04_2",
+          "got": "civil_07_05 · top hr_08_04_2#2 0.89 recommended",
+          "kind": "search",
+          "text": "전자증명서 맨위에잇는 12자리 진위확인번호 조회 어디서 함? 발급일자도 같이 넣어야 된다던데 맞음? ㅇㅈ 캡쳐본만 있어도 검증 가능?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-INSURE-001",
+          "expected": "insure_01_01_1",
+          "got": "insure_01_03 · top insure_01_01_1#8 0.92 recommended",
+          "kind": "search",
+          "text": "이틀 short 입원으로 hospital bill 40만원 나왔는데 입퇴원확인서 only로 claim 가능해? admission date랑 di",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-INSURE-003",
+          "expected": "insure_01_01_2",
+          "got": "net_07_01 · top net_07_01#8 0.55 alternative",
+          "kind": "search",
+          "text": "핸드폰 제증명 메뉴에서 파일로 저장해둔 납부확인서도 서류로 내면 인정받을 수 있을까요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-INSURE-004",
+          "expected": "insure_01_01_2",
+          "got": "medical_07_02 · top medical_07_02#12 0.95 recommended",
+          "kind": "search",
+          "text": "2024년 10월 정형외과에서 받은 도수치료 비용 서류가 필요한데 2년 가까이 지난 지금 다시 뽑을 수 있나요? 병원 보관 기한이 어떻게 돼요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-INSURE-023",
+          "expected": "insure_02_04_1",
+          "got": "car_04_05 · top car_04_05#10 0.42 alternative",
+          "kind": "search",
+          "text": "한 번 부딪혀서 사람이 다치고 차도 깨졌을 때 다음번 점수는 얼마나 깎이나요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-INSURE-029",
+          "expected": "insure_02_05",
+          "got": "insure_02 · top insure_02_05#17 0.83 recommended",
+          "kind": "search",
+          "text": "I finished signing up for car insurance yesterday, where can I download the cert",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-INSURE-035",
+          "expected": "insure_03_02_1",
+          "got": "insure_03_02 · top insure_03_02_1#15 0.94 recommended",
+          "kind": "search",
+          "text": "교통사고 보상액을 한 번에 정산하지 않고 두세 차례로 쪼개어 지급하도록 조율할 수 있을까요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-INSURE-042",
+          "expected": "insure_03_05",
+          "got": "car_03_04 · top car_03_04#4 0.63 alternative",
+          "kind": "search",
+          "text": "밤늦은 시간에 몰던 SUV가 서버려서 렉카에 끌려가야 할 때, 돈 안 내고 갈 수 있는 범위는 어디까지고 초과하면 돈을 얼마나 더 내야 하나요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-INSURE-044",
+          "expected": "insure_04_01",
+          "got": "insure_06_03_2 · top insure_06_03_2#2 0.82 recommended",
+          "kind": "search",
+          "text": "감액완납 변경 보장금액 확인",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-INSURE-066",
+          "expected": "insure_05_05",
+          "got": "insure_03_02_2 · top insure_05_05#8 0.89 recommended",
+          "kind": "search",
+          "text": "오토바이 사고로 안면부에 길게 상처 자국이 생겼는데 치료 끝나도 그대로예요. 이런 외관 손상도 보험금 받을 수 있을까요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-INSURE-072",
+          "expected": "insure_06_02_2",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "그럼 연락은 언제 와요?",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-INSURE-084",
+          "expected": "insure_07_01_2",
+          "got": "insure_06_02_1 · top insure_06_02_1#7 0.49 alternative",
+          "kind": "search",
+          "text": "해지 cancel하고 계약 살렸는데 account에서 auto로 빠져나가던 보험료 다시 setting 해야 돼? next payment는 언제 ",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-INSURE-092",
+          "expected": "insure_07_05",
+          "got": "insure_06_02_2 · top insure_06_02_2#2 0.83 recommended",
+          "kind": "search",
+          "text": "I missed my insurance premium and just got a dunning letter, how long is the gra",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-INSURE-093",
+          "expected": "insure_07_05",
+          "got": "insure_06_05 · top insure_06_05#3 0.81 recommended",
+          "kind": "search",
+          "text": "실효된지 1년됬는데 부활가능한가여? 건강고지 다시해야됨? 밀린보험 료 한 번에내야하나요 ㅠ",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-ITDESK-010",
+          "expected": "itdesk_01_05",
+          "got": "itdesk_03_03_1 · top itdesk_03_03_1#5 0.66 recommended",
+          "kind": "search",
+          "text": "승진 팀장 결재 인계",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-ITDESK-021",
+          "expected": "itdesk_02_02_1",
+          "got": "security_03_04 · top security_03_04#1 1.01 recommended",
+          "kind": "search",
+          "text": "비밀번호 5회 잠금해제",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-ITDESK-030",
+          "expected": "itdesk_02_04",
+          "got": "itdesk_03_03 · top itdesk_03_03_2#12 0.54 alternative",
+          "kind": "search",
+          "text": "I'm out visiting clients — can I check pending e-approvals and approve them on m",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-ITDESK-042",
+          "expected": "itdesk_03_03_2",
+          "got": "office_02_05 · abstained · top office_02_05#3 0.32 reference",
+          "kind": "search",
+          "text": "그건 그렇고 워드 문서 첨부하면 PDF 자동변환 실패라고 자꾸 오류가 뜨는데 이건 왜 그러는 거예요?",
+          "why": "route domain, abstained"
+        },
+        {
+          "case_id": "S-ITDESK-049",
+          "expected": "itdesk_04_01_1",
+          "got": "itdesk_04 · top itdesk_04_01_1#13 0.91 recommended",
+          "kind": "search",
+          "text": "예전에 그만뒀다가 이번 달에 복직한 형이 있는데 예전에 쓰던 거 반납한 거 확인하고 새 사번으로 새 기계 배정해주나요? 전에 쓰던 거 그대로 주",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-ITDESK-052",
+          "expected": "itdesk_04_01_2",
+          "got": "itdesk_04_01 · top itdesk_04_01_2#11 0.85 recommended",
+          "kind": "search",
+          "text": "노트북 교체 신청했더니 재고 없다고 대기 순번으로 떴어요. 기다리는 2주 동안 쓸 임시 공용 노트북은 어디서 빌려요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-ITDESK-054",
+          "expected": "itdesk_04_01_3",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "만료 3영업일 연장",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-ITDESK-076",
+          "expected": "itdesk_06_01",
+          "got": "pc_02_05 · top pc_02_05#2 0.88 recommended",
+          "kind": "search",
+          "text": "Help, my PC screen suddenly says all my files are encrypted and demands payment ",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-ITDESK-078",
+          "expected": "itdesk_06_01 · no answer",
+          "got": "pc_02_05 · top pc_02_05#3 0.68 recommended",
+          "kind": "search",
+          "text": "지난주 악성코드 치료를 받고 PC를 다시 쓰고 있어요. 아직 재감염이 걱정돼서 확인 검사를 받고 싶어요. 언제 다시 검사하면 종결될까요?",
+          "why": "route domain, answered unanswerable"
+        },
+        {
+          "case_id": "S-ITDESK-091",
+          "expected": "itdesk_06_05 · no answer",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "연말에 전 직원이 같이 듣는 정기 과정이 아니라 이번 달에 입사한 신입이 들어야 하는 기초 과정 말인데요, 입사하고 며칠 안에 마쳐야 하나요? ",
+          "why": "route false_none"
+        },
+        {
+          "case_id": "S-ITDESK-099",
+          "expected": "itdesk_07_03",
+          "got": "office_01_06 · top office_01_06#3 0.89 recommended",
+          "kind": "search",
+          "text": "월말결산 엑셀 인쇄하는데 오른족표가 잘려나와요ㅠㅠ 한페이지에 다 나오게 하는법좀 알려주셈",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-ITDESK-101",
+          "expected": "itdesk_07_04",
+          "got": "office_07_02_1 · top office_07_02_1#3 0.87 recommended",
+          "kind": "search",
+          "text": "회의실 마이크 울림 잡음",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-ITDESK-104",
+          "expected": "itdesk_01",
+          "got": "security · top security#article 0.78 recommended",
+          "kind": "search",
+          "text": "계정 문제 생겼는데 어디서 해결하죠?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-ITDESK-113",
+          "expected": "itdesk_05_02",
+          "got": "pc_05 · top pc_05#article 0.78 recommended",
+          "kind": "search",
+          "text": "인쇄가 자꾸 이상해요 어떻게 하면 되죠?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-ITDESK-115",
+          "expected": "itdesk_06_04",
+          "got": "security_04_01 · top security_04_01#19 0.72 recommended",
+          "kind": "search",
+          "text": "이상한 메일을 받았는데 어떻게 해야 하죠?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-LEGAL-005",
+          "expected": "legal_01_02_2",
+          "got": "returns_05_03_1 · top legal_01_02_2#4 0.93 recommended",
+          "kind": "search",
+          "text": "온라인에서 운동화 주문했는데 왼쪽은 270, 오른쪽은 265가 왔더라고요. 박스랑 택은 안 버리고 그대로 있어요. 이 경우 교환은 어떻게 신청하",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-LEGAL-006",
+          "expected": "legal_01_02_2",
+          "got": "returns_05_03_1 · top legal_01_02_2#2 0.85 recommended",
+          "kind": "search",
+          "text": "가전제품 시켰는데 제가 고른 색이랑 다른 색깔이 배송됐어요. 주문 화면이랑 받은 물건 사진은 찍어뒀거든요. 오배송 신고는 어떻게 하고 돌려보내는",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-LEGAL-007",
+          "expected": "legal_01_02_3",
+          "got": "shop_01_05_2 · top shop_01_05_2#2 0.98 recommended",
+          "kind": "search",
+          "text": "매달 오는 반찬 정기배송 다음거 오기 전에 끊고 싶음 ㅠ 어케 해지해?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-LEGAL-013",
+          "expected": "legal_01_05",
+          "got": "legal_02_01_1 · top legal_02_01_1#1 0.71 recommended",
+          "kind": "search",
+          "text": "업체랑 돌려받을 금액 문제로 싸움이 났는데, 제3자가 중간에 들어와 해결해주는 제도 이용하려면 어떤 곳에 연락하면 돼요? 전화번호나 사이트 알려",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-LEGAL-017",
+          "expected": "legal_02_01_2",
+          "got": "legal_07_03 · top legal_02_01_2#8 0.87 recommended",
+          "kind": "search",
+          "text": "엄마 대신 내가 조정 신청해주고 출석도 할 수 있음? 뭐 챙겨가야 돼?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-LEGAL-028",
+          "expected": "legal_02_05",
+          "got": "transit_06_02_2 · top transit_06_02_2#3 0.56 alternative",
+          "kind": "search",
+          "text": "지난 토요일 1박 12만원짜리 오토캠핑장 예약했는데 폭우로 사이트가 침수돼 텐트를 못 쳤어요. 관리소에서 그냥 돌아가라는데 숙박료 전액 환불받을",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-LEGAL-036",
+          "expected": "legal_03_03",
+          "got": "house_07_02 · top house_07_02#11 0.52 alternative",
+          "kind": "search",
+          "text": "저희 라인 공용 pipe가 노후돼서 터졌다고 하던데 generation 사이 leak 생기면 repair 비용은 management 주체가 부담",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-LEGAL-038",
+          "expected": "legal_03_04",
+          "got": "legal_07_01 · top legal_07_01#article 0.75 recommended",
+          "kind": "search",
+          "text": "합의해놓고 또 쿵쿵거리는데 소액소송 어케함?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-LEGAL-047",
+          "expected": "legal_04_03",
+          "got": "career_06_05 · top career_06_05#1 0.93 recommended",
+          "kind": "search",
+          "text": "팀장이 사직서 양식 주면서 오늘 안에 쓰라고 계속 압박하는데요, 이거 내면 그냥 제가 그만둔 걸로 돼서 구제도 못 받는 거 아닌가요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-LEGAL-052",
+          "expected": "legal_04_05",
+          "got": "legal_07_02 · top legal_07_02#2 0.83 recommended",
+          "kind": "search",
+          "text": "디자인 외주비 180만원을 석 달째 못 받고 있어요. 내용증명까지 보냈는데 상대가 연락을 무시하네요. 지급명령 신청은 어떻게 하는 건가요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-LEGAL-056",
+          "expected": "legal_05_02_1",
+          "got": "house_05_02 · top house_05_02#6 0.94 recommended",
+          "kind": "search",
+          "text": "이제 전입신고 옮겨도 돼? 순위 밀리는 거 아니지?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-LEGAL-065",
+          "expected": "legal_05_03",
+          "got": "house_03_04 · top legal_05_03#13 0.90 recommended",
+          "kind": "search",
+          "text": "제일 먼저 떼어주는 소액 상한을 넘긴 전세액의 나머지 부분도 앞선 담보 없을 때 돌려받을 수 있나요?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-LEGAL-076",
+          "expected": "legal_06_03",
+          "got": "legal_01_03 · top legal_06_03#4 0.80 recommended",
+          "kind": "search",
+          "text": "몇 회짜리 PT 이용권 환불받는 게 아니라 1년 끊어놓은 헬스장 회원권 중간에 그만두려고 서면 보내려는데 뭘 적어야 돼요? 지금까지 나간 횟수랑",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-LEGAL-101",
+          "expected": "legal_05",
+          "got": "house · top house#article 0.79 recommended",
+          "kind": "search",
+          "text": "전세 문제로 불안한데 어떻게 해야 할까요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-LEGAL-102",
+          "expected": "legal_05_02",
+          "got": "house_05 · top legal_05_02#article 0.78 recommended",
+          "kind": "search",
+          "text": "보증금 안 돌려주는데 어떻게 받아내죠?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-LOAN-005",
+          "expected": "loan_01_03",
+          "got": "loan · top loan_01_03#20 0.94 recommended",
+          "kind": "search",
+          "text": "그거 서기 전에 일주일 동안 매일 뭐 체크해야 돼?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-LOAN-011",
+          "expected": "loan_01_05_1",
+          "got": "loan_01_02 · top loan_01_02#4 0.60 alternative",
+          "kind": "search",
+          "text": "지난달 카드 빚을 좀 갚았는데 점수가 왜 오르락내리락하는지 모르겠어요. 집 컴퓨터로 확인하려는데요. 바뀐 원인이랑 언제 다시 매겨지는지 보려면 ",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-LOAN-012",
+          "expected": "loan_01_05_2",
+          "got": "loan_01_02 · top loan_01_02#4 0.66 recommended",
+          "kind": "search",
+          "text": "10일정도 밀린 카드값 지난주에 완납함 ㅈㅅ 점수언제쯤 회복되나욬 원래수준으로 돌아오려먼 몇달 걸림?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-LOAN-013",
+          "expected": "loan_01_05_2",
+          "got": "loan_01_02 · top loan_01_02#4 0.82 recommended",
+          "kind": "search",
+          "text": "점수에 뜨는데 며칠 걸려?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-LOAN-032",
+          "expected": "loan_03_01_2",
+          "got": "loan_03_01 · top loan_03_01_2#5 0.91 recommended",
+          "kind": "search",
+          "text": "잔금당일 대출금 소유권이전 순서",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-LOAN-040",
+          "expected": "loan_03_05",
+          "got": "loan_05_02_3 · top loan_05_02_3#5 0.54 alternative",
+          "kind": "search",
+          "text": "작년 11월에 받은 잔액 1억 8천 주담대가 아직 2년도 안 됐는데 금리가 0.9%p 낮은 인터넷은행으로 갈아타려고 해요. 대환으로 기존 거 갚",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-LOAN-041",
+          "expected": "loan_04_01_1",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "I am 23, single and registered as the head of my own household, am I eligible to",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-LOAN-047",
+          "expected": "loan_04_03",
+          "got": "house_03_03 · abstained · top house_03_03#7 0.38 reference",
+          "kind": "search",
+          "text": "한 30일 뒤에 이사 들어갈 예정인데 전세금 지켜주는 그 보장은 데드라인이 언제예요? 미리 넣어둬야 한다고 하던데",
+          "why": "route domain, abstained"
+        },
+        {
+          "case_id": "S-LOAN-053",
+          "expected": "loan_05_01",
+          "got": "loan_05_02_3 · top loan_05_02_3#10 0.86 recommended",
+          "kind": "search",
+          "text": "기존 5천만원 신용대출 갈아타려는데 중도상환수수료가 꽤 나와요. 새로 받으면 취급수수료랑 인지세도 든다고 하더라고요. 이거 다 합쳐서 언제쯤 이",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-LOAN-055",
+          "expected": "loan_05_02_1",
+          "got": "loan_05_02 · top loan_05_02_1#7 0.92 recommended",
+          "kind": "search",
+          "text": "갈아타기 서류 넣어뒀는데 지금 어디까지 됐는지 보는 곳이 어디예요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-LOAN-060",
+          "expected": "loan_05_02_3",
+          "got": "loan_03_05 · top loan_05_02_3#2 0.89 recommended",
+          "kind": "search",
+          "text": "집 사느라 빌렸던 거 받은 지 만으로 세 해 넘었는데 다른 곳으로 바꾸면 일찍 갚는 벌금 안 물어도 될까요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-LOAN-076",
+          "expected": "loan_06_03",
+          "got": "loan_06 · top loan_06_03#8 0.94 recommended",
+          "kind": "search",
+          "text": "잔액 없어서 밀린 게 아니라 이번 상환일이 일요일이랑 겹치는데 이럴 땐 언제 빠져? 연체 아니지?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-LOAN-108",
+          "expected": "loan_06",
+          "got": "loan_06_01 · top loan_06_01#article 0.67 recommended",
+          "kind": "search",
+          "text": "대출 갚아나가는 게 부담돼서 상담받고 싶어요",
+          "why": "route deep, wrong top1"
+        },
+        {
+          "case_id": "S-MEDICAL-008",
+          "expected": "medical_01_02",
+          "got": "medical_01 · top medical_01_02#5 0.90 recommended",
+          "kind": "search",
+          "text": "얼마 전 단체 검사에서 목 앞쪽에 1센티 넘게 멍울이 있다고 추적해 보라는데, 칼 대는 쪽에서는 어느 파트로 가면 될까요?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-MEDICAL-012",
+          "expected": "medical_01_04",
+          "got": "health_04_02 · top medical_01_04#8 0.82 recommended",
+          "kind": "search",
+          "text": "두피가너무 간지럽고 비듬 장난아님 ㅠㅠ 지루성피부염 같음 약용삼푸 어떻게 쓰고 언제 다시 가야됨? 긁으면 안되나여",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-MEDICAL-014",
+          "expected": "medical_01_05",
+          "got": "health_07_05 · abstained · top health_07_05#5 0.30 reference",
+          "kind": "search",
+          "text": "다음 달 대기업 입사 앞둔 20대 취준생인데 우울증으로 상담받아보고 싶어도 기록 남아서 회사에 알려질까 봐 무서워요. 동의 없이 넘어가는 건가요",
+          "why": "route domain, abstained"
+        },
+        {
+          "case_id": "S-MEDICAL-020",
+          "expected": "medical_02_01",
+          "got": "fitness_07_04 · top fitness_07_04_2#8 0.47 alternative",
+          "kind": "search",
+          "text": "특정 쌤한테 받고싶은데 지정 가능? 과 고르고 쌤별 시간 보면 돼?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-MEDICAL-032",
+          "expected": "medical_02_05_3",
+          "got": "medical_03 · abstained · top medical_03#article 0.21 reference",
+          "kind": "search",
+          "text": "다음 주 화요일 오전으로 종합건강검진 패키지 잡아놨는데 갑자기 지방 출장이 잡혔어요. 전날까지 말 안 하면 위약금 2만원 나오는 거 맞아요? 다",
+          "why": "route branch, abstained"
+        },
+        {
+          "case_id": "S-MEDICAL-041",
+          "expected": "medical_03_01_3",
+          "got": "medical_04_04 · top medical_03_01_3#5 0.93 recommended",
+          "kind": "search",
+          "text": "우리 애 영유아검진 받으러 가려는데 감기 때문에 소아과 갈 때처럼 접수비나 본인부담금 내는 게 아니라 12번까지는 전부 무료로 해주는 거 맞죠?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-MEDICAL-063",
+          "expected": "medical_04_04",
+          "got": "medical_06_03 · top medical_04_04#36 0.91 recommended",
+          "kind": "search",
+          "text": "5살인데 일요일 밤에 가면 할증 붙어서 더 내나요, 아니면 나이 때문에 깎이나요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-MEDICAL-083",
+          "expected": "medical_06_02",
+          "got": "medical_02_04 · top medical_06_02#7 0.87 recommended",
+          "kind": "search",
+          "text": "처음 진료받던 의료기관에서 앰뷸런스 타고 이쪽으로 옮겨오게 됐는데 도착해서 새로 등록하는 방법은 뭐예요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-MEDICAL-089",
+          "expected": "medical_07_01_1",
+          "got": "medical_07_01 · top medical_07_01_1#3 0.93 recommended",
+          "kind": "search",
+          "text": "오늘 외래봤는데 진단서 오늘 당장 받을수있어?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-MEDICAL-106",
+          "expected": "medical_03_01",
+          "got": "medical_03_01 · top medical_03_01_1#7 0.84 recommended",
+          "kind": "search",
+          "text": "무료로 받을 수 있는 검진이 있는지 궁금해요",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-MEDICAL-110",
+          "expected": "medical_05",
+          "got": "medical_05 · top medical_05_01#7 0.67 recommended",
+          "kind": "search",
+          "text": "처방받은 약 먹는 게 헷갈려요",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-MEMBER-003",
+          "expected": "member_01_02_1",
+          "got": "member_07_05 · top member_01_02_1#7 0.94 recommended",
+          "kind": "search",
+          "text": "마케팅 수신 스킵해도 가입됨? 적립 그대로야? 생일쿠폰 못받아?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-MEMBER-010",
+          "expected": "member_01_03 · no answer",
+          "got": "member_01_03 · top member_01_03#1 0.41 alternative",
+          "kind": "search",
+          "text": "서류 접수하고 도매용 아이디 개통 확정될 때까지 평균 며칠 기다려야 해요?",
+          "why": "answered unanswerable"
+        },
+        {
+          "case_id": "S-MEMBER-012",
+          "expected": "member_01_04",
+          "got": "member_05_03 · top member_01_04#6 0.96 recommended",
+          "kind": "search",
+          "text": "가입쿠폰 기간 지났는데 연장이나 재발급 안돼?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-MEMBER-015",
+          "expected": "member_02_01",
+          "got": "security_01_05 · top member_02_01#4 0.93 recommended",
+          "kind": "search",
+          "text": "전에 쓰던 phone number 해지해서 verification이 안 되는데 ID 찾기 어떻게 해요? 신분증 copy랑 해지증명서 같은 doc",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-MEMBER-022",
+          "expected": "member_02_04_1",
+          "got": "shop_04_02_2 · top member_02_04_1#4 0.94 recommended",
+          "kind": "search",
+          "text": "지금 주문서 쓰고 결제하려는데 여기서 친 새 주소 그대로 저장할 수 있어요? 밑에 체크하는 거 있다던데 저장하면 목록 어디에 나와요?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-MEMBER-024",
+          "expected": "member_02_04_2",
+          "got": "shop_04_02_1 · top shop_04_02_1#2 0.96 recommended",
+          "kind": "search",
+          "text": "아이폰 모아몰 앱에서 오늘 아침 주문서 작성하는데 별표 해둔 우리집 주소가 자동으로 안 뜨고 지난주에 시킨 회사 주소가 그대로 떠요 왜 그런 거",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-MEMBER-037",
+          "expected": "member_03_04",
+          "got": "member_04_02 · top member_03_04#6 0.90 recommended",
+          "kind": "search",
+          "text": "계정 없앴다가 세 달 넘어서 다시 만들면 멤버십 단계마다 다른 생일 기념 혜택 받을 수 있을까요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-MEMBER-043",
+          "expected": "member_04_01",
+          "got": "shop_03_03 · top shop_03_03_1#8 0.83 recommended",
+          "kind": "search",
+          "text": "무통장 가상계좌 입금전",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-MEMBER-046",
+          "expected": "member_04_02_1",
+          "got": "member_05_03 · top member_05_03#7 0.77 recommended",
+          "kind": "search",
+          "text": "이번달 쿠폰 안 썼는데 다음달로 넘어감? 아님 그냥 날라가?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-MEMBER-062",
+          "expected": "member_05_03",
+          "got": "member_07_03 · top member_05_03#19 0.94 recommended",
+          "kind": "search",
+          "text": "앱 푸시로 만료 알림 하나도 못 받았는데 어디서 다시 켜야 돼? 폰 설정도 건드려야 돼?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-MEMBER-067",
+          "expected": "member_05_05",
+          "got": "transit_04_04 · top member_05_05#13 0.91 recommended",
+          "kind": "search",
+          "text": "엄마랑 아이디 하나 같이 쓰고 있는데 제 폰이랑 엄마 폰 두 대에서 번갈아 로그인해서 2만원짜리 같이 쓰면 돼요? 한 일주일 정도 이렇게 쓰려고",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-MEMBER-070",
+          "expected": "member_06_01",
+          "got": "member_01_04 · top member_06_01#4 0.89 recommended",
+          "kind": "search",
+          "text": "친구초대 가입 구매 적립금",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-MEMBER-073",
+          "expected": "member_06_02_1",
+          "got": "member_06_02 · top member_06_02_1#4 0.94 recommended",
+          "kind": "search",
+          "text": "상품쿠폰 얘기가 아니라 장바구니쿠폰 적용하고 남은 금액에 대한 건데요, PC 장바구니 얘기가 아니라 주문서 단계에서 쿠폰 먼저 쓴 뒤에 적립금을",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-MEMBER-082",
+          "expected": "member_06_05",
+          "got": "member_06_01 · top member_06_05#5 0.82 recommended",
+          "kind": "search",
+          "text": "주문한 것 중 몇 개만 되돌리고 나머지는 그대로 받았는데 챙겨주는 리워드가 생각보다 적게 찍혔어요, 이거 정상인가요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-MEMBER-098",
+          "expected": "member_02_04",
+          "got": "member_02_04 · top member_02_04_2#2 0.79 recommended",
+          "kind": "search",
+          "text": "배송지 관리 어떻게 하는 거예요?",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-MEMBER-100",
+          "expected": "member_03_02",
+          "got": "member_03_02 · top member_03_02_2#1 0.77 recommended",
+          "kind": "search",
+          "text": "탈퇴하면 혜택은 어떻게 돼요?",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-MEMBER-106",
+          "expected": "member_06_02",
+          "got": "member_06_02 · top shop_03_04#1 0.80 recommended",
+          "kind": "search",
+          "text": "적립금 쓰는 방법이 궁금해요",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-MEMBER-107",
+          "expected": "member_07",
+          "got": "member_07 · top member_07_01#1 0.80 recommended",
+          "kind": "search",
+          "text": "이벤트 소식이 궁금해요",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-NET-006",
+          "expected": "net_01_03",
+          "got": "net_05 · abstained · top net_05_01#4 0.29 reference",
+          "kind": "search",
+          "text": "이미 엄마랑 제 걸로 묶어 놓은 그룹에 아버지 모바일 번호를 하나 더 엮으면 깎아주는 폭이 더 커지나요?",
+          "why": "route branch, abstained"
+        },
+        {
+          "case_id": "S-NET-013",
+          "expected": "net_02_01",
+          "got": "itdesk · abstained · top itdesk_02_02_2#1 0.37 reference",
+          "kind": "search",
+          "text": "사무실 데스크탑 유선 인터넷이 10분 간격으로 자꾸 끊겼다 연결돼요. 어제부터 계속 반복이라 업무가 안 되네요. 어디부터 점검하면 될까요?",
+          "why": "route domain, abstained"
+        },
+        {
+          "case_id": "S-NET-015",
+          "expected": "net_02_02_1",
+          "got": "net_02_03 · top net_02_02_1#7 0.92 recommended",
+          "kind": "search",
+          "text": "구축 아파트라 벽에 있던 오래된 랜선 그대로 쓰는데요. 겉에 Cat5라고 적혀 있고 꺾인 곳도 있는데 500메가 요금제인데 95메가만 나와요. ",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-NET-029",
+          "expected": "net_03_02_1",
+          "got": "net_03_02 · top net_03_02_1#3 0.81 recommended",
+          "kind": "search",
+          "text": "공간이 커서 무선만으로는 버벅거리는데 벽 랜 구멍이랑 스위치 이용해 케이블로 묶어 속도 꾸준하게 쓰는 법 알려주세요",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-NET-032",
+          "expected": "net_03_03",
+          "got": "net_03 · top net_03_03#7 0.94 recommended",
+          "kind": "search",
+          "text": "그건 그렇고 공유기 밀기 전에 지금 설정을 파일로 저장해뒀다가 나중에 그대로 되돌릴 수 있어? 어디서 백업하고 복원해?",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-NET-069",
+          "expected": "net_07_01",
+          "got": "utility_06_05 · top utility_06_05#1 0.89 recommended",
+          "kind": "search",
+          "text": "전자청구서 이메일 신청",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-NET-085",
+          "expected": "net_04",
+          "got": "phone_06 · top phone_06#article 0.63 alternative",
+          "kind": "search",
+          "text": "휴대폰 새로 쓰려는데 전체 흐름 알려주세요",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-OFFICE-004",
+          "expected": "office_01_01_2",
+          "got": "shop_07_01 · top office_01_01_2#5 0.91 recommended",
+          "kind": "search",
+          "text": "2024년 전체 주문이 아니라 1월부터 3월 사이 주문 중에서 배송 상태가 완료인 건수만 세고 싶은데 어떻게 해요?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-OFFICE-031",
+          "expected": "office_03_01_2",
+          "got": "office_03_03 · top office_03_01_2#6 0.87 recommended",
+          "kind": "search",
+          "text": "랩탑으로 슬라이드 만드는데 그리드로 나눠진 칸들 폭이 들쭉날쭉해서 균등하게 손보고 싶은데 방법 있을까요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-OFFICE-042",
+          "expected": "office_03_05",
+          "got": "office_05_01_1 · top office_03_05#4 0.93 recommended",
+          "kind": "search",
+          "text": "팀 발표 PPT가 300메가 넘어서 메일 첨부가 안 되는데 클라우드에 올리고 보기 전용 링크로 전달하려면 어떻게 해야 돼요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-OFFICE-046",
+          "expected": "office_04_01 · no answer",
+          "got": "office_02_01_2 · abstained · top office_02_01_2#3 0.23 reference",
+          "kind": "search",
+          "text": "안내문 본문 alignment 양쪽 정렬로 깔끔하게 맞추려면 어떻게 해요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-OFFICE-048",
+          "expected": "office_04_02",
+          "got": "office_02_02 · top office_04_02#8 0.96 recommended",
+          "kind": "search",
+          "text": "표 안에서 탭 눌렀더니 줄바꿈 안 되고 옆칸으로 넘어가네 ㅠㅠ 어케 함?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-OFFICE-080",
+          "expected": "office_07_02_2",
+          "got": "pc_06_05 · top pc_06_05#3 0.61 alternative",
+          "kind": "search",
+          "text": "크롬으로 링크 타고 들어갔는데 얼굴 나오는 게 막혔다고 뜨면서 안 보여요, 웹에서 어디 눌러서 풀어주면 돼요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-OFFICE-096",
+          "expected": "office_06_01",
+          "got": "office_06_01 · top office_06_01_1#1 0.79 recommended",
+          "kind": "search",
+          "text": "메일 예약 기능이 궁금해요",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-OFFICE-098",
+          "expected": "office_07_02",
+          "got": "office_07 · top office_07#article 0.89 recommended",
+          "kind": "search",
+          "text": "화상회의 연결 설정이 어려워요",
+          "why": "route shallow, wrong top1"
+        },
+        {
+          "case_id": "S-OOS-047",
+          "expected": "null · no answer",
+          "got": "office_01 · abstained · top office_01_04_2#6 0.22 reference",
+          "kind": "search",
+          "text": "엑셀 VBA로 버튼 누르면 자동으로 시트 복사하는 매크로 코드가 필요해, 회사 보고서 양식 복사하려고 하는데 이번 주 금요일까지 만들어야 해서 ",
+          "why": "route false_tree"
+        },
+        {
+          "case_id": "S-OOS-085",
+          "expected": "null · no answer",
+          "got": "transit_07_01_3 · abstained · top transit_07_01_3#7 0.28 reference",
+          "kind": "search",
+          "text": "홍대 근처 맛집 추천해줘",
+          "why": "route false_tree"
+        },
+        {
+          "case_id": "S-OOS-088",
+          "expected": "null · no answer",
+          "got": "transit_07_01_2 · top transit_07_01_2#3 0.48 alternative",
+          "kind": "search",
+          "text": "다음 주 부모님이 올라오시는데 모시고 가기 좋은 한정식 맛집 서울에서 어디가 좋을까요? 주차도 편했으면 좋겠어요",
+          "why": "route false_tree, answered unanswerable"
+        },
+        {
+          "case_id": "S-OOS-093",
+          "expected": "null · no answer",
+          "got": "transit_07_01_3 · abstained · top transit_07_01_3#2 0.27 reference",
+          "kind": "search",
+          "text": "Recommend a good restaurant near Gwangjang Market for foreigners?",
+          "why": "route false_tree"
+        },
+        {
+          "case_id": "S-OOS-118",
+          "expected": "null · no answer",
+          "got": "fitness_09_04 · top fitness_09_04#3 0.46 alternative",
+          "kind": "search",
+          "text": "제주도 올레길 말고 한라산 어리목 코스 예약 방법하고 준비물 알려줘",
+          "why": "route false_tree, answered unanswerable"
+        },
+        {
+          "case_id": "S-OOS-122",
+          "expected": "null · no answer",
+          "got": "phone · abstained · top phone_07_01_2#4 0.42 reference",
+          "kind": "search",
+          "text": "Which should I buy, iPhone 16 Pro vs Galaxy S25 Ultra? Please compare prices.",
+          "why": "route false_tree"
+        },
+        {
+          "case_id": "S-OOS-125",
+          "expected": "null · no answer",
+          "got": "car · abstained · top car_02_03#5 0.41 reference",
+          "kind": "search",
+          "text": "사회초년생 첫차로 아반떼 vs K5 중고 어떤 게 유지비 포함 가성비 좋아?",
+          "why": "route false_tree"
+        },
+        {
+          "case_id": "S-OOS-129",
+          "expected": "null · no answer",
+          "got": "car · abstained · top car_07_03#5 0.44 reference",
+          "kind": "search",
+          "text": "K8 하이브리드 vs 그랜저 하이브리드 신차 가격표 비교해줘",
+          "why": "route false_tree"
+        },
+        {
+          "case_id": "S-OOS-134",
+          "expected": "null · no answer",
+          "got": "pc · abstained · top pc_03_05#6 0.39 reference",
+          "kind": "search",
+          "text": "대학생용 노트북 애플 맥북 vs 삼성 갤럭시북 가격 성능 비교해서 과제용으로 뭐 살지 추천해줘",
+          "why": "route false_tree"
+        },
+        {
+          "case_id": "S-OOS-143",
+          "expected": "null · no answer",
+          "got": "cook_05_04 · top cook_05_04#9 0.54 alternative",
+          "kind": "search",
+          "text": "로스팅",
+          "why": "route false_tree, answered unanswerable"
+        },
+        {
+          "case_id": "S-OOS-178",
+          "expected": "null · no answer",
+          "got": "legal_01_02_3 · top legal_01_02_3#1 0.46 alternative",
+          "kind": "search",
+          "text": "쿠팡 와우 멤버십 해지 환불 규정",
+          "why": "route false_tree, answered unanswerable"
+        },
+        {
+          "case_id": "S-OOS-179",
+          "expected": "null · no answer",
+          "got": "legal_01_02_1 · top legal_01_02_1#7 0.77 recommended",
+          "kind": "search",
+          "text": "네이버쇼핑에서 산 옷 사이즈 교환하려는데 판매자한테 어떻게 연락해? 스마트스토어 교환 배송비 누가 내는 거야?",
+          "why": "route false_tree, answered unanswerable"
+        },
+        {
+          "case_id": "S-PARENT-008",
+          "expected": "parent_01_04",
+          "got": "parent_02_04 · top parent_01_04#2 0.92 recommended",
+          "kind": "search",
+          "text": "애기 태어난지 얼마안됐는데 매일 새벽2~4시에 깨서 한시간씩 울어요 ㅠㅠ 불켜지말고 달래라던데 토닥여도 안자면 어떻해하죠?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-PARENT-021",
+          "expected": "parent_02_03",
+          "got": "parent_02 · top parent_02_03#16 0.83 recommended",
+          "kind": "search",
+          "text": "다섯 살 첫째랑 18개월 둘째가 작은 방 하나를 같이 써요. 첫째가 늦게까지 뒤척이면 동생이 깨서 같이 울고 난리예요. 한 방 쓸 때 자리 배치",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-PARENT-106",
+          "expected": "parent_07",
+          "got": "parent · top parent#article 0.79 recommended",
+          "kind": "search",
+          "text": "아이 습관 교육 전체적으로 어떻게 잡아야 돼요?",
+          "why": "route shallow, wrong top1"
+        },
+        {
+          "case_id": "S-PAYROLL-014",
+          "expected": "payroll_01_05",
+          "got": "payroll_03_04 · top payroll_01_05#5 0.84 recommended",
+          "kind": "search",
+          "text": "다음 달에 다른 회사로 옮기게 돼서 경력 증빙 서류를 챙기고 있어요. 작년에 도중에 그만둔 적이 있는데 그때 분까지 포함해서 근로소득 원천징수영",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-PAYROLL-016",
+          "expected": "payroll_01_05 · no answer",
+          "got": "payroll_01_05 · top payroll_01_05#1 0.37 reference",
+          "kind": "search",
+          "text": "회사명이 지금으로 통일되기 과거 급여 슬립을 그 시절 서류 디자인 그대로 출력할 수 있나요?",
+          "why": "answered unanswerable"
+        },
+        {
+          "case_id": "S-PAYROLL-018",
+          "expected": "payroll_02_01_1",
+          "got": "payroll_02_02 · top payroll_02_02#1 0.72 recommended",
+          "kind": "search",
+          "text": "10월 1일에 join한 new joiner인데 first month salary 언제 들어와요? pro-rata 된다고 하던데 calculat",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-PAYROLL-031",
+          "expected": "payroll_03_02",
+          "got": "tax_02_01 · top payroll_03_02#16 0.86 recommended",
+          "kind": "search",
+          "text": "외국인 직원인데 이번 정산 때 기본 서류 말고 더 내야 되는 게 있나요? 해외에 계신 부모님 인적공제 받으려고 하는데 번역 서류 같은 거 필요한",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-PAYROLL-036",
+          "expected": "payroll_03_03 · no answer",
+          "got": "tax_06_03_1 · top tax_06_03_1#3 0.67 recommended",
+          "kind": "search",
+          "text": "휴직 끝나고 10월에 복직함 환급금 언제 들어옴? 낼 돈 10만원 넘으면 나눠낼 수 있음?",
+          "why": "route domain, answered unanswerable"
+        },
+        {
+          "case_id": "S-PAYROLL-038",
+          "expected": "payroll_03_04_1",
+          "got": "hr_08_04 · top hr_08_01#4 0.77 recommended",
+          "kind": "search",
+          "text": "퇴사한 동료 대신 받아주는 거나 은행 낼려고 직인 받는 얘기가 아니라, 아직 재직 중인 제가 직접 뽑는 건데 한 달에 몇 번까지 무료로 뽑을 수",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-PAYROLL-048",
+          "expected": "payroll_04_02",
+          "got": "payroll_04 · top payroll_04_02#8 0.93 recommended",
+          "kind": "search",
+          "text": "return 한 지 얼마 안됐는데 expense settlement deadline이랑 apply 경로 좀 알려줘요 report 승인 먼저 받아",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-PAYROLL-057",
+          "expected": "payroll_04_05 · no answer",
+          "got": "itdesk_03_03_2 · top itdesk_03_03_2#3 0.64 alternative",
+          "kind": "search",
+          "text": "아까 제가 휴가라고 잘못 말했는데 사실은 팀장님이 퇴사하셔서 결재선 오류로 반려됐거든요, 이거 어떻게 고쳐서 다시 내면 돼요?",
+          "why": "route domain, answered unanswerable"
+        },
+        {
+          "case_id": "S-PAYROLL-059",
+          "expected": "payroll_05_01",
+          "got": "card_01_04 · top card_01_04#3 0.76 recommended",
+          "kind": "search",
+          "text": "제 카드 만료가 12월 말까지라 두 달 정도 남았어요. 미리 갱신해두려고 하는데요. 언제까지 어디서 갱신 신청해야 하나요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-PAYROLL-062",
+          "expected": "payroll_05_02_2",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "클라이언트 만날 때 사내 사람들은 몇 명까지 동석해도 되는 거예요? 인원 제한 같은 거 있나요?",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-PAYROLL-067",
+          "expected": "payroll_05_04",
+          "got": "itdesk_03_03_1 · top itdesk_03_03_1#5 0.70 recommended",
+          "kind": "search",
+          "text": "제가 입원해서 연락이 안 될 때 직속 상사가 저 대신 접수해 주는 게 가능할까요? 어떤 경우에 허용되나요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-PAYROLL-081",
+          "expected": "payroll_06_03",
+          "got": "member_01_01 · top member_01_01#1 0.72 recommended",
+          "kind": "search",
+          "text": "핸드폰에 깐 회사 어플로 처음 장볼 때 신원 확인은 뭐 해야 돼요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-PAYROLL-085",
+          "expected": "payroll_06_05",
+          "got": "parent_05_04_2 · top payroll_06_05#2 0.90 recommended",
+          "kind": "search",
+          "text": "둘째 baby 낳았는데 monthly 자녀수당 application deadline이 어떻게 돼요? birth certificate는 어디에 u",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-PAYROLL-087",
+          "expected": "payroll_07_01_1",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "예약했는데 문자 안왔어 어디서 봐?",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-PAYROLL-091",
+          "expected": "payroll_07_01_3",
+          "got": "medical_03_02 · top medical_03_02#4 0.42 alternative",
+          "kind": "search",
+          "text": "목이랑 가슴, 남자 쪽 영상 촬영을 더 넣으면 내가 내야 하는 금액이 어떻게 돼요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-PAYROLL-094",
+          "expected": "payroll_07_03",
+          "got": "medical_04 · top payroll_07_03#6 0.90 recommended",
+          "kind": "search",
+          "text": "퇴사 건강보험 임의계속 신청",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-PAYROLL-097",
+          "expected": "payroll_07_04",
+          "got": "career_07 · abstained · top career_07#article 0.35 reference",
+          "kind": "search",
+          "text": "계약 끝나고 고용센터 가려고 하는데 회사에서 해줘야 하는 그 서류는 어떤 절차로 받을 수 있어요?",
+          "why": "route domain, abstained"
+        },
+        {
+          "case_id": "S-PAYROLL-101",
+          "expected": "payroll_07_05 · no answer",
+          "got": "pension_01_01 · top pension_01_01#2 1.01 recommended",
+          "kind": "search",
+          "text": "이번달 말에 퇴사하는데 상실신고 언제 돼? 내가 확정할 거 있어?",
+          "why": "route domain, answered unanswerable"
+        },
+        {
+          "case_id": "S-PAYROLL-104",
+          "expected": "payroll_02",
+          "got": "payroll_02_01 · top payroll_02_01_1#1 0.90 recommended",
+          "kind": "search",
+          "text": "급여 들어오는 시기에 대해 알려주세요",
+          "why": "route deep, wrong top1"
+        },
+        {
+          "case_id": "S-PAYROLL-105",
+          "expected": "payroll_02_01",
+          "got": "payroll_02 · top payroll_02#article 0.80 recommended",
+          "kind": "search",
+          "text": "월급날에 대해 전반적으로 알고 싶어요",
+          "why": "route shallow, wrong top1"
+        },
+        {
+          "case_id": "S-PC-014",
+          "expected": "pc_02_01",
+          "got": "pc_02 · top pc_02_01#5 0.93 recommended",
+          "kind": "search",
+          "text": "절전모드 깨움 5분 느림",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-PC-089",
+          "expected": "pc_02_02",
+          "got": "pc_02_01 · top pc_02_01#9 0.57 alternative",
+          "kind": "search",
+          "text": "켜면 자꾸 무거워지는 것 같아요 왜죠?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-PC-095",
+          "expected": "pc_06",
+          "got": "pc · top pc#article 0.85 recommended",
+          "kind": "search",
+          "text": "컴퓨터 주변기기가 자꾸 말썽이에요",
+          "why": "route shallow, wrong top1"
+        },
+        {
+          "case_id": "S-PC-098",
+          "expected": "pc_07_01",
+          "got": "pc_07 · top pc_07_01_1#1 0.84 recommended",
+          "kind": "search",
+          "text": "외장하드가 말썽이라 걱정돼요",
+          "why": "route shallow, wrong top1"
+        },
+        {
+          "case_id": "S-PENSION-004",
+          "expected": "pension_01_01 · no answer",
+          "got": "pension_02_01 · top pension_02_01#4 0.89 recommended",
+          "kind": "search",
+          "text": "지난 3월에 승진하면서 월급이 50만원 올랐습니다. 그런데 국민연금 기준소득은 예전 그대로더라고요. 이 인상분은 언제 반영되나요?",
+          "why": "route branch, answered unanswerable"
+        },
+        {
+          "case_id": "S-PENSION-007",
+          "expected": "pension_01_03",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "지사 직접 가려는데 뭐 챙겨가야 돼?",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-PENSION-011",
+          "expected": "pension_01_04",
+          "got": "pension_01_01 · top pension_01_04#7 0.85 recommended",
+          "kind": "search",
+          "text": "60세 넘겨서 추가로 보험료 내고 있는데요. 얼마 전 직장에 다시 들어가게 됐습니다. 이러면 기존에 내던 건 어떻게 되고 회사에서 따로 신고하나",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-PENSION-029",
+          "expected": "pension_03_01",
+          "got": "pension_03 · top pension_03_01#4 0.92 recommended",
+          "kind": "search",
+          "text": "밖에 안 나가고 집 컴퓨터로 퇴직 후에 받는 돈 신청하는 단계 알려주세요",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-PENSION-062",
+          "expected": "pension_04_05",
+          "got": "legal_04_01_1 · top pension_04_05#4 0.89 recommended",
+          "kind": "search",
+          "text": "지난주 노동청에 퇴직금 진정 접수했는데 담당 감독관 배정됐다고 연락 왔어요. 다음 주에 출석조사 나오라고 하는데 처음이라 뭘 준비해야 할지 모르",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-PENSION-063",
+          "expected": "pension_04_05",
+          "got": "legal_04_01_3 · top legal_04_01_3#2 0.63 alternative",
+          "kind": "search",
+          "text": "간이대지급금이랑 일반체당금 뭐가 다름? 우리 회사는 망한 건 아닌데 나도 신청 가능?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-PENSION-066",
+          "expected": "pension_05_02",
+          "got": "pension_04_02_1 · abstained · top pension_04_02_1#9 0.43 reference",
+          "kind": "search",
+          "text": "페이슬립 1년치 다 합쳐서 12로 나눈 금액이랑 회사에서 적립해준 돈이 서로 맞는지 살펴보려면 뭘 봐야 돼요?",
+          "why": "route branch, abstained"
+        },
+        {
+          "case_id": "S-PENSION-071",
+          "expected": "pension_05_03_2",
+          "got": "pension_05_03 · top pension_05_03_2#5 0.88 recommended",
+          "kind": "search",
+          "text": "추가 부담금 별도 운용",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-PENSION-076",
+          "expected": "pension_05_04",
+          "got": "pension_06_04 · top pension_06_04#9 0.81 recommended",
+          "kind": "search",
+          "text": "급한 일로 쌓아둔 퇴직 적립금에서 일부 빼내 쓰려고 하는데 최대 얼마까지 꺼낼 수 있나요? 나라에 떼이는 몫은 얼마나 되는지랑 쪼개서 받을 수 ",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-PENSION-082",
+          "expected": "pension_06_02",
+          "got": "pension_07_03 · top pension_07_03_2#3 0.67 recommended",
+          "kind": "search",
+          "text": "개인형 퇴직연금이랑 연금저축 합쳐서 한 해에 최대로 쌓을 수 있는 상한이 얼마인지 알고 싶어요",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-PENSION-086",
+          "expected": "pension_06_03_2",
+          "got": "pension_06_03 · top pension_06_03_2#5 0.96 recommended",
+          "kind": "search",
+          "text": "IRP에 주식형 펀드 몇 개 담았는데 비중이 30% 넘을까 걱정돼요. 주문 전에 미리 확인하고 싶거든요. 현재 위험자산 비중 어디서 볼 수 있나",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-PENSION-088",
+          "expected": "pension_06_04",
+          "got": "pension_03_06 · top pension_03_06#3 0.83 recommended",
+          "kind": "search",
+          "text": "아버님이 연금 계좌를 남기고 별세하셨는데 남겨진 식구들이 도중에 빼내는 형식으로 적립금을 수령할 수 있을까요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-PENSION-102",
+          "expected": "pension_07_03_3",
+          "got": "pension_06_04 · top pension_07_03_3#3 0.80 recommended",
+          "kind": "search",
+          "text": "응 그거 중도에 빼면 해지 가산세 안 붙는다던데 맞아? 거기에 내려면 서류를 뭘 내야 돼?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-PENSION-104",
+          "expected": "pension_07_04",
+          "got": "pension_04_02 · abstained · top pension_04_02_2#8 0.25 reference",
+          "kind": "search",
+          "text": "퇴직금 일부를 먼저 찾아 쓰고 5년 후에 회사를 그만두면 재직 햇수는 통산해서 계산하나요?",
+          "why": "route branch, abstained"
+        },
+        {
+          "case_id": "S-PENSION-114",
+          "expected": "pension_04_02",
+          "got": "pension_04_02 · top pension_04_02_1#12 0.69 recommended",
+          "kind": "search",
+          "text": "퇴직금 계산할 때 평균임금이 뭐예요?",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-PENSION-116",
+          "expected": "pension_05_03",
+          "got": "pension_05_03 · top pension_05_03_2#1 0.77 recommended",
+          "kind": "search",
+          "text": "DC형 운용 변경은 어떻게 하는 거예요?",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-PENSION-117",
+          "expected": "pension_06",
+          "got": "pension_06 · top pension_06_02#1 0.42 alternative",
+          "kind": "search",
+          "text": "IRP랑 연금저축이 뭔지 전체적으로 알려줘",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-PET-001",
+          "expected": "pet_01_01_1",
+          "got": "pet_01_02 · top pet_01_02#3 0.41 alternative",
+          "kind": "search",
+          "text": "이제 3개월 된 아기 멍멍이 몸무게별로 정해진 먹는 양 매일 몇 끼로 쪼개서 주면 돼요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-PET-036",
+          "expected": "pet_03_03",
+          "got": "pet_07_04 · top pet_03_03#6 0.88 recommended",
+          "kind": "search",
+          "text": "칩은 이미 넣었고 미국으로 나가려는데 항체가 검사랑 건강증명서는 어떤 순서로 언제 준비하면 돼요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-PET-047",
+          "expected": "pet_04_03",
+          "got": "pet_06_03 · top pet_04_03#11 0.93 recommended",
+          "kind": "search",
+          "text": "고양이 발톱 깎으려고 발만 잡으면 앞발로 제 손을 감아채고 깨물려고 해요. 저번엔 깎이 꺼내자마자 도망가서 하나도 못 깎았어요. 겁먹지 않게 발",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-PET-049",
+          "expected": "pet_04_04_1",
+          "got": "parent_05_02 · top parent_05_02#1 0.65 recommended",
+          "kind": "search",
+          "text": "보름 뒤에 회사 복귀할 예정인데, 그 전까지 아이 두고 나오는 길이를 단계별로 키워갈 일별 로드맵 좀 알려주세요",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-PET-079",
+          "expected": "pet_07_02_1",
+          "got": "pet_07_02 · top pet_07_02_1#7 0.94 recommended",
+          "kind": "search",
+          "text": "여름 성수기 주말에 댕댕이랑 갈수있는 방 잡으려면 몇주전에 미리 예악해야 돼요? 동반룸 금방 찬다던데 ㅠㅠ",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-PET-084",
+          "expected": "pet_07_03",
+          "got": "pet_07 · top pet_07_03#4 0.94 recommended",
+          "kind": "search",
+          "text": "그거 보낼 때 사료랑 간식, 패드 같은 건 어떻게 나눠서 챙겨주면 돼요? 거기에 붙여둘 메모에는 뭐 적어두면 좋아요? 병원 연락처랑 산책 코스도",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-PET-090",
+          "expected": "pet_02",
+          "got": "health · top health#article 0.65 recommended",
+          "kind": "search",
+          "text": "애가 좀 아픈 것 같은데 봐줘야 할까요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-PET-091",
+          "expected": "pet_02_05",
+          "got": "medical_06_01 · top medical_06_01#article 0.60 alternative",
+          "kind": "search",
+          "text": "갑자기 위급한데 어떻게 해야 하죠?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-PET-093",
+          "expected": "pet_03_04",
+          "got": "pet_03_04 · top pet_03_04_1#3 0.69 recommended",
+          "kind": "search",
+          "text": "기생충 예방 시기가 궁금해요 알려주세요",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-PHONE-004",
+          "expected": "phone_01_02_1",
+          "got": "phone_01_04 · top phone_01_02_1#4 0.87 recommended",
+          "kind": "search",
+          "text": "아이폰 13에 회사메일이랑 개인메일 3개를 푸시 수신으로 해뒀더니 반나절 만에 40%씩 닳는데 간격 조정 어떻게 해요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-PHONE-019",
+          "expected": "phone_02_01",
+          "got": "pc_06_02 · top pc_03_03#1 0.85 recommended",
+          "kind": "search",
+          "text": "After installing the latest system update, my display flickers every time I turn",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-PHONE-057",
+          "expected": "phone_05_03_2",
+          "got": "phone_05_05 · abstained · top phone_05_05#2 0.28 reference",
+          "kind": "search",
+          "text": "새 펌웨어 깔고 나서부터 바탕에 띄워둔 온도 표시창이 며칠째 똑같은 숫자로 멈춰있어요, 어떻게 고쳐요?",
+          "why": "route branch, abstained"
+        },
+        {
+          "case_id": "S-PHONE-069",
+          "expected": "phone_06_03",
+          "got": "phone_04_04 · top phone_04_04#5 0.72 recommended",
+          "kind": "search",
+          "text": "Download folder에 쌓인 lecture 자료랑 email 첨부 file PC로 옮기려는데 어디 열어서 copy하면 돼요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-PHONE-086",
+          "expected": "phone_01_02",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "배터리 쪽이 불안해서 봐주세요",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-RETURNS-010",
+          "expected": "returns_01_05_1",
+          "got": "returns_02_04 · top returns_01_05_1#7 0.80 recommended",
+          "kind": "search",
+          "text": "직구반품 오리지널 박스 택",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-RETURNS-017",
+          "expected": "returns_02_02_1",
+          "got": "returns_02_04 · top returns_02_02_1#5 0.93 recommended",
+          "kind": "search",
+          "text": "쇼핑백에 그냥 담아가는 게 아니라 원래 왔던 택배박스에 넣어야 되는 거죠? 그때 붙어있던 예전 송장은 떼야 하나요, 테이프는 어떻게 밀봉하고 새",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-RETURNS-023",
+          "expected": "returns_02_04",
+          "got": "returns_05_05 · top returns_02_04#10 0.85 recommended",
+          "kind": "search",
+          "text": "식탁 조립 다 했는데 모서리 기스났어ㅠ 다시 뜯어서 박스에 넣으면 돼?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-RETURNS-028",
+          "expected": "returns_03_01",
+          "got": "returns_05_03 · top returns_03_01#7 0.93 recommended",
+          "kind": "search",
+          "text": "아 네 제가 시킨 거랑 완전 다른 상품이 도착했어요, 그럼 박스 송장 사진까지 꼭 같이 올려야 다음 단계로 넘어갈 수 있는 거예요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-RETURNS-031",
+          "expected": "returns_03_02_1 · no answer",
+          "got": "returns_03_02_1 · top returns_03_02_1#1 0.86 recommended",
+          "kind": "search",
+          "text": "친구가 생일선물로 옷 보내줬는데 교환하려니 원하는 사이즈가 품절이래요. 대체 고르라는 링크가 저한테 왔다는데 제가 고르는게 맞나요? 환불되면 돈",
+          "why": "answered unanswerable"
+        },
+        {
+          "case_id": "S-RETURNS-041",
+          "expected": "returns_04_01_1",
+          "got": "returns_04_02 · top returns_04_02#7 0.63 alternative",
+          "kind": "search",
+          "text": "모아몰에서 환불완료 문자받앗는데 계좌에안찍혀있어요 ㅠㅠ 이거 어떻해야되나요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-RETURNS-042",
+          "expected": "returns_04_01_1 · no answer",
+          "got": "returns_04_01_1 · top returns_04_01_1#4 0.59 alternative",
+          "kind": "search",
+          "text": "체크카트로산거 반품햇는데 환불언제들오와요 ㅠㅠ 어디서 확인ㄱㄴ?",
+          "why": "answered unanswerable"
+        },
+        {
+          "case_id": "S-RETURNS-044",
+          "expected": "returns_04_01_2",
+          "got": "card_07 · top returns_04_01_2#7 0.93 recommended",
+          "kind": "search",
+          "text": "이번 달 안에 긁은 거 되돌린 것이랑 다음 달로 넘어가서 되돌린 네 달 분납 건이 카드 내역서에 찍히는 모양에 차이가 있나요?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-RETURNS-050",
+          "expected": "returns_04_03_2",
+          "got": "member_06_02_1 · top returns_04_03_2#4 0.76 recommended",
+          "kind": "search",
+          "text": "리워드 잔액이랑 계좌 직결 카드 같이 써서 샀는데 한 가지만 되돌려받으면 뭐부터 먼저 채워줘요?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-RETURNS-060",
+          "expected": "returns_05_03_1",
+          "got": "returns_02_04 · top returns_05_03_1#5 0.89 recommended",
+          "kind": "search",
+          "text": "제가 변심해서 포장 뜯은 게 아니라 잘못 온 상품인 줄 모르고 개봉하고 한번 입어봤는데 이런 경우도 수거가 돼요? 구성품이랑 사은품 다 있으면 ",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-RETURNS-077",
+          "expected": "returns_07_01_1",
+          "got": "returns_07_02 · top returns_07_02#1 0.87 recommended",
+          "kind": "search",
+          "text": "오만원 이상 묶음구매로 덤 증정 받았는데 그중 일부만 돌려보내면 덤은 어찌해야 하나요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-RETURNS-083",
+          "expected": "returns_07_04",
+          "got": "returns_04 · top returns_04_02#7 0.81 recommended",
+          "kind": "search",
+          "text": "검수 끝나고 돌려받는 돈 언제 들어와요? 밤 12시 근처나 주말에는 미뤄지나요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-RETURNS-084",
+          "expected": "returns_07_04",
+          "got": "returns_06_03 · top returns_06_03#3 0.85 recommended",
+          "kind": "search",
+          "text": "일부만 되돌려보낼 때 빠진 오고 가는 택배비 6천원 항목별 금액을 어디서 알 수 있을까요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-RETURNS-092",
+          "expected": "returns_08_03",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "세탁수축 FITI KATRI 재심의",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-RETURNS-094",
+          "expected": "returns_08_04",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "배송된 지 석 달 훌쩍 넘은 선풍기랑 히터 계절 오기 전에 공짜로 봐주는 이용권 있나요?",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-RETURNS-106",
+          "expected": "returns_05_03",
+          "got": "shop_05_02_1 · top shop_05_02_1#1 0.90 recommended",
+          "kind": "search",
+          "text": "다른 상품이 와서 어떻게 해야 할지 몰라요",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-SECURITY-004",
+          "expected": "security_01_01_2",
+          "got": "member_02_01 · top security_01_01_2#5 0.84 recommended",
+          "kind": "search",
+          "text": "타국에 머무는 동안 여러 사람이 함께 쓰는 기기로 로그인명을 우선 조회하려면 어떻게 해야 하나요?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-SECURITY-008",
+          "expected": "security_01_02",
+          "got": "security_03_02 · top security_03_02#article 0.73 recommended",
+          "kind": "search",
+          "text": "헉 누가 내 계정 들어온 거 같은데 비번 바로 바꿀 수 있어??",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-SECURITY-015",
+          "expected": "security_01_05",
+          "got": "net_06_03 · top security_02_01#5 0.75 recommended",
+          "kind": "search",
+          "text": "해외 현지유심 인증문자",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-SECURITY-017",
+          "expected": "security_02_01",
+          "got": "security_05_05 · top security_05_05#2 0.74 recommended",
+          "kind": "search",
+          "text": "인증문자 스팸 차단",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-SECURITY-023",
+          "expected": "security_02_02_3",
+          "got": "itdesk_01_06_1 · top security_02_02_3#8 0.94 recommended",
+          "kind": "search",
+          "text": "아 정정할게요, 집이 아니라 회사망에 VPN 켜져 있는 상태였어요. 그래서 그런지 QR 이미지가 깨져서 아예 로딩이 안 되는데 이럴 땐 어떻게 ",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-SECURITY-026",
+          "expected": "security_02_03",
+          "got": "phone_02_04 · top security_02_03#4 0.94 recommended",
+          "kind": "search",
+          "text": "지문인식이 잘안돼서 다른손가락으로 추가등록 하는법좀 알려주셈 ㅠ",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-SECURITY-035",
+          "expected": "security_03_02_1",
+          "got": "security_03_02 · top security_03_02_1#5 0.90 recommended",
+          "kind": "search",
+          "text": "아이들이랑 같이 쓰는 태블릿이 있어요. 거기에 제 계정이 자동 로그인으로 남아 있더라고요. 이거 깔끔하게 끊는 법 좀 알려주세요.",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-SECURITY-040",
+          "expected": "security_03_04",
+          "got": "security_01_05 · top security_03_04#34 0.89 recommended",
+          "kind": "search",
+          "text": "옛날 번호 해지해서 문자 못 받는데 잠긴 거 어케 찾음?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-SECURITY-046",
+          "expected": "security_04_01",
+          "got": "security_04_02_1 · top security_04_02_1#2 0.93 recommended",
+          "kind": "search",
+          "text": "윈도우11 삼성 노트북 크롬으로 어제 오후에 온 카드사 메일 보는데 본문 속 파란 상세내역 링크 클릭하기 전에 마우스 올려놓고 진짜 연결 주소 ",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-SECURITY-050",
+          "expected": "security_04_02_2",
+          "got": "phone · top phone_06_04#10 0.83 recommended",
+          "kind": "search",
+          "text": "Every website on my smartphone is showing a certificate warning, could my phone'",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-SECURITY-065",
+          "expected": "security_05_04",
+          "got": "net_05_04 · top security_05_04#10 0.89 recommended",
+          "kind": "search",
+          "text": "스미싱 문자 누르고 나서 찜찜해서 USIM 새로 바꿨는데 소액결제 또 뚫릴까봐 불안해요 limit 0원으로 낮추고 block password랑 ",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-SECURITY-071",
+          "expected": "security_06_02",
+          "got": "civil_06_02 · top civil_06_02#1 0.56 alternative",
+          "kind": "search",
+          "text": "아 민증 잃어버려서 번호 털림 ㅠ 다시 만들려면 어디 감? 뭐 챙겨가야 돼?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-SECURITY-074",
+          "expected": "security_06_03",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "낯선 택배 착불 반송",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-SECURITY-075",
+          "expected": "security_06_04",
+          "got": "security_03_02 · top security_03_02_1#5 0.64 alternative",
+          "kind": "search",
+          "text": "그건 그렇고, 집에 가족 다 같이 쓰는 PC에 유출됐다는 제 계정이 자동로그인으로 남아있거든요. 이거 어디서 지우고 어떻게 바꿔야 돼요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-SECURITY-080",
+          "expected": "security_06_05_2",
+          "got": "bank_04_04 · top bank_04_04#1 0.78 recommended",
+          "kind": "search",
+          "text": "은행 직접 가서 막으려면 뭐 챙겨가야됨?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-SECURITY-084",
+          "expected": "security_07_01",
+          "got": "security_07 · top security_07_01#5 0.94 recommended",
+          "kind": "search",
+          "text": "폰이 뜨거워지고 배터리가 빨리 닳는 것도 아니고 팝업 광고가 뜨는 것도 아닌데, 아이콘조차 없이 몰래 깔려서 목록에 안 보이는 놈은 어떻게 찾아",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-SECURITY-088",
+          "expected": "security_07_03_1",
+          "got": "security_07_02 · top security_07_02#3 0.96 recommended",
+          "kind": "search",
+          "text": "예전 모델 스마트폰에서 보조기능 켜놓은 낯선 프로그램들 어디서 볼 수 있어요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-SECURITY-100",
+          "expected": "security_03_02",
+          "got": "security_03_01 · top security_03_01#3 0.68 recommended",
+          "kind": "search",
+          "text": "무단접속이 의심되는데 뭘 확인하죠?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-SECURITY-107",
+          "expected": "security_07",
+          "got": "security_07_01 · top security_07_01#5 0.69 recommended",
+          "kind": "search",
+          "text": "폰에 이상한 앱이 있는 것 같아요",
+          "why": "route deep, wrong top1"
+        },
+        {
+          "case_id": "S-SHOP-019",
+          "expected": "shop_01_06",
+          "got": "shop_02_03 · top shop_02_03#5 0.89 recommended",
+          "kind": "search",
+          "text": "어젯밤 라이브 보다가 바로구매로 옷을 샀는데 배송지를 실수로 전 집으로 해뒀어요. 방송은 이미 끝난 상태인데 지금 주소 수정이 가능할까요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-SHOP-020",
+          "expected": "shop_02_01",
+          "got": "returns_04_03_1 · top shop_02_01#5 0.88 recommended",
+          "kind": "search",
+          "text": "부분만 빼는 게 아니라 통째로 다 취소했는데 쓴 1만원 쿠폰이랑 적립금 그대로 돌아와? 쿠폰 유효기간 남은 거에 따라 다르다던데?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-SHOP-029",
+          "expected": "shop_02_05",
+          "got": "shop_03_03 · top shop_03_03_1#8 0.88 recommended",
+          "kind": "search",
+          "text": "제 주문인데 남자친구가 대신 송금해주는 바람에 입금자명이 다르게 찍혔어요. 가상계좌 번호랑 금액은 맞게 보냈다고 하는데 걱정돼요. 이름이 달라도",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-SHOP-030",
+          "expected": "shop_03_01",
+          "got": "payroll_05 · abstained · top payroll_05#article 0.29 reference",
+          "kind": "search",
+          "text": "법인카드로 사무용품 사려고 하는데 그걸로 하면 나눠서 내기나 무이자는 안 되는 거예요? 나중에 세금계산서도 받아야 해서요",
+          "why": "route domain, abstained"
+        },
+        {
+          "case_id": "S-SHOP-032",
+          "expected": "shop_03_02",
+          "got": "shop_01_05 · top shop_03_02#9 0.79 recommended",
+          "kind": "search",
+          "text": "주기적으로 집으로 오는 배달 걸어놓으면서 카톡에 있는 페이로 매번 알아서 빠져나가게 해둘 수 있을까?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-SHOP-046",
+          "expected": "shop_04_01",
+          "got": "shop_07_01 · top shop_04_01#3 0.85 recommended",
+          "kind": "search",
+          "text": "앱 여러주문 전체현황",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-SHOP-059",
+          "expected": "shop_04_05",
+          "got": "shop_01_01 · top shop_04_05#2 0.85 recommended",
+          "kind": "search",
+          "text": "계산하기 전에 이것저것 골라둔 걸 하나의 상자로 같이 보내달라고 미리 부탁하려면 어떻게 해야 돼요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-SHOP-061",
+          "expected": "shop_05_01",
+          "got": "member_07_03 · top shop_05_01#11 0.94 recommended",
+          "kind": "search",
+          "text": "배송지연확쩡되면 알림톸옴? 못받았는데 알림함에서 재확인ㄱㄴ?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-SHOP-070",
+          "expected": "shop_05_05",
+          "got": "shop_02_03 · top shop_05_05#6 0.89 recommended",
+          "kind": "search",
+          "text": "오배송 건으로 새로 보내주신다는데 물건이 아직 안 나갔으면 배달될 장소를 고칠 수 있을까요?",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-SHOP-074",
+          "expected": "shop_06_02_1",
+          "got": "net_04_05 · top net_04_05#1 0.66 recommended",
+          "kind": "search",
+          "text": "초등 5학년인 딸아이 앞으로 P번호 하나 만들어주려는데요, 컴퓨터로만 신청된다고 하던데 맞나요? 제가 부모 인증하고 가족관계증명서 사진 5MB ",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-SHOP-095",
+          "expected": "shop_01_05",
+          "got": "shop_01_05 · top shop_01_05_1#1 0.87 recommended",
+          "kind": "search",
+          "text": "정기배송 신청하는 게 궁금해요",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-SHOP-097",
+          "expected": "shop_03",
+          "got": "card · top card#article 0.86 recommended",
+          "kind": "search",
+          "text": "결제가 헷갈려서 어떻게 해야 할지 몰라요",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-SHOP-103",
+          "expected": "shop_05_02",
+          "got": "shop_05_02_1 · top shop_05_02_1#1 0.90 recommended",
+          "kind": "search",
+          "text": "주문한 거랑 다르게 잘못 온 것 같아요",
+          "why": "route deep, wrong top1"
+        },
+        {
+          "case_id": "S-TAX-008",
+          "expected": "tax_01_03_2",
+          "got": "tax_01_04 · top tax_01_04#5 0.77 recommended",
+          "kind": "search",
+          "text": "인적용역 필요경비 60%",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-TAX-012",
+          "expected": "tax_01_05",
+          "got": "tax_06_04 · top tax_01_05#9 0.84 recommended",
+          "kind": "search",
+          "text": "필요경비 누락 경정청구 환급",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-TAX-035",
+          "expected": "tax_03_04_1",
+          "got": "tax_03_04 · top tax_03_04_1#4 0.92 recommended",
+          "kind": "search",
+          "text": "지난달 인테리어 공사 마치고 잔금까지 다 냈는데 사장님이 세금계산서는 못 끊어주겠다고 하네요. 계약서랑 입금내역은 있는데 제가 직접 받을 방법이",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-TAX-049",
+          "expected": "tax_04_04",
+          "got": "utility_06_04_1 · abstained · top utility_06_04_1#3 0.35 reference",
+          "kind": "search",
+          "text": "11월 고지서 두 번에 나눠 내면 두 번째 낼 돈에 수수료 같은 거 더해져요?",
+          "why": "route domain, abstained"
+        },
+        {
+          "case_id": "S-TAX-056",
+          "expected": "tax_05_03",
+          "got": "tax_01_03_2 · top tax_01_01#1 0.82 recommended",
+          "kind": "search",
+          "text": "이자 배당 합쳐 2천 넘었는데 신고해야됨?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-TAX-071",
+          "expected": "tax_07_01",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "qr 찍힌 종이로 편의점서 낼 수 있음? 어케 함?",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-TAX-078",
+          "expected": "tax_01",
+          "got": "tax_01 · top tax_01_02#2 0.75 recommended",
+          "kind": "search",
+          "text": "종합소득세 신고가 처음이라 막막해요",
+          "why": "wrong top1"
+        },
+        {
+          "case_id": "S-TRANSIT-016",
+          "expected": "transit_02_01",
+          "got": "transit_02 · top transit_02_01#4 0.91 recommended",
+          "kind": "search",
+          "text": "버스 상행 하행 구분",
+          "why": "route shallow"
+        },
+        {
+          "case_id": "S-TRANSIT-019",
+          "expected": "transit_02_02",
+          "got": "transit_01_02 · top transit_01_02#1 0.82 recommended",
+          "kind": "search",
+          "text": "토일이나 빨간날 이른 시간에 차 텀이 벌어지는데 사전에 알아보는 요령 있어?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-TRANSIT-022",
+          "expected": "transit_02_04",
+          "got": "transit_05_05 · top transit_05_05#4 0.81 recommended",
+          "kind": "search",
+          "text": "5살 4살 애 둘 데리고 타는데 둘 다 공짜야?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-TRANSIT-028",
+          "expected": "transit_03_01 · no answer",
+          "got": "transit_03_01 · top phone_05_03_1#5 0.76 recommended",
+          "kind": "search",
+          "text": "틱시앱이 자꾸 멈추고 호출버튼이 안눌려요 재설치순서 좀 알려주세요 ㅠㅠ",
+          "why": "answered unanswerable"
+        },
+        {
+          "case_id": "S-TRANSIT-037",
+          "expected": "transit_03_03",
+          "got": "transit_03_02_1 · top transit_03_03#1 0.90 recommended",
+          "kind": "search",
+          "text": "서울에서새벽 1시쯤 모범텍시 타면 할증붙나요? 기본욤금 얼마임 ㅠ",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-TRANSIT-042",
+          "expected": "transit_04_01 · no answer",
+          "got": "transit_04_01 · top transit_04_01#5 0.48 alternative",
+          "kind": "search",
+          "text": "잔액 1만원 환불할때 수수로 얼마임? ㅇㅋ 5천원 넘으면 얼마나 떼가는지 알려주셈 ㅠㅠ",
+          "why": "answered unanswerable"
+        },
+        {
+          "case_id": "S-TRANSIT-045",
+          "expected": "transit_04_03",
+          "got": "card_03_03 · top card_03_03_1#1 0.71 recommended",
+          "kind": "search",
+          "text": "분실카드 부정사용 보상신청",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-TRANSIT-046",
+          "expected": "transit_04_03",
+          "got": "card_03_01 · top transit_04_03#2 0.91 recommended",
+          "kind": "search",
+          "text": "후불 credit card 잃어버렸는데 first로 card사에 call 해야 돼요?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-TRANSIT-056",
+          "expected": "transit_05_01",
+          "got": "transit_01_02 · top transit_05_01#10 0.84 recommended",
+          "kind": "search",
+          "text": "새벽에 가장 먼저 출발하는 기차와 밤늦게 가장 나중에 떠나는 기차가 언제 있는지 사전에 알아보는 법 알려주세요",
+          "why": "route branch"
+        },
+        {
+          "case_id": "S-TRANSIT-071",
+          "expected": "transit_06_01",
+          "got": "null · abstained · top no items",
+          "kind": "search",
+          "text": "예약 끝냈는데 문자도 메일도 안 왔어 ㅠ 어디서 확인함?",
+          "why": "route false_none, abstained"
+        },
+        {
+          "case_id": "S-TRANSIT-075",
+          "expected": "transit_06_02_2",
+          "got": "transit_07_05 · top transit_07_05#8 0.52 alternative",
+          "kind": "search",
+          "text": "날씨청에서 정식으로 발효되기 전 미리 알려주는 수준의 알림만 나온 상태에서도 자연재해 사유로 잡아둔 방 물릴 수 있을까요?",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-TRANSIT-077",
+          "expected": "transit_06_03",
+          "got": "abroad_06_03 · top transit_06_03#3 0.91 recommended",
+          "kind": "search",
+          "text": "오전에 일찍 도착할것 같은데 얼리첵인 가능하나욬? 추가 요금얼마고 안되면 즘 보관 되나요?? ㅠ",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-TRANSIT-093",
+          "expected": "transit_07_04",
+          "got": "transit_06_01 · top transit_06_01#10 0.45 alternative",
+          "kind": "search",
+          "text": "What's the best order to combine those accommodation discount coupons with weekd",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-UTILITY-007",
+          "expected": "utility_01_03_1 · no answer",
+          "got": "utility · top utility_05_01#7 0.76 recommended",
+          "kind": "search",
+          "text": "계량기 못 보는데 예상으로 먼저 내면 돼? 나중에 차이만큼 빼줘?",
+          "why": "route shallow, answered unanswerable"
+        },
+        {
+          "case_id": "S-UTILITY-034",
+          "expected": "utility_03_04",
+          "got": "house_06_04 · top house_06_04#7 0.85 recommended",
+          "kind": "search",
+          "text": "예전 살던 분도 새로 들어올 분도 둘 다 그날 집에 못 있으면 낸 돈 마무리는 어떻게 하나요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-UTILITY-065",
+          "expected": "utility_06_02",
+          "got": "card_05_03 · top card_05_03#15 0.76 recommended",
+          "kind": "search",
+          "text": "아 어제 카드로 냈는데 오늘 또 같은 금액이 빠져서 두 번 결제된 것 같아요. 당일도 아닌데 이럴 땐 어디서 취소하고 환불은 며칠 정도 걸려요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-UTILITY-076",
+          "expected": "utility_07_01",
+          "got": "medical_04_03 · top utility_07_01#8 0.82 recommended",
+          "kind": "search",
+          "text": "이사 간 게 아니라 수급 탈락해서 자격 잃었는데 이대로 두면 안 되죠? 어디에 신고해야 해요?",
+          "why": "route domain"
+        },
+        {
+          "case_id": "S-UTILITY-082",
+          "expected": "utility_07_03_1",
+          "got": "shop_07_02 · top shop_07_02#6 0.61 alternative",
+          "kind": "search",
+          "text": "카드영수증 잃어버림ㅠ 카드사 내역 뽑으면 대체됨?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-UTILITY-084",
+          "expected": "utility_07_03_2",
+          "got": "civil_07_04 · top civil_07_04#3 0.67 recommended",
+          "kind": "search",
+          "text": "일반 식품 보관용 4도어 가전 통과되면 보조액 들어오는 날짜 미리 알아보는 법이 뭔가요?",
+          "why": "route domain, wrong top1"
+        },
+        {
+          "case_id": "S-UTILITY-085",
+          "expected": "utility_07_04",
+          "got": "utility_07_01 · top utility_07_01#4 0.54 alternative",
+          "kind": "search",
+          "text": "임산부 다자녀 증빙서류",
+          "why": "route branch, wrong top1"
+        },
+        {
+          "case_id": "S-UTILITY-097",
+          "expected": "utility_04_02",
+          "got": "utility_04_02 · top utility_05_03#3 0.81 recommended",
+          "kind": "search",
+          "text": "수도가 새는 것 같아 걱정돼요",
+          "why": "wrong top1"
+        }
+      ],
+      "route_errors": {
+        "branch": 139,
+        "deep": 5,
+        "domain": 127,
+        "exact": 1133,
+        "false_none": 20,
+        "false_tree": 12,
+        "shallow": 64
+      },
+      "router": "jev_llm",
+      "search": {
+        "confident": {
+          "hi": 0.8556162215128466,
+          "lo": 0.8156764548204348,
+          "n": 1316,
+          "value": 0.8366261398176292
+        },
+        "e2e": {
+          "hi": 0.8559077791215959,
+          "lo": 0.8177774373633286,
+          "n": 1436,
+          "value": 0.8377437325905293
+        },
+        "e2e_answerable": {
+          "hi": 0.8635321801594527,
+          "lo": 0.824429163080524,
+          "n": 1316,
+          "value": 0.8449848024316109
+        },
+        "e2e_unanswerable": {
+          "hi": 0.8261426675849666,
+          "lo": 0.6744968590361364,
+          "n": 120,
+          "value": 0.7583333333333333
+        },
+        "error_codes": {},
+        "errors": 0,
+        "false_abstain": {
+          "hi": 0.03938447880567956,
+          "lo": 0.021108840998757587,
+          "n": 1316,
+          "value": 0.028875379939209727
+        },
+        "false_answer": {
+          "hi": 0.32550314096386357,
+          "lo": 0.1738573324150334,
+          "n": 120,
+          "value": 0.24166666666666667
+        },
+        "hf": {
+          "hi": 0.8442455884444252,
+          "lo": 0.8090406564156359,
+          "n": 1436,
+          "value": 0.8266431224300306
+        },
+        "hit1": {
+          "hi": 0.8635321801594527,
+          "lo": 0.824429163080524,
+          "n": 1316,
+          "value": 0.8449848024316109
+        },
+        "hit1_given_route": {
+          "hi": 0.9860706976517459,
+          "lo": 0.9677571838552337,
+          "n": 989,
+          "value": 0.9787664307381193
+        },
+        "hit3": {
+          "hi": 0.880018248325229,
+          "lo": 0.8427957620832927,
+          "n": 1316,
+          "value": 0.8624620060790273
+        },
+        "hitk": {
+          "hi": 0.8857298198776725,
+          "lo": 0.8492068573720825,
+          "n": 1316,
+          "value": 0.8685410334346505
+        },
+        "llm_fallback": {
+          "hi": 0.0026680712656169956,
+          "lo": 0.0,
+          "n": 1436,
+          "value": 0.0
+        },
+        "mean_jev_calls": 3.7123955431754876,
+        "mean_jev_in": 36361.353064066854,
+        "mean_llm_calls": 0.5034818941504178,
+        "mean_llm_tokens": 3273.08356545961,
+        "mean_ms": 4604.0243732590525,
+        "mean_pool": 36.459610027855156,
+        "mean_route_ms": 4378.572423398328,
+        "mrr": {
+          "hi": 0.873268674564352,
+          "lo": 0.8359891775126492,
+          "n": 1316,
+          "value": 0.8546289260385006
+        },
+        "mrr_given_route": {
+          "hi": 0.9924711846611077,
+          "lo": 0.9807003690968973,
+          "n": 989,
+          "value": 0.9865857768790025
+        },
+        "n": 1436,
+        "ndcg": {
+          "hi": 0.8627894998292245,
+          "lo": 0.8260978528755358,
+          "n": 1316,
+          "value": 0.8444436763523802
+        },
+        "oos_f1": 0.8,
+        "oos_precision": {
+          "hi": 0.8443761814438567,
+          "lo": 0.6624506582197044,
+          "n": 81,
+          "value": 0.7654320987654321
+        },
+        "oos_recall": {
+          "hi": 0.904730299570778,
+          "lo": 0.7375997655871838,
+          "n": 74,
+          "value": 0.8378378378378378
+        },
+        "p50_ms": 1805,
+        "p90_ms": 11094,
+        "p95_ms": 13694,
+        "rec_precision": {
+          "hi": 0.8497899070748167,
+          "lo": 0.8125333368294869,
+          "n": 1246,
+          "value": 0.8311616219521518
+        },
+        "recall": {
+          "hi": 0.8864317629006704,
+          "lo": 0.8498904255491777,
+          "n": 1316,
+          "value": 0.868161094224924
+        },
+        "route_acc": {
+          "hi": 0.7764243252407292,
+          "lo": 0.7319649309107807,
+          "n": 1436,
+          "value": 0.754874651810585
+        }
+      },
+      "stability": null,
+      "sweep": [
+        {
+          "coverage": 0.9855623100303952,
+          "e2e": 0.8182451253481894,
+          "false_answer": 0.475,
+          "precision": 0.8212703101920237,
+          "threshold": 0.2
+        },
+        {
+          "coverage": 0.9840425531914894,
+          "e2e": 0.8231197771587744,
+          "false_answer": 0.4166666666666667,
+          "precision": 0.8267657992565056,
+          "threshold": 0.25
+        },
+        {
+          "coverage": 0.9787234042553191,
+          "e2e": 0.83008356545961,
+          "false_answer": 0.3333333333333333,
+          "precision": 0.8373493975903614,
+          "threshold": 0.3
+        },
+        {
+          "coverage": 0.9772036474164134,
+          "e2e": 0.8314763231197771,
+          "false_answer": 0.31666666666666665,
+          "precision": 0.8398791540785498,
+          "threshold": 0.35
+        },
+        {
+          "coverage": 0.9718844984802432,
+          "e2e": 0.8335654596100278,
+          "false_answer": 0.2833333333333333,
+          "precision": 0.8461538461538461,
+          "threshold": 0.4
+        },
+        {
+          "coverage": 0.9604863221884499,
+          "e2e": 0.8419220055710307,
+          "false_answer": 0.175,
+          "precision": 0.8638132295719845,
+          "threshold": 0.5
+        },
+        {
+          "coverage": 0.9460486322188449,
+          "e2e": 0.8419220055710307,
+          "false_answer": 0.15,
+          "precision": 0.8764845605700713,
+          "threshold": 0.6
+        },
+        {
+          "coverage": 0.9346504559270516,
+          "e2e": 0.8391364902506964,
+          "false_answer": 0.13333333333333333,
+          "precision": 0.8836276083467095,
+          "threshold": 0.65
+        }
+      ],
+      "variant": "full"
+    }
+  ],
+  "meta": {
+    "beam_width": "case/default",
+    "cases": 1500,
+    "command": "run --eval-dir eval/large --variant full --router jev_llm --sample 1500 --seed final --concurrency 8 --no-history --note large: final jev_llm (coarse map + BM25 + LLM review + rescue >= 0.75) --out eval/results/runs/20261021-large-jev_llm",
+    "concurrency": 8,
+    "dataset": {
+      "cases_hash": "ddb5a5ae0f57",
+      "kb_hash": "ebdb61493e54",
+      "name": "large-kb",
+      "version": "1.0.0"
+    },
+    "filter": "--sample 1500 --seed final",
+    "finished_at": "2026-10-21T15:34:21Z",
+    "git": {
+      "dirty": true,
+      "sha": "0d26b76"
+    },
+    "limit": "case/default",
+    "mock": "off",
+    "models": {
+      "jev_llm": {
+        "credentials": "env",
+        "jev_base_url": "https://api.typesafe.ai",
+        "jev_model": "jev-latest",
+        "llm_base_url": "https://proxy.zvzo.ai",
+        "llm_model": "meta/muse-spark-1.3-contributor"
+      }
+    },
+    "note": "large: final jev_llm (coarse map + BM25 + LLM review + rescue >= 0.75)",
+    "repeat": 1,
+    "routers": [
+      "jev_llm"
+    ],
+    "run_id": "20261021-151952-jev_llm",
+    "split": "all",
+    "started_at": "2026-10-21T15:19:52Z",
+    "suites": [
+      "all"
+    ],
+    "timeout_secs": 120,
+    "variants": [
+      "full"
+    ],
+    "verify_draft_search": false
+  }
+}
