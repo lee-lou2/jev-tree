@@ -60,6 +60,8 @@ pub struct Credentials {
     pub llm_base: String,
     pub llm_token: String,
     pub llm_model: String,
+    /// `reasoning_effort` for the LLM review. Empty means the server default (`low`).
+    pub llm_effort: String,
     pub source: String,
 }
 
@@ -87,6 +89,8 @@ impl Credentials {
                 .to_string(),
             llm_token: env_first(&["JEV_EVAL_LLM_TOKEN", "JEV_TREE_INIT_TOKEN"]),
             llm_model: env_first(&["JEV_EVAL_LLM_MODEL", "JEV_TREE_INIT_MODEL"]),
+            llm_effort: env_first(&["JEV_EVAL_LLM_EFFORT", "JEV_TREE_INIT_REASONING_EFFORT"])
+                .to_ascii_lowercase(),
             source: "env".into(),
         }
     }
@@ -142,6 +146,7 @@ impl Credentials {
             creds.llm_base = base.trim_end_matches('/').to_string();
             creds.llm_token = token;
             creds.llm_model = model;
+            creds.llm_effort = get("llm.reasoning_effort").trim().to_ascii_lowercase();
         }
         creds.source = format!("db:{}", path.display());
         Ok(creds)
@@ -172,6 +177,11 @@ impl Credentials {
             } else {
                 String::new()
             },
+            llm_reasoning_effort: if llm {
+                self.llm_effort.clone()
+            } else {
+                String::new()
+            },
         }
     }
 
@@ -182,6 +192,7 @@ impl Credentials {
             "jev_model": model,
             "jev_base_url": base,
             "llm_model": if router == Router::JevLlm { Some(self.llm_model.clone()) } else { None },
+            "llm_reasoning_effort": if router == Router::JevLlm { Some(self.llm_effort.clone()) } else { None },
             "llm_base_url": if router == Router::JevLlm { Some(self.llm_base.clone()) } else { None },
             "credentials": self.source,
         })

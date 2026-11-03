@@ -95,7 +95,9 @@ The route is **one Jev choice** (`flat_route`):
   only those, best first, the model agrees with Jev's mistakes (93% route accuracy on the
   golden queries against 97% with the whole menu). Confident picks never wait for it. The
   review gets a third of `JEV_TREE_RUN_TIMEOUT_SECS`; a failed or slow one keeps Jev's pick.
-  `trace.router` is `llm` when the review decided.
+  The call sends `reasoning_effort` from `llm_reasoning_effort` (default `low`); a higher level
+  thinks longer, so measure it against that budget before raising it. `trace.router` is `llm`
+  when the review decided.
 - A pick below 0.85 that no LLM reviewed gets **one more judgment on scope alone** ("does
   this tree cover the request at all"). Only a confident `out` (p ≥ 0.8) refuses; a hesitant
   one keeps the pick. A `start_node` walk must land on a node and never asks.

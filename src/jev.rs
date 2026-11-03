@@ -34,6 +34,8 @@ pub struct JevConfig {
     pub llm_base_url: String,
     pub llm_token: Option<String>,
     pub llm_model: String,
+    /// `reasoning_effort` for every LLM review call. Empty means `low`.
+    pub llm_reasoning_effort: String,
 }
 
 impl JevConfig {
@@ -50,6 +52,7 @@ impl JevConfig {
             .to_string();
         self.llm_token = Some(settings.llm_token.clone()).filter(|token| !token.trim().is_empty());
         self.llm_model = settings.llm_model.trim().to_string();
+        self.llm_reasoning_effort = settings.llm_reasoning_effort.trim().to_ascii_lowercase();
     }
 
     pub fn normalized(&self) -> (Option<String>, String, String) {
@@ -210,14 +213,7 @@ impl JevClient {
         let prompt = one_shot_prompt(abstain, &allowed, query, background, &lines);
         let mut meter = LlmMeter::default();
         let picked = self
-            .complete_id(
-                &creds.base,
-                &creds.token,
-                &creds.model,
-                &prompt,
-                &options,
-                &mut meter,
-            )
+            .complete_id(&creds, &prompt, &options, &mut meter)
             .await?;
         let choice_name = options
             .iter()
@@ -247,6 +243,7 @@ impl JevClient {
             base: config.llm_base_url.clone(),
             token: config.llm_token.clone().unwrap_or_default(),
             model: config.llm_model.clone(),
+            effort: config.llm_reasoning_effort.clone(),
         };
         if creds.token.trim().is_empty()
             || creds.model.trim().is_empty()
@@ -259,14 +256,12 @@ impl JevClient {
 
     async fn complete_id(
         &self,
-        base: &str,
-        token: &str,
-        model: &str,
+        creds: &LlmCreds,
         user: &str,
         choices: &[(String, String)],
         meter: &mut LlmMeter,
     ) -> Result<String, JevError> {
-        let content = self.chat(base, token, model, user, meter).await?;
+        let content = self.chat(creds, user, meter).await?;
         if let Some(id) = parse_final_choice(&content, choices) {
             return Ok(id);
         }
@@ -274,40 +269,31 @@ impl JevClient {
             "{user}\n\n이전 답변에서 id를 찾을 수 없었습니다. \
              설명·근거·마크다운 없이, 허용된 id 하나만 한 줄로 다시 쓰세요."
         );
-        let content = self.chat(base, token, model, &retry, meter).await?;
+        let content = self.chat(creds, &retry, meter).await?;
         parse_final_choice(&content, choices)
             .ok_or_else(|| JevError::Invalid("LLM route did not return an allowed id".into()))
     }
 
     async fn chat(
         &self,
-        base: &str,
-        token: &str,
-        model: &str,
+        creds: &LlmCreds,
         user: &str,
         meter: &mut LlmMeter,
     ) -> Result<String, JevError> {
-        let url = chat_completions_url(base);
-        let messages = json!([
-            {"role": "system", "content": "분류기입니다. 마지막 줄에는 허용된 id 하나만 씁니다."},
-            {"role": "user", "content": user},
-        ]);
-        let mut payload = json!({
-            "model": model,
-            "reasoning_effort": "low",
-            // A reasoning model bills its thinking against max_tokens, and the
-            // menu can name every node in scope. 900 was too small: the reply
-            // budget went to deliberation and `content` came back empty, which
-            // is what the "LLM returned no content" and "did not return an
-            // allowed id" warnings were. The answer is one id, so this is pure
-            // thinking headroom — cheap insurance against a truncated reply.
-            "max_tokens": ROUTE_MAX_TOKENS,
-            "messages": messages,
-        });
+        let url = chat_completions_url(&creds.base);
+        let token = creds.token.as_str();
+        let mut payload = chat_payload(&creds.model, &creds.effort, user);
         let first = match self.post_chat(&url, token, &payload, meter).await {
             Err(JevError::Status(400)) => {
                 // The endpoint may reject the thinking knob or a ceiling above
                 // its own. Shrink the budget so an oversized ask still routes.
+                // Say so: a mistyped level would otherwise run unnoticed at the
+                // endpoint's default.
+                tracing::warn!(
+                    model = %creds.model,
+                    effort = effective_effort(&creds.effort),
+                    "llm rejected the request (HTTP 400); retrying without the thinking knob"
+                );
                 plain_chat_payload(&mut payload);
                 shrink_max_tokens(&mut payload);
                 self.post_chat(&url, token, &payload, meter).await?
@@ -603,6 +589,7 @@ struct LlmCreds {
     base: String,
     token: String,
     model: String,
+    effort: String,
 }
 
 /// The one-shot routing prompt: every node in `lines`, pick one. Shared by the
@@ -719,6 +706,35 @@ const ROUTE_MAX_TOKENS: u32 = 16384;
 /// Ceiling for endpoints whose own cap is below [`ROUTE_MAX_TOKENS`]. Used only
 /// after a 400, so the common path keeps the full budget.
 const ROUTE_MAX_TOKENS_FALLBACK: u32 = 4096;
+
+/// Thinking level when the settings leave it empty.
+const DEFAULT_REASONING_EFFORT: &str = "low";
+
+fn effective_effort(configured: &str) -> &str {
+    let configured = configured.trim();
+    if configured.is_empty() {
+        DEFAULT_REASONING_EFFORT
+    } else {
+        configured
+    }
+}
+
+/// One routing question as a chat request. `max_tokens` is thinking headroom,
+/// not reply length: a reasoning model bills its deliberation against it, and
+/// 900 was too small — the budget went to thinking and `content` came back
+/// empty, which is what the "LLM returned no content" and "did not return an
+/// allowed id" warnings were.
+fn chat_payload(model: &str, effort: &str, user: &str) -> Value {
+    json!({
+        "model": model,
+        "reasoning_effort": effective_effort(effort),
+        "max_tokens": ROUTE_MAX_TOKENS,
+        "messages": [
+            {"role": "system", "content": "분류기입니다. 마지막 줄에는 허용된 id 하나만 씁니다."},
+            {"role": "user", "content": user},
+        ],
+    })
+}
 
 fn plain_chat_payload(payload: &mut Value) {
     if let Some(map) = payload.as_object_mut() {
@@ -908,6 +924,32 @@ mod tests {
         assert_eq!(model, "jev-latest");
         assert_eq!(config.llm_model, "gpt-4o-mini");
         assert_eq!(config.llm_base_url, "https://api.openai.com/v1");
+        assert_eq!(config.llm_reasoning_effort, "");
+    }
+
+    #[test]
+    fn the_configured_thinking_level_reaches_the_llm_request() {
+        let mut config = JevConfig::default();
+        config.with_db(&crate::models::AppSettings {
+            llm_reasoning_effort: " MAX ".into(),
+            ..Default::default()
+        });
+        assert_eq!(config.llm_reasoning_effort, "max");
+        let payload = chat_payload("m", &config.llm_reasoning_effort, "질문");
+        assert_eq!(payload["reasoning_effort"], "max");
+        assert_eq!(payload["model"], "m");
+        assert_eq!(payload["messages"][1]["content"], "질문");
+    }
+
+    #[test]
+    fn an_empty_thinking_level_keeps_the_old_default() {
+        assert_eq!(chat_payload("m", "", "q")["reasoning_effort"], "low");
+        assert_eq!(chat_payload("m", "  ", "q")["reasoning_effort"], "low");
+        // A rejected knob is dropped, not retried with the same value.
+        let mut payload = chat_payload("m", "max", "q");
+        plain_chat_payload(&mut payload);
+        assert!(payload.get("reasoning_effort").is_none());
+        assert_eq!(payload["temperature"], 0);
     }
 
     #[test]

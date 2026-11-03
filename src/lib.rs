@@ -84,6 +84,9 @@ pub fn seed_settings_from_env(store: &Store) {
     if let Ok(v) = env::var("JEV_TREE_INIT_MODEL") {
         seed_plain("llm.model", v);
     }
+    if let Ok(v) = env::var("JEV_TREE_INIT_REASONING_EFFORT") {
+        seed_plain("llm.reasoning_effort", v.trim().to_ascii_lowercase());
+    }
     if let Ok(v) = env::var("JEV_TREE_INIT_SERVER_KEY") {
         let v = v.trim().to_string();
         if v.chars().count() >= crate::secret::PASSWORD_MIN_CHARS

@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.10.1
+
+### Added
+
+- **The LLM review's thinking level is a setting.** `llm_reasoning_effort` (Settings → Models,
+  `PATCH /api/settings`, boot seed `JEV_TREE_INIT_REASONING_EFFORT`) is sent as
+  `reasoning_effort` with every review. It was fixed at `low`; empty still means `low`. A level
+  the endpoint rejects is dropped from the call and now logged (`llm rejected the request (HTTP
+  400)…`) instead of running unnoticed at the endpoint's default. The eval runner reads it too
+  (`JEV_EVAL_LLM_EFFORT`, or the saved setting with `--settings-db`) and records it with the run.
+
+### Measured
+
+`muse-wonder-1.0-contributor` at `max` against `muse-spark-1.3-contributor` at `low` (the 0.10.0
+setting). Golden set, `standard` tree, 524 cases, paired, Jev `jev-latest` (answers as
+`jev-1.14.0`):
+
+| | E2E | route | Hit@1 | p50 | p95 | LLM tokens / search |
+|---|---:|---:|---:|---:|---:|---:|
+| Jev | 98.0% | 95.5% | 97.6% | 0.5s | 0.8s | – |
+| + review, spark · low | 98.2% | 96.8% | 97.9% | 0.5s | 4.9s | 2.2K |
+| + review, wonder · max | 98.4% | 96.6% | 98.4% | 0.5s | 8.1s | 2.3K |
+
+spark·low → wonder·max: E2E +0.2pp (p=1.0), route −0.2pp (p=1.0), Hit@1 +0.5pp (p=0.63). The
+set is saturated near 98%, so it cannot tell the two apart; 0 errors in either run, and the
+share of requests the LLM reviewed is the same (17%). What changes is the tail.
+
+One profile subtree of the live Ziia tree (`store-partners`), 24 hand-written questions, run one
+at a time. Review latency, the 14–15 of 24 questions the LLM reviewed:
+
+| review | p50 | p90 | max | picks that differ from wonder·max |
+|---|---:|---:|---:|---:|
+| spark · low | 8.3s | 12.8s | 13.8s | 3 |
+| wonder · high | 10.8s | 14.5s | 15.0s | 0 |
+| wonder · xhigh | 12.9s | 19.3s | 23.0s | 2 |
+| wonder · max | 14.1s | 23.9s | 36.3s | – |
+
+The review gets a third of the run deadline (40s by default). At `max` the slowest review came
+within 4s of it, and one request under load ran past it (the Jev pick stood). `high` chose the
+same nodes as `max` on all 24 questions at a lower tail.
+
 ## 0.10.0
 
 Built and measured against a new benchmark ten times the golden set's size
