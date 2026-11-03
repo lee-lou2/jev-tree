@@ -568,6 +568,20 @@ async fn patch_settings(
         state.store.setting_set("llm.model", &model)?;
         changed.push("llm_model");
     }
+    if let Some(effort) = patch.llm_reasoning_effort {
+        let effort = effort.trim().to_ascii_lowercase();
+        if effort.chars().count() > 16
+            || !effort
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            return Err(Error::BadRequest(
+                "reasoning effort must be a short level name such as low, high or max".into(),
+            ));
+        }
+        state.store.setting_set("llm.reasoning_effort", &effort)?;
+        changed.push("llm_reasoning_effort");
+    }
     if let Some(server_key) = patch.server_key {
         if server_key.trim().is_empty() {
             state.store.setting_set("auth.server_key_hash", "")?;
@@ -1507,6 +1521,63 @@ mod tests {
             session,
             issued["key"].as_str().unwrap().to_string(),
         )
+    }
+
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
+    async fn the_review_thinking_level_is_saved_validated_and_hot_swapped() {
+        use axum::http::StatusCode;
+        let (_guard, _dir, db, static_dir) = test_paths();
+        let (app, state) = test_router(&db, &static_dir);
+
+        let (status, saved) = send(
+            &app,
+            json_req(
+                "PATCH",
+                "/api/settings",
+                json!({"llm_reasoning_effort": " MAX "}),
+                None,
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{saved}");
+        assert_eq!(saved["settings"]["llm_reasoning_effort"], "max");
+        assert_eq!(
+            state.store.load_settings().unwrap().llm_reasoning_effort,
+            "max"
+        );
+
+        for junk in ["ma x", "max!", "a-level-name-that-is-too-long", "한글"] {
+            let (status, error) = send(
+                &app,
+                json_req(
+                    "PATCH",
+                    "/api/settings",
+                    json!({ "llm_reasoning_effort": junk }),
+                    None,
+                ),
+            )
+            .await;
+            assert_eq!(status, StatusCode::BAD_REQUEST, "{junk}: {error}");
+            assert_eq!(error["code"], "invalid_request", "{junk}");
+        }
+        // A rejected patch leaves the saved level alone; an empty one returns to the default.
+        assert_eq!(
+            state.store.load_settings().unwrap().llm_reasoning_effort,
+            "max"
+        );
+        let (status, cleared) = send(
+            &app,
+            json_req(
+                "PATCH",
+                "/api/settings",
+                json!({"llm_reasoning_effort": ""}),
+                None,
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{cleared}");
+        assert_eq!(cleared["settings"]["llm_reasoning_effort"], "");
     }
 
     #[tokio::test]

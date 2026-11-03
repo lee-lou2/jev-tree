@@ -242,6 +242,7 @@ Settings and keys need a login session; an API key gets 403.
 | `site_logo` | PNG/JPEG/SVG/WebP data URL ≤ 500 KB, or `null` to clear |
 | `jev_api_key` | Required. Search, ingest, and ranking use it. `""` clears it; runs then return 400 and `evaluator` becomes `unconfigured` |
 | `llm_base_url` / `llm_token` / `llm_model` | Optional. When all three are set, the model **reviews** every route Jev is unsure of (chosen probability below 0.8): it reads the same menu Jev chose from and picks the node, or `__none__` where the walk may abstain. Confident picks never wait for it. Clearing any of the three, or a failed or slow call, keeps Jev's pick. Item ranking always uses Jev. The same credentials list models. |
+| `llm_reasoning_effort` | Optional, ≤ 16 characters of letters, digits, `-` or `_`. The thinking level sent as `reasoning_effort` with every LLM review. `""` (the default) sends `low`. Higher levels think longer, so a review can outlast its time budget (a third of the run deadline) and be dropped. A level the endpoint rejects is dropped from the request and logged |
 | `server_key` | Login password, ≥ 6 characters; `""` turns login off (open mode). Stored as an Argon2id hash; a hash from before 0.9 is replaced at the next login |
 
 In the UI, Jev and LLM settings live under **Settings → Models**. The login password and

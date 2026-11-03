@@ -441,6 +441,7 @@ impl Store {
             llm_base_url: get("llm.base_url")?,
             llm_token: decrypted("llm.token")?,
             llm_model: get("llm.model")?,
+            llm_reasoning_effort: get("llm.reasoning_effort")?,
         })
     }
 

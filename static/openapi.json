@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "jev-tree API",
-    "version": "0.10.0",
+    "version": "0.10.1",
     "description": "Hierarchical knowledge service: model-driven tree descent over SQLite. Search and ingest are the same descent. A `root` path (`products`, `products/products_stock`) makes that node the virtual tree. Settings and keys stay project-wide. Human companion: docs/api.md. Browsable: GET /docs."
   },
   "servers": [
@@ -487,6 +487,10 @@
           },
           "llm_model": {
             "type": "string"
+          },
+          "llm_reasoning_effort": {
+            "type": "string",
+            "description": "Thinking level sent with every LLM review (`low`, `high`, `max`, …). Empty means `low`."
           }
         }
       },
@@ -1597,6 +1601,11 @@
                   "llm_model": {
                     "type": "string",
                     "maxLength": 120
+                  },
+                  "llm_reasoning_effort": {
+                    "type": "string",
+                    "maxLength": 16,
+                    "description": "Level name made of letters, digits, `-` or `_` (for example `low`, `high`, `max`). `\"\"` returns to the default, `low`. The endpoint validates the value; one it rejects is dropped and the call retried without it."
                   },
                   "server_key": {
                     "type": "string"

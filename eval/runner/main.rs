@@ -137,6 +137,7 @@ credentials (never written to results)
        optional JEV_EVAL_JEV_MODEL, JEV_EVAL_JEV_BASE_URL
   LLM: JEV_EVAL_LLM_BASE_URL | JEV_TREE_INIT_BASE_URL, JEV_EVAL_LLM_TOKEN | JEV_TREE_INIT_TOKEN,
        JEV_EVAL_LLM_MODEL | JEV_TREE_INIT_MODEL
+       optional JEV_EVAL_LLM_EFFORT | JEV_TREE_INIT_REASONING_EFFORT (reasoning_effort, default low)
 
 common options
   --eval-dir DIR                    dataset root (default: eval)

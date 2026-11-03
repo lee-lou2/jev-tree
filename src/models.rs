@@ -247,6 +247,10 @@ pub struct AppSettings {
     /// Model id on `llm_base_url`. Empty disables LLM routing.
     #[serde(default)]
     pub llm_model: String,
+    /// Thinking level sent as `reasoning_effort` with every LLM review call
+    /// (`low`, `high`, `max`, …). Empty means `low`.
+    #[serde(default)]
+    pub llm_reasoning_effort: String,
 }
 
 impl AppSettings {
@@ -264,6 +268,7 @@ impl AppSettings {
             "llm_token_set": !self.llm_token.is_empty(),
             "llm_token_hint": mask_secret(&self.llm_token),
             "llm_model": self.llm_model,
+            "llm_reasoning_effort": self.llm_reasoning_effort,
         })
     }
 }
@@ -293,6 +298,7 @@ pub struct SettingsPatch {
     pub llm_base_url: Option<String>,
     pub llm_token: Option<String>,
     pub llm_model: Option<String>,
+    pub llm_reasoning_effort: Option<String>,
     /// Rotate the login password. Empty string clears it (open mode).
     pub server_key: Option<String>,
 }

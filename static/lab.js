@@ -1264,6 +1264,15 @@ async function askLogin(site) {
 // --- settings modal ---
 const settingsUI = { tab: "site", data: null };
 
+// Thinking levels the LLM review can ask for. Empty keeps the server default (low).
+const EFFORT_LEVELS = ["", "minimal", "low", "medium", "high", "xhigh", "max"];
+function effortOptions(current) {
+  const levels = EFFORT_LEVELS.includes(current) ? EFFORT_LEVELS : [...EFFORT_LEVELS, current];
+  return levels
+    .map((v) => `<option value="${esc(v)}"${v === current ? " selected" : ""}>${v ? esc(v) : "default (low)"}</option>`)
+    .join("");
+}
+
 function renderSettings() {
   const d = settingsUI.data || {};
   document.querySelectorAll("#settings .tabs button").forEach((b) =>
@@ -1306,7 +1315,10 @@ function renderSettings() {
       `<div class="field"><label for="setModel">LLM model</label>` +
       `<div class="row" style="margin-top:0"><select id="setModel" style="flex:1"></select>` +
       `<button id="setFetchModels" type="button" class="ghost">Fetch</button></div>` +
-      `<div class="hint">A failed fetch clears the list. Only fetched models can be selected.</div></div>`;
+      `<div class="hint">A failed fetch clears the list. Only fetched models can be selected.</div></div>` +
+      `<div class="field"><label for="setEffort">LLM reasoning effort</label>` +
+      `<select id="setEffort">${effortOptions(d.llm_reasoning_effort || "")}</select>` +
+      `<div class="hint">Thinking level sent with each review. Higher is slower; a review that outlasts its time budget is dropped and Jev's pick stands.</div></div>`;
     const fetchNow = () => fetchModelsInto(
       $("setModel"),
       $("setBaseUrl").value.trim(),
@@ -1423,6 +1435,7 @@ async function saveSettings() {
       patch.llm_base_url = $("setBaseUrl").value.trim();
       if ($("setToken").value.trim()) patch.llm_token = $("setToken").value.trim();
       if ($("setModel").value) patch.llm_model = $("setModel").value;
+      patch.llm_reasoning_effort = $("setEffort").value;
     } else {
       const v = $("setServerKey")?.value.trim() || "";
       if (v) patch.server_key = v;
