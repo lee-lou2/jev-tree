@@ -10,6 +10,7 @@ pub mod jev;
 pub mod models;
 pub mod recall;
 pub mod secret;
+pub mod serve;
 pub mod store;
 
 use crate::error::Error;
