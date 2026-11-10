@@ -169,7 +169,7 @@ pub async fn execute(
             root = request.root.as_deref().unwrap_or(""),
             leaf = result.category_id.as_deref().unwrap_or(""),
             router = %result.trace.router,
-            route_p = result.trace.score.unwrap_or(-1.0),
+            route_p = %shown(result.trace.score),
             item = %item.id,
             status = %item.status,
             updated,
@@ -285,12 +285,12 @@ pub async fn execute(
             root = request.root.as_deref().unwrap_or(""),
             leaf = leaf.as_deref().unwrap_or(""),
             router = %trace.router,
-            route_p = trace.score.unwrap_or(-1.0),
+            route_p = %shown(trace.score),
             route_leaf = trace.leaf_id.as_deref().unwrap_or(""),
             pool,
             abstained,
             top = items.first().map_or("", |item| item.item.id.as_str()),
-            top_score = items.first().map_or(-1.0, |item| item.score),
+            top_score = %shown(items.first().map(|item| item.score)),
             ms = started.elapsed().as_millis() as u64,
             query = %logged(&text),
             "run"
@@ -327,6 +327,11 @@ fn logged(text: &str) -> String {
         .take(200)
         .map(|c| if c.is_control() { ' ' } else { c })
         .collect()
+}
+
+/// A probability or score as a log line shows it: three decimals, `-` for none.
+fn shown(value: Option<f64>) -> String {
+    value.map_or_else(|| "-".into(), |value| format!("{value:.3}"))
 }
 
 /// The path from the top of the walk down to `id`, as a response shows it.
@@ -802,8 +807,8 @@ async fn flat_route(
         let llm = pick.as_deref().unwrap_or("__none__");
         tracing::info!(
             jev = %choice,
-            jev_p = score.unwrap_or(-1.0),
-            llm,
+            jev_p = %shown(score),
+            llm = %llm,
             changed = llm != choice,
             ms = asked.elapsed().as_millis() as u64,
             "llm review"
@@ -953,10 +958,17 @@ fn runners_up(
 
 /// Below this chosen probability a configured LLM reviews Jev's pick. On the
 /// golden set's `standard` tree most of Jev's route errors sit below it (22 of
-/// 28) while 83% of requests sit above and never wait for the LLM; reviewing
-/// those 13-15% matched an LLM that routes everything (E2E 98.4% vs 97.7%) at a
-/// tenth of the median latency. A big tree leaves Jev unsure more often: 50% of
-/// requests were reviewed on the 1,902-node benchmark.
+/// 28 in 0.10) while most requests sit above and never wait for the LLM.
+///
+/// What the review is worth since the menu shows filed questions (0.11,
+/// reviewer `muse-ember-1.0` at `low`): it settles 9% of golden requests, 27%
+/// on the 1,902-node benchmark and 45% on a live customer-support tree. A
+/// search gains little, because the pool already holds the answer when the
+/// route is one node off: right node 84.9% -> 87.3% and E2E 88.5% -> 89.2% on
+/// the benchmark, nothing measurable on the other two. An ingest gains a lot,
+/// because there the node is the result: Q&As filed in the right node went
+/// from 122 to 134 of 160 on the benchmark and from 66 to 68 of 68 on golden.
+/// Its price is the tail: p95 of a search 1 s without it, 7-9 s with.
 const LLM_REVIEW_BELOW: f64 = 0.8;
 
 /// A configured LLM reviews only doubtful picks: a confident one never waits.
