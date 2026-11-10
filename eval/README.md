@@ -69,6 +69,11 @@ DB에 없거나 덮어쓸 때만 환경 변수를 씁니다(앞 것이 우선).
 | Jev 모델·주소 | `JEV_EVAL_JEV_MODEL` (기본 `jev-latest`), `JEV_EVAL_JEV_BASE_URL` |
 | LLM (`jev_llm`) | `JEV_EVAL_LLM_BASE_URL`, `JEV_EVAL_LLM_TOKEN`, `JEV_EVAL_LLM_MODEL` |
 
+`jev-latest`는 별칭이라 TypeSafe가 새 버전을 내면 가리키는 모델이 바뀝니다. 러너는 응답에 실린
+실제 버전(`jev-1.14.0` 등)을 케이스마다 기록하고, 실행의 `meta.json`(`models.<router>.jev_answered_as`)과
+`report.md`의 모델 줄에 남깁니다. 두 실행의 수치는 같은 버전이 답했을 때만 그대로 비교할 수 있습니다.
+버전을 고정해 재려면 `JEV_EVAL_JEV_MODEL=jev-1.14.0`처럼 버전 ID를 줍니다.
+
 키와 토큰은 어떤 결과 파일에도 남지 않습니다. `eval/tools/secret-scan.sh`로 검사합니다.
 
 ## 어떻게 도는가

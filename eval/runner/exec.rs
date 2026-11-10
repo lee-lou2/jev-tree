@@ -253,6 +253,10 @@ pub struct SearchOut {
     /// Evaluator calls and billed input tokens, from the run's `usage` events.
     #[serde(default)]
     pub cost: Cost,
+    /// The versioned Jev model that answered, from the same events. An alias
+    /// (`jev-latest`) moves between releases; this is what the case really met.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jev_model: Option<String>,
 }
 
 /// What one run paid, read off its `usage` events. Zero on records made before
@@ -295,6 +299,8 @@ pub struct IngestStep {
     pub ms: u64,
     #[serde(default)]
     pub cost: Cost,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jev_model: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -334,6 +340,27 @@ pub struct Record {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contract: Option<ContractOut>,
     pub score: Score,
+}
+
+impl Record {
+    /// Every versioned Jev model that answered a call of this case.
+    pub fn jev_models(&self) -> impl Iterator<Item = &str> {
+        let ingest = self.ingest.as_ref();
+        [
+            self.search
+                .as_ref()
+                .and_then(|out| out.jev_model.as_deref()),
+            ingest.and_then(|out| out.draft.jev_model.as_deref()),
+            ingest
+                .and_then(|out| out.publish.as_ref())
+                .and_then(|step| step.jev_model.as_deref()),
+            ingest
+                .and_then(|out| out.probe.as_ref())
+                .and_then(|out| out.jev_model.as_deref()),
+        ]
+        .into_iter()
+        .flatten()
+    }
 }
 
 pub fn facets(kb: &Kb, case: &Case, resolved: &Resolved) -> BTreeMap<String, String> {
@@ -387,6 +414,7 @@ struct Events {
     pool: Option<usize>,
     descent_done: Option<Instant>,
     cost: Cost,
+    jev_model: Option<String>,
 }
 
 async fn collect(mut rx: mpsc::Receiver<Value>) -> Events {
@@ -414,6 +442,9 @@ async fn collect(mut rx: mpsc::Receiver<Value>) -> Events {
                 } else {
                     events.cost.jev_calls += 1;
                     events.cost.jev_in += tokens("input_tokens");
+                    if let Some(model) = value["model"].as_str() {
+                        events.jev_model = Some(model.to_string());
+                    }
                 }
             }
             _ => {}
@@ -497,6 +528,7 @@ async fn search(
         ms,
         route_ms,
         cost: events.cost,
+        jev_model: events.jev_model,
         ..Default::default()
     };
     match result {
@@ -537,6 +569,7 @@ async fn ingest_step(state: &AppState, request: RunRequest, timeout: Duration) -
         llm_calls: events.llm_calls,
         ms,
         cost: events.cost,
+        jev_model: events.jev_model,
         ..Default::default()
     };
     match result {

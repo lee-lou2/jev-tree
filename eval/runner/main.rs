@@ -16,7 +16,7 @@ use data::{Case, Findings, Kb, Variant};
 use exec::{Credentials, Mock, Record, Router, Settings};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -514,6 +514,7 @@ fn cmd_run(args: &Args) -> Result<(), String> {
     }
     std::fs::create_dir_all(out_dir.join("cells")).map_err(|e| e.to_string())?;
     let mut cells = Vec::new();
+    let mut answered: BTreeMap<&str, BTreeSet<String>> = BTreeMap::new();
     for (router, variant, runnable) in plan {
         if runnable.is_empty() {
             continue;
@@ -543,7 +544,20 @@ fn cmd_run(args: &Args) -> Result<(), String> {
                 .join(format!("{}__{}.jsonl", router.name(), variant.name)),
             &records,
         )?;
+        answered.entry(router.name()).or_default().extend(
+            records
+                .iter()
+                .flat_map(exec::Record::jev_models)
+                .map(str::to_string),
+        );
         cells.push(score::summarize(router.name(), &variant.name, &records));
+    }
+    // What the alias resolved to, per router: results from two runs compare
+    // only when the same version answered both.
+    for (router, models) in answered {
+        if !models.is_empty() {
+            meta["models"][router]["jev_answered_as"] = json!(models);
+        }
     }
     let (finished_at, _) = utc_now();
     meta["finished_at"] = json!(finished_at);

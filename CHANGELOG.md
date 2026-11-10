@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Added
+
+- **A run says which Jev version answered it.** The server asks for the alias `jev-latest`,
+  and TypeSafe moves that alias when a release ships (it resolves to `jev-1.14.0`, released
+  14 October 2026; before that, to `jev-1.13.0`). The reply names the versioned id, and it
+  was read and dropped. A Jev `usage` event now carries it as `model`, the eval runner stores it with
+  every case, and a run's `meta.json` (`models.<router>.jev_answered_as`) and `report.md` list
+  the versions that answered. The thresholds in `src/engine.rs` were measured against a
+  version: two runs compare only when the same one answered both.
+
+### Changed
+
+- **Dependencies are at their newest releases.** `rusqlite` 0.40 → 0.41 (bundled SQLite,
+  `libsqlite3-sys` 0.38 → 0.39), `tokio` 1.53 → 1.54, `hyper` 1.11 → 1.12, `rustls` 0.23.45 →
+  0.23.46, `uuid` 1.26 → 1.29, `serde_json` 1.0.151 → 1.0.154, `sha2` 0.11.0 → 0.11.1, and
+  the rest of `Cargo.lock`. Every other direct dependency already was; `matchit` stays at
+  0.8.4 because `axum` 0.8.9 pins it. No source change was needed.
+- **CI runs the eval runner's own tests.** `cargo test --locked` built the `eval` example but
+  never ran the tests inside it (scoring, report, dataset checks). CI now also runs
+  `cargo test --locked --example eval`.
+
 ### Fixed
 
 - **A client that finishes sending right after its request no longer gets an empty reply.**

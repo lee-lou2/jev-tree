@@ -193,7 +193,7 @@ Same request body, `text/event-stream` response, one JSON object per `data:` lin
 | `retrieval_completed` | `count`, `category_id` |
 | `candidate_evaluated` | `item_id`, `score`, `role` |
 | `descent_done` | `leaf_id`, `path`, `score`, `trace` |
-| `usage` | one model call: `source` (`jev` or `llm`), `input_tokens`, `output_tokens` (`llm` adds `calls`) |
+| `usage` | one model call: `source` (`jev` or `llm`), `input_tokens`, `output_tokens` (`llm` adds `calls`; `jev` adds `model`, the versioned id that answered, e.g. `jev-1.14.0` behind the alias `jev-latest`) |
 | `cache_hit` | the search was answered from the result cache; `descent_done` and `search_done` follow, no model call |
 | `search_done` | full search result |
 | `ingest_draft` | `item` (includes the draft id and version), `duplicate_ids`, `path`, `trace` |

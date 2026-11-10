@@ -14,13 +14,16 @@ pub async fn emit(sender: &Option<mpsc::Sender<Value>>, value: Value) {
 }
 
 /// Tell the listener what one model call cost: a `usage` event per call, so a
-/// run's price can be read off its own stream.
-async fn emit_usage(sender: &Option<mpsc::Sender<Value>>, source: &str, usage: Usage) {
-    emit(
-        sender,
-        json!({"type":"usage","source":source,"input_tokens":usage.input_tokens,"output_tokens":usage.output_tokens}),
-    )
-    .await;
+/// run's price can be read off its own stream. `model` is the versioned id that
+/// answered, taken from the reply. An alias such as `jev-latest` moves when a
+/// release ships, and every threshold here was measured against a version, so
+/// a run has to be able to say which one it met.
+async fn emit_usage(sender: &Option<mpsc::Sender<Value>>, source: &str, model: &str, usage: Usage) {
+    let mut event = json!({"type":"usage","source":source,"input_tokens":usage.input_tokens,"output_tokens":usage.output_tokens});
+    if !model.is_empty() {
+        event["model"] = json!(model);
+    }
+    emit(sender, event).await;
 }
 
 /// One evaluator call, reported as a `usage` event.
@@ -31,7 +34,7 @@ async fn judge(
     questions: BTreeMap<String, Question>,
 ) -> Result<Judgment, crate::jev::JevError> {
     let judgment = state.jev.evaluate(payload, questions).await?;
-    emit_usage(sender, "jev", judgment.usage).await;
+    emit_usage(sender, "jev", &judgment.model, judgment.usage).await;
     Ok(judgment)
 }
 
@@ -1895,7 +1898,7 @@ async fn rank(
     let mut ranked = Vec::with_capacity(items.len());
     while let Some(batch) = judged.next().await {
         let (range, judgment) = batch?;
-        emit_usage(&sender, "jev", judgment.usage).await;
+        emit_usage(&sender, "jev", &judgment.model, judgment.usage).await;
         // Nobody is listening any more: stop before paying for more calls.
         if sender.as_ref().is_some_and(mpsc::Sender::is_closed) {
             return Err(Error::Cancelled);
@@ -2755,6 +2758,31 @@ mod tests {
             events.push(event);
         }
         events
+    }
+
+    #[tokio::test]
+    async fn every_jev_usage_event_names_the_model_that_answered() {
+        let (_dir, state) = fixture_state();
+        state.jev.script_choices(vec!["orders_tracking".into()]);
+        let events = events_of(&state, "해외 배송이 통관에서 멈췄어요").await;
+        let calls: Vec<&Value> = events
+            .iter()
+            .filter(|e| e["type"] == "usage" && e["source"] == "jev")
+            .collect();
+        assert!(calls.len() >= 2, "the route and the ranking: {events:?}");
+        assert!(calls.iter().all(|e| e["model"] == "script"), "{calls:?}");
+        // The id comes from the reply, not from the alias the request named.
+        let judgment: Judgment = serde_json::from_value(json!({
+            "answers": {},
+            "model": "jev-1.14.0",
+            "usage": {"input_tokens": 7}
+        }))
+        .unwrap();
+        assert_eq!(judgment.model, "jev-1.14.0");
+        // A reply that names no model leaves the field out instead of guessing.
+        let (tx, mut rx) = mpsc::channel(1);
+        emit_usage(&Some(tx), "jev", "", Usage::default()).await;
+        assert!(rx.try_recv().unwrap().get("model").is_none());
     }
 
     #[tokio::test]

@@ -369,8 +369,10 @@ pub struct Usage {
 #[derive(Debug, Deserialize, Clone)]
 pub struct Judgment {
     pub answers: BTreeMap<String, Answer>,
-    #[serde(default, rename = "model")]
-    pub _model: String,
+    /// The versioned model that answered (`jev-1.14.0`), whatever alias the
+    /// request named. `script` on a scripted judgment.
+    #[serde(default)]
+    pub model: String,
     #[serde(default)]
     pub usage: Usage,
 }
