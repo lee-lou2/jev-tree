@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **A client that finishes sending right after its request no longer gets an empty reply.**
+  `axum::serve` builds hyper connections with the default HTTP/1 settings, which treat the
+  client's EOF as a disconnect and drop the response still being computed. Anything that shuts
+  its write side after the request — `curl` behind a forward proxy, or a sandbox that relays
+  requests — saw `curl: (52) Empty reply from server` on every search slower than the EOF
+  needed to arrive; fast cache hits sometimes won the race, so it looked intermittent while a
+  plain client stayed green. `main` now runs its own connection loop (`src/serve.rs`) with
+  `half_close(true)` and the same graceful drain as before (in-flight requests finish, 30 s cap).
+
 ## 0.10.1
 
 ### Added

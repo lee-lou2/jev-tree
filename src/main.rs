@@ -35,9 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .layer(TraceLayer::new_for_http());
     let listener = tokio::net::TcpListener::bind(format!("{bind}:{port}")).await?;
     info!(%bind, %port, evaluator = state.jev.label(), "jev-tree listening");
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    jev_tree::serve::serve(listener, app, shutdown_signal()).await;
     Ok(())
 }
 

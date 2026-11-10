@@ -23,6 +23,9 @@ uuid = { version = "1", features = ["v4", "serde"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tower-http = { version = "0.7", features = ["fs", "trace", "catch-panic"] }
+hyper = { version = "1", default-features = false, features = ["http1", "server"] }
+hyper-util = { version = "0.1", default-features = false, features = ["tokio", "server-graceful"] }
+tower-service = "0.3"
 thiserror = "2"
 regex = "1"
 sha2 = "0.11.0"
