@@ -25,6 +25,7 @@ only that subtree. Settings, login, and API keys stay project-wide.
 ```bash
 cargo run --release                              # repo root, http://127.0.0.1:8768
 cargo test
+cargo test --example eval                        # the eval runner's own tests
 cargo clippy --all-targets -- -D warnings
 cargo fmt
 # harness self-check, no key, no cost: scripted evaluator must route and file 100%
@@ -117,7 +118,13 @@ The route is **one Jev choice** (`flat_route`):
   level guessed wrong, and the coarse map made it unreachable. `beam_width` is accepted
   and ignored.
 - Every model call leaves a `usage` event on the run's stream (`source`, `input_tokens`,
-  `output_tokens`); the eval runner reads its cost from them.
+  `output_tokens`); the eval runner reads its cost from them. A Jev call's event also carries
+  `model`: the versioned id that answered (`jev-1.14.0`), read from the reply. The request
+  names the alias `jev-latest`, which moves when TypeSafe ships a release, and every
+  threshold in `src/engine.rs` was measured against a version. The eval runner records the
+  answering version per case and in the run's `meta.json` (`jev_answered_as`): numbers from
+  two runs compare only when the same version answered both, and a new version means
+  measuring again before trusting the old thresholds.
 - A search is cached (`AppState.results`, 1,024 results, 10 minutes) under its text,
   context, `root`, `start_node`, `limit`, `Store::generation` and `JevClient::generation`.
   Any write to the taxonomy or an item, and any settings change, moves a generation, so a

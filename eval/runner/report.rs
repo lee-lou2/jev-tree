@@ -94,6 +94,25 @@ fn facet_table(title: &str, rows: &[Row], out: &mut String) {
     let _ = writeln!(out);
 }
 
+/// The versioned Jev models that answered the run, when they differ from the
+/// name it asked for: ` (응답 `jev-1.14.0`)` after an alias, nothing after a pin.
+fn answered_as(info: &Value) -> String {
+    let asked = info["jev_model"].as_str().unwrap_or("");
+    let models: Vec<String> = info["jev_answered_as"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .filter(|model| *model != asked)
+        .map(|model| format!("`{model}`"))
+        .collect();
+    if models.is_empty() {
+        String::new()
+    } else {
+        format!(" (응답 {})", models.join(", "))
+    }
+}
+
 pub fn render(meta: &Value, cells: &[CellSummary]) -> String {
     let mut out = String::new();
     let text = |key: &str| meta[key].as_str().unwrap_or("-").to_string();
@@ -134,8 +153,9 @@ pub fn render(meta: &Value, cells: &[CellSummary]) -> String {
         for (router, info) in models {
             let _ = writeln!(
                 out,
-                "- 모델({router}): jev `{}`{}",
+                "- 모델({router}): jev `{}`{}{}",
                 info["jev_model"].as_str().unwrap_or("-"),
+                answered_as(info),
                 info["llm_model"]
                     .as_str()
                     .map(|m| format!(" · LLM `{m}`"))
@@ -723,6 +743,25 @@ mod tests {
     fn bootstrap_brackets_a_constant_difference() {
         let (lo, hi) = bootstrap(&[0.25; 40]);
         assert!((lo - 0.25).abs() < 1e-12 && (hi - 0.25).abs() < 1e-12);
+    }
+
+    #[test]
+    fn the_report_names_the_version_behind_an_alias() {
+        let alias =
+            serde_json::json!({"jev_model": "jev-latest", "jev_answered_as": ["jev-1.14.0"]});
+        assert_eq!(answered_as(&alias), " (응답 `jev-1.14.0`)");
+        // An alias that moved mid-run shows both versions.
+        let moved = serde_json::json!({"jev_model": "jev-latest", "jev_answered_as": ["jev-1.13.0", "jev-1.14.0"]});
+        assert_eq!(answered_as(&moved), " (응답 `jev-1.13.0`, `jev-1.14.0`)");
+        // A pinned version that answered as itself, and a record from before
+        // the field existed, add nothing.
+        let pinned =
+            serde_json::json!({"jev_model": "jev-1.14.0", "jev_answered_as": ["jev-1.14.0"]});
+        assert_eq!(answered_as(&pinned), "");
+        assert_eq!(
+            answered_as(&serde_json::json!({"jev_model": "jev-latest"})),
+            ""
+        );
     }
 
     #[test]

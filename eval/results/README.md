@@ -8,7 +8,7 @@
 results/
 ├── history.csv                 실행마다 셀(라우터×변형)당 한 줄. 러너가 자동으로 추가
 └── runs/<run_id>/              run_id = UTC 시각-라우터 (예: 20260923-221500-jev+jev_llm)
-    ├── meta.json               설정, git 커밋, 데이터셋 버전·해시, 모델 이름 (키·토큰 없음)
+    ├── meta.json               설정, git 커밋, 데이터셋 버전·해시, 모델 이름과 실제로 답한 Jev 버전 (키·토큰 없음)
     ├── summary.json            셀별 집계 지표 전체
     ├── report.md               사람이 읽는 보고서
     └── cells/<router>__<variant>.jsonl   케이스별 원시 결과와 판정

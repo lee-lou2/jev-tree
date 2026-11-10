@@ -123,8 +123,8 @@ in-flight runs the same way Ctrl-C does. More in [`AGENTS.md`](AGENTS.md#deploym
 
 ## Status
 
-`cargo fmt --check`, `cargo test --locked`, and
-`cargo clippy --all-targets --locked -- -D warnings` run in CI. They cover the HTTP
+`cargo fmt --check`, `cargo test --locked` (then `--example eval` for the eval runner's own
+tests), and `cargo clippy --all-targets --locked -- -D warnings` run in CI. They cover the HTTP
 contract, scripted-evaluator descent, taxonomy validation, secret handling, and the
 startup guards.
 

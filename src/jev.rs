@@ -492,7 +492,7 @@ fn scripted(questions: &BTreeMap<String, Question>, preferred: &[String]) -> Jud
     }
     Judgment {
         answers,
-        _model: "script".into(),
+        model: "script".into(),
         usage: Default::default(),
     }
 }
