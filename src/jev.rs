@@ -50,13 +50,17 @@ fn retryable(status: u16) -> bool {
 /// exponential backoff. A quarter of the wait is randomised away so calls that
 /// failed together do not come back together.
 fn retry_wait(attempt: u32, headers: Option<&header::HeaderMap>) -> Duration {
-    let header =
-        |name: &str| -> Option<f64> { headers?.get(name)?.to_str().ok()?.trim().parse().ok() };
-    let asked = header("retry-after-ms")
-        .map(|ms| Duration::from_secs_f64((ms / 1000.0).max(0.0)))
-        .or_else(|| header("retry-after").map(|s| Duration::from_secs_f64(s.max(0.0))));
-    let wait = asked
-        .unwrap_or(RETRY_BASE * 2u32.pow(attempt))
+    // A header is whatever the server sent: a date, a negative number, `inf`.
+    // Only a finite number of seconds counts, and never more than the cap.
+    let asked = |name: &str, per_second: f64| -> Option<Duration> {
+        let value: f64 = headers?.get(name)?.to_str().ok()?.trim().parse().ok()?;
+        value.is_finite().then(|| {
+            Duration::from_secs_f64((value / per_second).clamp(0.0, RETRY_MAX.as_secs_f64()))
+        })
+    };
+    let wait = asked("retry-after-ms", 1000.0)
+        .or_else(|| asked("retry-after", 1.0))
+        .unwrap_or(RETRY_BASE * 2u32.pow(attempt.min(8)))
         .min(RETRY_MAX);
     wait.mul_f64(1.0 - 0.25 * rand::random::<f64>())
 }
@@ -1088,6 +1092,40 @@ mod tests {
         plain_chat_payload(&mut payload);
         assert!(payload.get("reasoning_effort").is_none());
         assert_eq!(payload["temperature"], 0);
+    }
+
+    #[test]
+    fn a_retry_waits_what_the_server_asks_within_the_cap() {
+        let with = |name: &'static str, value: &'static str| {
+            let mut headers = header::HeaderMap::new();
+            headers.insert(name, header::HeaderValue::from_static(value));
+            headers
+        };
+        let wait = |headers: &header::HeaderMap| retry_wait(0, Some(headers));
+        // Up to a quarter of the wait is randomised away.
+        let asked = wait(&with("retry-after", "2"));
+        assert!(asked <= Duration::from_secs(2) && asked >= Duration::from_millis(1500));
+        let ms = wait(&with("retry-after-ms", "400"));
+        assert!(ms <= Duration::from_millis(400) && ms >= Duration::from_millis(300));
+        // Never longer than the cap, whatever is asked.
+        assert!(wait(&with("retry-after", "3600")) <= RETRY_MAX);
+        assert!(wait(&with("retry-after", "1e300")) <= RETRY_MAX);
+        // A value that is not a finite number of seconds falls back to backoff
+        // instead of panicking: a date, `inf`, `nan`, a negative.
+        for odd in ["Wed, 21 Oct 2026 07:28:00 GMT", "inf", "nan", "-inf"] {
+            assert!(wait(&with("retry-after", odd)) <= RETRY_BASE, "{odd}");
+        }
+        assert_eq!(wait(&with("retry-after", "-5")), Duration::ZERO);
+        // Backoff doubles and stays under the cap however many attempts.
+        assert!(retry_wait(1, None) <= RETRY_BASE * 2);
+        assert!(retry_wait(30, None) <= RETRY_MAX);
+        // What is worth another attempt.
+        for status in [408, 429, 500, 502, 503, 529] {
+            assert!(retryable(status), "{status}");
+        }
+        for status in [400, 401, 404, 413, 422] {
+            assert!(!retryable(status), "{status}");
+        }
     }
 
     #[test]
