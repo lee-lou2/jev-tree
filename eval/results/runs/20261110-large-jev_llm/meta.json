@@ -1,0 +1,46 @@
+{
+  "run_id": "20261110-large-jev_llm",
+  "started_at": "2026-11-10T12:13:15Z",
+  "git": {
+    "sha": "86af620",
+    "dirty": true
+  },
+  "dataset": {
+    "name": "large-kb",
+    "version": "1.0.0",
+    "kb_hash": "98e745ae3b9e",
+    "cases_hash": "c132143eb41e"
+  },
+  "routers": [
+    "jev_llm"
+  ],
+  "variants": [
+    "full"
+  ],
+  "suites": [
+    "all"
+  ],
+  "split": "all",
+  "filter": "--sample 1500 --seed final",
+  "cases": 1500,
+  "repeat": 1,
+  "concurrency": 6,
+  "timeout_secs": 120,
+  "beam_width": "case/default",
+  "limit": "case/default",
+  "mock": "off",
+  "verify_draft_search": false,
+  "models": {
+    "jev_llm": {
+      "jev_model": "jev-latest",
+      "jev_base_url": "https://api.typesafe.ai",
+      "llm_model": "meta/muse-ember-1.0",
+      "llm_reasoning_effort": "low",
+      "llm_base_url": "https://proxy.zvzo.ai/v1",
+      "credentials": "db:<settings db: LLM muse-ember-1.0, low>"
+    }
+  },
+  "note": "0.11.0 (large): Jev + muse-ember-1.0 (low) reviews picks below 0.8",
+  "command": "run --eval-dir eval/large --variant full --router jev_llm --sample 1500 --seed final --settings-db <settings db: LLM muse-ember-1.0, low> --concurrency 6 --out eval/results/runs/20261110-large-jev_llm --no-history --note 0.11.0 (large): Jev + muse-ember-1.0 (low) reviews picks below 0.8",
+  "finished_at": "2026-11-10T12:21:14Z"
+}

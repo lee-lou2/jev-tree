@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "jev-tree API",
-    "version": "0.10.1",
+    "version": "0.11.0",
     "description": "Hierarchical knowledge service: model-driven tree descent over SQLite. Search and ingest are the same descent. A `root` path (`products`, `products/products_stock`) makes that node the virtual tree. Settings and keys stay project-wide. Human companion: docs/api.md. Browsable: GET /docs."
   },
   "servers": [
@@ -367,7 +367,7 @@
         "properties": {
           "abstained": {
             "type": "boolean",
-            "description": "True when the best item is weak: score < 0.45, or < 0.30 with directness < 1.0. Answer that you don't know; do not answer from the items."
+            "description": "True when the best item scores below 0.55. Every item is then a reference: answer that you don't know; do not answer from the items."
           },
           "items": {
             "type": "array",
@@ -379,7 +379,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Where the search landed. Null: outside the tree (or outside `root`) and no item answers. When the route refused but an item answers, this is that item's node while trace.leaf_id stays null."
           },
           "path": {
             "type": "array",
@@ -1140,7 +1141,7 @@
     "/api/run": {
       "post": {
         "summary": "Search or ingest (JSON)",
-        "description": "Text 1-8000 chars. A Jev API key is required (400 invalid_request without one). search: read role, not position. ingest without auto_publish = draft (published_id null, kind qa). Jev routes with one choice over every node in scope, or, when the scope is too big for one choice, over a coarse map of the tree plus BM25 recall. When llm_base_url, llm_token, and llm_model are all set, that model reviews a Jev pick below 0.8 from the same menu; a missing setting or a failed call keeps Jev's pick. Ranking always uses Jev, over every active item in the landed subtree, plus the two next-best nodes' items when the pick was below 0.9.",
+        "description": "Text 1-8000 chars. A Jev API key is required (400 invalid_request without one). search: read role, not position. ingest without auto_publish = draft (published_id null, kind qa). Jev routes with one choice over every node in scope, or, when the scope is too big for one choice, over a coarse map of the tree plus BM25 recall. When llm_base_url, llm_token, and llm_model are all set, that model reviews a Jev pick below 0.8 from the same menu; a missing setting or a failed call keeps Jev's pick. Each node in the menu also shows the questions already filed under it that share the request's words. Ranking always uses Jev, over every active item in the landed subtree, plus the two next-best nodes' items when the pick was below 0.9, plus the 20 items in scope that share the most words with the request. leaf_id is null only when the route refused and no item answers.",
         "responses": {
           "401": {
             "$ref": "#/components/responses/Unauthorized"

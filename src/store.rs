@@ -167,16 +167,35 @@ impl Store {
         self.generation.fetch_add(1, Ordering::AcqRel);
     }
 
-    /// `(category_id, question)` of every active item: the words search can
-    /// reach a node by.
-    pub fn active_questions(&self) -> Result<Vec<(String, String)>, crate::error::Error> {
+    /// Every active item, for the lexical index.
+    pub fn active_items(&self) -> Result<Vec<Item>, crate::error::Error> {
         let connection = self.lock()?;
-        let mut statement = connection
-            .prepare("SELECT category_id,question FROM knowledge_items WHERE status='active'")?;
-        let rows = statement
-            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        let mut statement = connection.prepare(
+            "SELECT id,category_id,question,answer,kind,status,version FROM knowledge_items \
+             WHERE status='active' ORDER BY CAST(id AS INTEGER), id",
+        )?;
+        let items = statement
+            .query_map([], item_from_row)?
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(rows)
+        Ok(items)
+    }
+
+    /// The active items among `ids`, in the order asked.
+    pub fn active_by_ids(&self, ids: &[String]) -> Result<Vec<Item>, crate::error::Error> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let connection = self.lock()?;
+        let placeholders = vec!["?"; ids.len()].join(",");
+        let mut statement = connection.prepare(&format!(
+            "SELECT id,category_id,question,answer,kind,status,version FROM knowledge_items \
+             WHERE status='active' AND id IN ({placeholders})"
+        ))?;
+        let mut found: Vec<Item> = statement
+            .query_map(rusqlite::params_from_iter(ids), item_from_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+        found.sort_by_key(|item| ids.iter().position(|id| id == &item.id));
+        Ok(found)
     }
 
     pub fn load_taxonomy(&self) -> Result<Vec<Node>, crate::error::Error> {

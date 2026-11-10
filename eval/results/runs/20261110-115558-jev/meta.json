@@ -1,0 +1,50 @@
+{
+  "run_id": "20261110-115558-jev",
+  "started_at": "2026-11-10T11:55:58Z",
+  "git": {
+    "sha": "501a5f6",
+    "dirty": false
+  },
+  "dataset": {
+    "name": "kb",
+    "version": "1.0.0",
+    "kb_hash": "489e5fca3c7c",
+    "cases_hash": "b2a362fcd60d"
+  },
+  "routers": [
+    "jev"
+  ],
+  "variants": [
+    "deep",
+    "standard",
+    "shallow",
+    "flat",
+    "sparse"
+  ],
+  "suites": [
+    "all"
+  ],
+  "split": "all",
+  "filter": "",
+  "cases": 525,
+  "repeat": 1,
+  "concurrency": 5,
+  "timeout_secs": 120,
+  "beam_width": "case/default",
+  "limit": "case/default",
+  "mock": "off",
+  "verify_draft_search": false,
+  "models": {
+    "jev": {
+      "jev_model": "jev-latest",
+      "jev_base_url": "https://api.typesafe.ai",
+      "llm_model": null,
+      "llm_reasoning_effort": null,
+      "llm_base_url": null,
+      "credentials": "db:<settings db>"
+    }
+  },
+  "note": "0.11.0: tree-order options, majority none, filed-question hints, word-match pool, hold 0.55",
+  "command": "run --router jev --variant all --settings-db <settings db> --concurrency 5 --note 0.11.0: tree-order options, majority none, filed-question hints, word-match pool, hold 0.55",
+  "finished_at": "2026-11-10T11:59:56Z"
+}

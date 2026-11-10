@@ -46,30 +46,37 @@ A Jev API key is required. The LLM is optional.
 2. Routing is **one Jev choice over the walk's menu** — no level-by-level guessing, so no
    choice is made blind to the rest of the tree and one wrong level cannot lose the leaf.
    The menu is every node in scope while one choice can name them (Jev takes 255 options,
-   so up to 254 nodes and 80 KB of menu text). A bigger tree gets a **coarse map** first —
-   one Jev choice over the deepest level that still fits, whose best branches are opened
-   whole — plus **BM25** matches over every node's text and the questions filed under it.
-   A pick whose branch did not fit is walked into. `__none__` abstains (a `root` scope
-   abstains for "outside this root"); a `start_node` walk stays in that subtree and cannot.
-3. **The LLM fills Jev's gaps instead of replacing it.** When an LLM base URL, token, and
+   so up to 254 nodes and 74 KB of menu text), in tree order. A bigger tree gets a
+   **coarse map** first — one Jev choice over the deepest level that still fits, whose best
+   branches are opened whole — plus **BM25** matches over every node's text and the
+   questions filed under it. A pick whose branch did not fit is walked into. `__none__`
+   abstains (a `root` scope abstains for "outside this root") — on a search only when it
+   is more likely than not; a `start_node` walk stays in that subtree and cannot.
+3. **A node shows what is filed under it.** On a search, each node in the menu ends with
+   the questions already filed there that share the request's words. A description says
+   what a node is meant to hold; the questions show what it does hold. That one line of
+   evidence moved the right-node rate on a 1,902-node tree from 70% to 85%.
+4. **The LLM fills Jev's gaps instead of replacing it.** When an LLM base URL, token, and
    model are all set, it reviews only the picks Jev is unsure of (chosen probability below
    0.8), reading the same menu Jev chose from. Confident picks never wait for it.
-4. `search` ranks **every active item** under the selected node with Jev (Noul and Score),
-   in batches of up to 32 items and 24 KB, then keeps `limit`. When the route was unsure
-   (below 0.9) the two next-best nodes' items are ranked too, and they answer only at 0.75
-   or more. `ingest` routes a new Q&A through the same descent and stores it as `qa`.
-5. A `trace` lists the steps: the coarse map (big trees), the choice with its candidates
-   and probabilities (`trace.score` is the chosen probability), and an `llm review` or a
-   `scope check` when the pick was unsure. An LLM-reviewed route leaves `trace.score` null;
-   it does not write `1.0`.
+5. `search` ranks **a pool, not just a subtree**, with Jev (Noul and Score), in batches of
+   up to 32 items and 24 KB, then keeps `limit`. The pool is every active item under the
+   selected node, the two next-best nodes' items when the route was unsure (below 0.9),
+   and the 20 items in scope that share the most words with the request, wherever they
+   are filed. An answer one branch over from where the route landed is still found.
+   `ingest` routes a new Q&A through the same descent and stores it as `qa`.
+6. A `trace` lists the steps: the coarse map (big trees), the choice with its candidates
+   and probabilities (`trace.score` is the chosen probability), and an `llm review` when
+   the pick was unsure. An LLM-reviewed route leaves `trace.score` null; it does not
+   write `1.0`.
 
 Read a search result by role, never by `items[0]`:
 
 | field | meaning |
 |---|---|
 | `items[].role` | `recommended` ≥ 0.65 · `alternative` ≥ 0.40 · else `reference` |
-| `abstained: true` | the best item is weak (score < 0.45, or < 0.30 with directness < 1.0) — say "I don't know" |
-| `leaf_id: null` | outside the tree; `items` is empty |
+| `abstained: true` | the best item scores below 0.55 — say "I don't know"; every item is a `reference` |
+| `leaf_id: null` | outside the tree: the route refused and no item answers (`abstained` is true) |
 
 ## API in 30 seconds
 
@@ -105,6 +112,7 @@ live in SQLite and are changed through `PATCH /api/settings`.
 | `JEV_TREE_STATIC_DIR` | `static` | UI + `openapi.json` |
 | `JEV_TREE_SECRET_KEY_FILE` / `JEV_TREE_SECRET_KEY` | — | Material for encrypting stored secrets; otherwise a `0600` sibling `.jev-tree.key` is created |
 | `JEV_TREE_RUN_TIMEOUT_SECS` | `120` | Deadline for one search or ingest |
+| `JEV_TREE_LOG_QUERIES` | on | `0` leaves the request text out of the per-run log line (see [`SECURITY.md`](SECURITY.md)) |
 | `JEV_TREE_INIT_*` | — | One-way boot seed for `API_KEY`, `BASE_URL`, `TOKEN`, `MODEL`, `SERVER_KEY`. Fills **empty** DB slots only |
 
 ## Deploying
@@ -129,8 +137,9 @@ contract, scripted-evaluator descent, taxonomy validation, secret handling, and 
 startup guards.
 
 The UI and `/docs` make no external requests: no CDN, no web fonts, no analytics.
-CI does not call Jev. Scripted tests cover routing, descent, the full-subtree ranking pool,
-the missing-key error, and an LLM failure falling back to Jev routing.
+CI does not call Jev. Scripted tests cover routing, descent, the option order sent to the
+evaluator, the ranking pool (subtree, runners-up, word matches), a refusal the items
+contradict, the missing-key error, and an LLM failure falling back to Jev routing.
 
 Known gaps are tracked in [`AGENTS.md`](AGENTS.md#known-gaps). Read them before trusting a result.
 
@@ -151,37 +160,58 @@ cargo run --release --example eval -- run --eval-dir eval/large --variant full \
     --router both --sample 1500 --seed final
 ```
 
-Large benchmark, 1,500 paired cases (`jev-latest`; LLM `muse-spark`):
+Large benchmark, 1,500 paired cases (0.9–0.10 under `jev-1.13.0` with LLM `muse-spark`;
+0.11 under `jev-1.14.0` with LLM `muse-ember-1.0` at `low`):
 
 | routing | E2E | route | Hit@1 | latency p50 | billed tokens / search |
 |---|---:|---:|---:|---:|---:|
 | 0.9.0 — Jev, lexical recall menu | 68.4% | 48.5% | 67.8% | 0.7s | 45.4K |
 | 0.9.0 — LLM routes every request (600 of the cases) | 73.7% | 64.2% | 72.4% | 12.1s | 12.4K + 6.2K LLM |
 | 0.10.0 — Jev, coarse map + BM25, rescue | 82.0% | 68.7% | 82.6% | 0.9s | 38.7K |
-| 0.10.0 — + LLM reviews unsure picks | **83.8%** | **75.5%** | **84.5%** | 1.8s | 36.4K + 3.3K LLM |
+| 0.10.0 — + LLM reviews unsure picks (50%) | 83.8% | 75.5% | 84.5% | 1.8s | 36.4K + 3.3K LLM |
+| 0.11.0 — Jev, filed questions in the menu, word matches in the pool | 86.8% | 82.6% | 88.1% | 0.8s | 40.2K |
+| 0.11.0 — + LLM reviews unsure picks (29%) | **87.5%** | **85.9%** | **89.1%** | 0.8s | 39.4K + 2.4K LLM |
 
 Golden set, `standard` tree:
 
-| routing | E2E | Hit@1 | ingest | latency p50 |
-|---|---:|---:|---:|---:|
-| 0.9.0 — Jev | 97.3% | 97.3% | 92.6% | 0.5s |
-| 0.9.0 — LLM routes every request | 97.7% | 97.6% | 100% | 3.8s |
-| 0.10.0 — Jev | 98.0% | 98.1% | 94.1% | 0.4s |
-| 0.10.0 — Jev + LLM reviews unsure picks (13%) | **98.4%** | **98.4%** | **100%** | **0.4s** |
+| routing | E2E | route | Hit@1 | ingest | latency p50 |
+|---|---:|---:|---:|---:|---:|
+| 0.9.0 — Jev | 97.3% | 93.7% | 97.3% | 92.6% | 0.5s |
+| 0.9.0 — LLM routes every request | 97.7% | 96.6% | 97.6% | 100% | 3.8s |
+| 0.10.0 — Jev | 98.0% | 93.7% | 98.1% | 94.1% | 0.4s |
+| 0.10.0 — Jev + LLM reviews unsure picks (13%) | 98.4% | 96.9% | 98.4% | 100% | 0.4s |
+| 0.11.0 — Jev | 98.2% | **97.3%** | **98.7%** | 95.6% | 0.5s |
+| 0.11.0 — Jev + LLM reviews unsure picks (9%) | 97.7% | 96.8% | **98.7%** | **100%** | 0.5s |
+
+A live customer-support tree (246 nodes, 2,534 items; 489 real requests; not in the repo):
+
+| | top item answers | answer among results | refused, no result |
+|---|---:|---:|---:|
+| 0.10.1 — Jev | 70.9% | 81.8% | 21 |
+| 0.11.0 — Jev | 80.2% | 95.3% | 1 |
+| 0.11.0 — Jev + LLM reviews unsure picks (45%) | **82.1%** | **96.6%** | 1 |
 
 Things worth knowing before trusting a result:
 
-- **The golden set could not see the problem.** Its tree fits one Jev choice, so every
-  request saw every node. At 1,902 nodes the old menu (nodes sharing the most characters
-  with the request) held the right node 69% of the time; the coarse map plus BM25 holds it
-  98% of the time with a menu a third the size.
-- **Most misses on a big tree are sideways**, between nodes whose scopes overlap. Ranking
-  the runners-up of an unsure route recovers them (+9.7pp E2E on its own), and a higher bar for
-  their items (0.75) keeps false answers where they were.
-- **The LLM is worth most where Jev is unsure, and only there.** Reviewing 13% of golden
-  requests matches routing all of them, at a tenth of the median latency and a seventh of
-  the LLM tokens. It must see the whole menu: given only Jev's favourites it repeats Jev's
-  mistakes.
+- **A tidy benchmark hides what a maintained tree does.** The golden set said 98% while the
+  live tree said 61% end to end. In a tree people maintain, a node's description does not
+  name everything filed under it, so the answer often sits one node over from where the
+  route lands, and a request several nodes could hold looks like it belongs to none.
+  Measure on your own tree ([`eval/README.md`](eval/README.md)).
+- **Evidence beats a better guess.** Showing each node's filed questions moved the right-node
+  rate at 1,902 nodes from 70% to 85% with no extra model call; an LLM reviewing half the
+  requests had reached 78%. And the answer is in the results 95% of the time once the
+  items that share the request's words are ranked too.
+- **The golden set's end-to-end number is at its ceiling** and did not move outside its noise
+  (two runs of one build differ by up to 0.7 points). What it does show is the route:
+  right node +1.3 to +3.7 points on every tree shape.
+- **The LLM is worth most where a filing is at stake.** On a search it now changes little,
+  because the pool already reaches the answer when the route is one node off. On an ingest
+  the node is the result: Q&As filed in the right node went from 122–126 to 131–134 of 160 on the
+  benchmark with the review. It must see the whole menu: given only Jev's favourites it
+  repeats Jev's mistakes.
+- **Compare runs of the same day.** `jev-latest` moved to `jev-1.14.0` in October and scores
+  moved with it; the older rows above are as recorded.
 - **Read relative numbers on `eval/large`.** Its domains overlap by design and its labels are
   strict, so absolute accuracy is understated; the paired comparisons are what to trust.
 

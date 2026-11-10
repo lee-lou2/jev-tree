@@ -75,9 +75,12 @@ Bottom-up for bootstrap:
    - `name`: label in the reader's language, distinct from its siblings.
    - `description`: one sentence saying how this node differs from its siblings.
      A parent description lists its children.
-   - `examples`: 1–3 real phrasings. Jev receives them in the choice label, after the
-     name and description. The optional LLM router does not: it sees names, descriptions
-     clipped to 180 characters, and a lexical shortlist.
+   - `examples`: 1–3 real phrasings. They feed the lexical recall that builds the menu of
+     a tree too big for one choice; no model reads them as part of a label. What the
+     models read about a node is its path, its description (first 240 characters), and,
+     on a search, the questions already filed under it that share the request's words.
+     So a node is found by what is filed in it as much as by how it is described: file
+     items where their description would lead a reader.
 4. Depth 3–5 — only as deep as queries actually separate.
 5. Give every non-leaf node one `article` item so vague questions can stop there.
 

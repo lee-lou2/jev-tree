@@ -2,7 +2,7 @@ use crate::models::{Answer, Judgment, Node, Question};
 use reqwest::{Client, header};
 use serde_json::{Value, json};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     sync::{
         Arc, Mutex, RwLock,
         atomic::{AtomicU64, Ordering},
@@ -21,6 +21,48 @@ pub enum JevError {
     Invalid(String),
     #[error("Jev API key is required")]
     Unconfigured,
+    /// The optional LLM, not TypeSafe: a failed review keeps Jev's pick, so
+    /// these never reach a client, only the log.
+    #[error("LLM returned HTTP {0}")]
+    LlmStatus(u16),
+    #[error("LLM call failed: {0}")]
+    Llm(String),
+}
+
+/// Calls one evaluator request makes: the first try and two retries.
+const JEV_ATTEMPTS: u32 = 3;
+
+/// First wait between attempts; doubled each time.
+const RETRY_BASE: Duration = Duration::from_millis(250);
+
+/// Longest wait between attempts, whatever the server asks for: the caller is
+/// a person or an agent waiting on one search.
+const RETRY_MAX: Duration = Duration::from_secs(5);
+
+/// A status worth another attempt: the request itself was fine. Everything
+/// else (400, 401, 404, 413, 422) would fail the same way again.
+fn retryable(status: u16) -> bool {
+    status == 408 || status == 429 || (500..=599).contains(&status)
+}
+
+/// How long to wait before attempt `attempt + 1`: what the server asked for
+/// (`retry-after-ms`, or `retry-after` in seconds) when it said, else
+/// exponential backoff. A quarter of the wait is randomised away so calls that
+/// failed together do not come back together.
+fn retry_wait(attempt: u32, headers: Option<&header::HeaderMap>) -> Duration {
+    // A header is whatever the server sent: a date, a negative number, `inf`.
+    // Only a finite number of seconds counts, and never more than the cap.
+    let asked = |name: &str, per_second: f64| -> Option<Duration> {
+        let value: f64 = headers?.get(name)?.to_str().ok()?.trim().parse().ok()?;
+        value.is_finite().then(|| {
+            Duration::from_secs_f64((value / per_second).clamp(0.0, RETRY_MAX.as_secs_f64()))
+        })
+    };
+    let wait = asked("retry-after-ms", 1000.0)
+        .or_else(|| asked("retry-after", 1.0))
+        .unwrap_or(RETRY_BASE * 2u32.pow(attempt.min(8)))
+        .min(RETRY_MAX);
+    wait.mul_f64(1.0 - 0.25 * rand::random::<f64>())
 }
 
 /// Resolved Jev connection: key/base/model may come from DB settings.
@@ -198,6 +240,7 @@ impl JevClient {
         nodes: &[Node],
         menu: &[String],
         abstain: bool,
+        hints: &HashMap<String, String>,
     ) -> Result<LlmRoute, JevError> {
         if let Ok(guard) = self.llm_script.lock()
             && let Some(leaf) = guard.as_ref()
@@ -209,8 +252,15 @@ impl JevClient {
             });
         }
         let creds = self.llm_creds()?;
-        let (lines, options, allowed) = llm_menu(nodes, menu, abstain);
-        let prompt = one_shot_prompt(abstain, &allowed, query, background, &lines);
+        let (lines, options, allowed) = llm_menu(nodes, menu, abstain, hints);
+        let prompt = one_shot_prompt(
+            abstain,
+            !hints.is_empty(),
+            &allowed,
+            query,
+            background,
+            &lines,
+        );
         let mut meter = LlmMeter::default();
         let picked = self
             .complete_id(&creds, &prompt, &options, &mut meter)
@@ -238,7 +288,7 @@ impl JevClient {
         let config = self
             .config
             .read()
-            .map_err(|_| JevError::Invalid("llm config unavailable".into()))?;
+            .map_err(|_| JevError::Llm("settings unavailable".into()))?;
         let creds = LlmCreds {
             base: config.llm_base_url.clone(),
             token: config.llm_token.clone().unwrap_or_default(),
@@ -249,7 +299,7 @@ impl JevClient {
             || creds.model.trim().is_empty()
             || creds.base.trim().is_empty()
         {
-            return Err(JevError::Invalid("LLM route is not configured".into()));
+            return Err(JevError::Llm("not configured".into()));
         }
         Ok(creds)
     }
@@ -271,7 +321,7 @@ impl JevClient {
         );
         let content = self.chat(creds, &retry, meter).await?;
         parse_final_choice(&content, choices)
-            .ok_or_else(|| JevError::Invalid("LLM route did not return an allowed id".into()))
+            .ok_or_else(|| JevError::Llm("the reply names no allowed id".into()))
     }
 
     async fn chat(
@@ -283,8 +333,8 @@ impl JevClient {
         let url = chat_completions_url(&creds.base);
         let token = creds.token.as_str();
         let mut payload = chat_payload(&creds.model, &creds.effort, user);
-        let first = match self.post_chat(&url, token, &payload, meter).await {
-            Err(JevError::Status(400)) => {
+        let first = match self.post_chat_retrying(&url, token, &payload, meter).await {
+            Err(JevError::LlmStatus(400)) => {
                 // The endpoint may reject the thinking knob or a ceiling above
                 // its own. Shrink the budget so an oversized ask still routes.
                 // Say so: a mistyped level would otherwise run unnoticed at the
@@ -296,7 +346,8 @@ impl JevClient {
                 );
                 plain_chat_payload(&mut payload);
                 shrink_max_tokens(&mut payload);
-                self.post_chat(&url, token, &payload, meter).await?
+                self.post_chat_retrying(&url, token, &payload, meter)
+                    .await?
             }
             other => other?,
         };
@@ -306,11 +357,32 @@ impl JevClient {
         // Some models spend the reply on reasoning and leave content empty.
         // Ask once more in plain text, then give up so Jev's pick stands.
         plain_chat_payload(&mut payload);
-        let second = self.post_chat(&url, token, &payload, meter).await?;
+        let second = self
+            .post_chat_retrying(&url, token, &payload, meter)
+            .await?;
         if second.is_empty() {
-            return Err(JevError::Invalid("LLM returned no content".into()));
+            return Err(JevError::Llm("no content in the reply".into()));
         }
         Ok(second)
+    }
+
+    /// One chat completion, tried once more when the failure was not about the
+    /// request (a dropped connection, 408, 429, 5xx). The review's own budget
+    /// still bounds the whole thing.
+    async fn post_chat_retrying(
+        &self,
+        url: &str,
+        token: &str,
+        payload: &Value,
+        meter: &mut LlmMeter,
+    ) -> Result<String, JevError> {
+        match self.post_chat(url, token, payload, meter).await {
+            Err(JevError::LlmStatus(status)) if retryable(status) => {}
+            Err(JevError::Llm(_)) => {}
+            other => return other,
+        }
+        tokio::time::sleep(retry_wait(0, None)).await;
+        self.post_chat(url, token, payload, meter).await
     }
 
     async fn post_chat(
@@ -333,15 +405,15 @@ impl JevClient {
             .header(header::CONTENT_TYPE, "application/json")
             .json(payload)
             .send()
-            .await?;
+            .await
+            .map_err(|error| JevError::Llm(format!("no response ({})", error.without_url())))?;
         let status = response.status();
         if !status.is_success() {
-            return Err(JevError::Status(status.as_u16()));
+            return Err(JevError::LlmStatus(status.as_u16()));
         }
-        let body: Value = response
-            .json()
-            .await
-            .map_err(|error| JevError::Invalid(format!("llm parse failed: {error}")))?;
+        let body: Value = response.json().await.map_err(|error| {
+            JevError::Llm(format!("unreadable reply ({})", error.without_url()))
+        })?;
         meter.calls += 1;
         let tokens = |key: &str| body.pointer(key).and_then(Value::as_u64).unwrap_or(0);
         meter.usage.input_tokens += tokens("/usage/prompt_tokens");
@@ -408,44 +480,64 @@ impl JevClient {
             return Err(JevError::Unconfigured);
         };
         let body = json!({"state": state, "model": model, "questions": questions});
+        let url = format!("{base_url}/v1/systemone");
         let mut attempt = 0;
         loop {
-            let response = self
-                .client
-                .post(format!("{base_url}/v1/systemone"))
-                .bearer_auth(&key)
-                .header(header::CONTENT_TYPE, "application/json")
-                .json(&body)
-                .send()
-                .await;
-            match response {
-                Ok(response) => {
-                    let status = response.status();
-                    if status.is_success() {
-                        let result: Judgment = response.json().await?;
-                        validate(&result, &questions)?;
-                        return Ok(result);
-                    }
-                    let retryable = status.as_u16() == 408
-                        || status.as_u16() == 429
-                        || status.is_server_error();
-                    if !retryable || attempt >= 2 {
-                        return Err(JevError::Status(status.as_u16()));
-                    }
+            // One attempt: the request and its whole body.
+            let outcome: Result<Judgment, (JevError, Option<Duration>)> = async {
+                let response = self
+                    .client
+                    .post(&url)
+                    .bearer_auth(&key)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .json(&body)
+                    .send()
+                    .await
+                    .map_err(|error| {
+                        (JevError::Transport(error), Some(retry_wait(attempt, None)))
+                    })?;
+                let status = response.status();
+                if !status.is_success() {
+                    let wait = retryable(status.as_u16())
+                        .then(|| retry_wait(attempt, Some(response.headers())));
+                    return Err((JevError::Status(status.as_u16()), wait));
                 }
-                Err(error) => {
-                    if attempt >= 2 {
-                        return Err(JevError::Transport(error));
-                    }
-                }
+                // A body that breaks off is worth another attempt. A whole body
+                // that does not read as a judgment is not: the same request
+                // would get the same reply.
+                let bytes = response.bytes().await.map_err(|error| {
+                    (JevError::Transport(error), Some(retry_wait(attempt, None)))
+                })?;
+                serde_json::from_slice::<Judgment>(&bytes).map_err(|error| {
+                    (
+                        JevError::Invalid(format!("unreadable reply: {error}")),
+                        None,
+                    )
+                })
             }
-            tokio::time::sleep(Duration::from_millis(250 * (1 << attempt))).await;
-            attempt += 1;
+            .await;
+            match outcome {
+                Ok(result) => {
+                    // A reply that does not answer what was asked is not worth
+                    // asking again: the same request would get the same reply.
+                    validate(&result, &questions)?;
+                    return Ok(result);
+                }
+                Err((error, Some(wait))) if attempt + 1 < JEV_ATTEMPTS => {
+                    tracing::debug!(attempt, %error, "evaluator call failed; retrying");
+                    tokio::time::sleep(wait).await;
+                    attempt += 1;
+                }
+                Err((error, _)) => return Err(error),
+            }
         }
     }
 }
 
 fn scripted(questions: &BTreeMap<String, Question>, preferred: &[String]) -> Judgment {
+    let refuses = preferred
+        .first()
+        .is_some_and(|first| first.trim_start_matches('~').split('@').next() == Some("__none__"));
     let mut answers = BTreeMap::new();
     for (id, question) in questions {
         let answer = match question.kind.as_str() {
@@ -456,35 +548,66 @@ fn scripted(questions: &BTreeMap<String, Question>, preferred: &[String]) -> Jud
                     .and_then(Value::as_object)
                     .cloned()
                     .unwrap_or_default();
-                // `~id` scripts an unsure pick: the same choice at 0.5, which is
-                // how tests reach the paths a doubtful route takes.
-                let (choice, chosen) = preferred
+                // The first scripted id on the menu is the pick. `id` picks at
+                // 0.95, `~id` at 0.5 (an unsure pick) and `id@p` at `p`; later
+                // `id@p` entries give other options their own probability, and
+                // whatever is left is spread over the rest. That is how tests
+                // reach the paths a doubtful route takes.
+                let scripted: Vec<(String, f64, bool)> = preferred
                     .iter()
-                    .find_map(|cid| match cid.strip_prefix('~') {
-                        Some(id) if criteria.contains_key(id) => Some((id.to_string(), 0.5)),
-                        None if criteria.contains_key(cid) => Some((cid.clone(), 0.95)),
-                        _ => None,
+                    .filter_map(|entry| {
+                        let (id, p, explicit) =
+                            match (entry.strip_prefix('~'), entry.split_once('@')) {
+                                (Some(id), _) => (id, 0.5, false),
+                                (None, Some((id, p))) => (id, p.parse().ok()?, true),
+                                (None, None) => (entry.as_str(), 0.95, false),
+                            };
+                        criteria
+                            .contains_key(id)
+                            .then(|| (id.to_string(), p, explicit))
+                    })
+                    .collect();
+                // No scripted id on this menu: "nothing fits" when the menu
+                // offers it, else the first option.
+                let (choice, chosen) = scripted
+                    .first()
+                    .map(|(id, p, _)| (id.clone(), *p))
+                    .or_else(|| {
+                        criteria
+                            .contains_key("__none__")
+                            .then(|| ("__none__".to_string(), 0.95))
                     })
                     .or_else(|| criteria.keys().next().map(|id| (id.clone(), 0.95)))
                     .unwrap_or_default();
-                let mut probabilities = BTreeMap::new();
-                let rest = if criteria.len() > 1 {
-                    (1.0 - chosen) / (criteria.len() - 1) as f64
+                let mut named = BTreeMap::from([(choice.clone(), chosen)]);
+                for (id, p, explicit) in scripted.iter().skip(1) {
+                    if *explicit {
+                        named.entry(id.clone()).or_insert(*p);
+                    }
+                }
+                let unnamed = criteria.len().saturating_sub(named.len());
+                let rest = if unnamed > 0 {
+                    (1.0 - named.values().sum::<f64>()).max(0.0) / unnamed as f64
                 } else {
                     0.0
                 };
-                for key in criteria.keys() {
-                    probabilities.insert(key.clone(), if *key == choice { chosen } else { rest });
-                }
+                let probabilities: BTreeMap<String, f64> = criteria
+                    .keys()
+                    .map(|key| (key.clone(), named.get(key).copied().unwrap_or(rest)))
+                    .collect();
                 Answer::Choice {
                     choice,
                     probabilities,
                     confidence: 0.9,
                 }
             }
-            "noul" => Answer::Noul { noul: 0.8 },
+            // A script that says "nothing fits" also says no item answers:
+            // an oracle for an out-of-scope request has to hold all the way.
+            "noul" => Answer::Noul {
+                noul: if refuses { 0.1 } else { 0.8 },
+            },
             _ => Answer::Score {
-                score: 1.6,
+                score: if refuses { 0.2 } else { 1.6 },
                 confidence: 0.9,
             },
         };
@@ -592,27 +715,47 @@ struct LlmCreds {
     effort: String,
 }
 
-/// The one-shot routing prompt: every node in `lines`, pick one. Shared by the
-/// LLM router and the review of a doubtful Jev pick, so both read the same rules.
+/// The review prompt: the menu in `lines`, pick one node.
+///
+/// It says what `__none__` is for, and three wordings were measured (reviewer
+/// `muse-ember-1.0`, the same runs otherwise):
+///
+/// - "if it belongs to no node, `__none__`" was read as "no node names exactly
+///   this": on a live customer-support tree the reviewer refused requests the
+///   tree covers, and each came back with no result at all;
+/// - "only when unrelated to the tree's area; otherwise the nearest node" stopped
+///   that and landed out-of-scope requests instead (10 of the golden set's 38,
+///   against 2);
+/// - "only when no node covers the topic; a node that covers it is the pick even
+///   if the request's details are not in its description" does both: 2 of 38
+///   landed, and the best end-to-end numbers of the three on the 1,902-node
+///   benchmark (90.2%) and the live tree.
 fn one_shot_prompt(
     abstain: bool,
+    hinted: bool,
     allowed: &[String],
     query: &str,
     background: &str,
     lines: &[String],
 ) -> String {
-    let head = if abstain {
-        "요청을 가장 정확히 다루는 노드 하나를 고르세요. \
-         자식이 남아 있으면 더 구체적인 자식 노드를 고르고, 주제만 묻고 하위 사례를 특정하지 않으면 그 노드에 머무세요. \
-         어느 노드에도 속하지 않으면 __none__."
+    let scope_rule = if abstain {
+        "- __none__은 요청의 주제를 다루는 노드가 트리에 하나도 없을 때만 고릅니다(인사, 잡담, 트리가 다루지 않는 분야). \
+요청의 주제를 다루는 노드가 있으면, 요청의 세부 상황이 설명에 그대로 나오지 않아도 그 노드를 고릅니다."
     } else {
-        "요청을 가장 정확히 다루는 노드 하나를 고르세요. \
-         자식이 남아 있으면 더 구체적인 자식 노드를 고르고, 주제만 묻고 하위 사례를 특정하지 않으면 그 노드에 머무세요. \
-         범위를 벗어나는 주제에는 시작 노드 자신을 고르세요."
+        "- 범위를 벗어나는 주제에는 시작 노드 자신을 고릅니다."
+    };
+    let hint_rule = if hinted {
+        "- 설명 끝의 '이미 있는 질문'은 그 노드에 이미 저장된 질문입니다. 요청과 같은 것을 묻는 질문이 있는 노드가 맞는 노드입니다.\n"
+    } else {
+        ""
     };
     format!(
-        "{head}\n노드 설명이 겹치면 더 구체적인 쪽을 고르세요. 경로는 위치를 알려 줄 뿐이고, \
-판단은 현재 요청과 각 설명으로 하세요.\n허용된 id: {}\n\n{}\n\n{}\n\n마지막 줄에 id 하나만.",
+        "아래는 지식베이스의 분류 트리입니다. 요청에 대한 지식이 놓일 노드 하나를 고르세요.\n\
+- 요청의 조건·하위 주제를 모두 담는 가장 구체적인 노드를 고릅니다.\n\
+- 꼭 맞는 하위 노드가 없으면 그 주제를 포괄하는 가장 가까운 상위 노드를 고릅니다.\n\
+- 주제만 묻고 하위 사례를 특정하지 않으면 그 주제 노드에 머뭅니다.\n\
+- 노드 설명이 겹치면 더 구체적인 쪽을 고릅니다. 경로는 위치를 알려 줄 뿐이고, 판단은 현재 요청과 각 설명으로 합니다.\n\
+{hint_rule}{scope_rule}\n허용된 id: {}\n\n{}\n\n{}\n\n마지막 줄에 id 하나만.",
         allowed.join(", "),
         request_block(query, background),
         lines.join("\n")
@@ -665,6 +808,10 @@ fn ancestor_names(nodes: &[Node], id: &str) -> Vec<String> {
     chain
 }
 
+/// Characters of a node's description a menu shows, to Jev and to the LLM
+/// alike: both read the same text about every node.
+pub const MENU_DESCRIPTION_CHARS: usize = 240;
+
 /// One row per node in scope, in tree order, plus `__none__` when the walk may
 /// abstain. Returns the menu text, the (id, name) options for the trace, and the
 /// allowed ids the model may answer with.
@@ -672,6 +819,7 @@ pub fn llm_menu(
     nodes: &[Node],
     scope: &[String],
     abstain: bool,
+    hints: &HashMap<String, String>,
 ) -> (Vec<String>, Vec<(String, String)>, Vec<String>) {
     let by_id = node_index(nodes);
     let mut menu = Vec::with_capacity(scope.len() + 1);
@@ -682,9 +830,10 @@ pub fn llm_menu(
             continue;
         };
         menu.push(format!(
-            "{id}\t{}\t{}",
+            "{id}\t{}\t{}{}",
             ancestor_names(nodes, id).join(" / "),
-            clip(&node.description, 180)
+            clip(&node.description, MENU_DESCRIPTION_CHARS),
+            hints.get(id).map_or("", String::as_str)
         ));
         options.push((id.clone(), node.name.clone()));
         allowed.push(id.clone());
@@ -953,6 +1102,40 @@ mod tests {
     }
 
     #[test]
+    fn a_retry_waits_what_the_server_asks_within_the_cap() {
+        let with = |name: &'static str, value: &'static str| {
+            let mut headers = header::HeaderMap::new();
+            headers.insert(name, header::HeaderValue::from_static(value));
+            headers
+        };
+        let wait = |headers: &header::HeaderMap| retry_wait(0, Some(headers));
+        // Up to a quarter of the wait is randomised away.
+        let asked = wait(&with("retry-after", "2"));
+        assert!(asked <= Duration::from_secs(2) && asked >= Duration::from_millis(1500));
+        let ms = wait(&with("retry-after-ms", "400"));
+        assert!(ms <= Duration::from_millis(400) && ms >= Duration::from_millis(300));
+        // Never longer than the cap, whatever is asked.
+        assert!(wait(&with("retry-after", "3600")) <= RETRY_MAX);
+        assert!(wait(&with("retry-after", "1e300")) <= RETRY_MAX);
+        // A value that is not a finite number of seconds falls back to backoff
+        // instead of panicking: a date, `inf`, `nan`, a negative.
+        for odd in ["Wed, 21 Oct 2026 07:28:00 GMT", "inf", "nan", "-inf"] {
+            assert!(wait(&with("retry-after", odd)) <= RETRY_BASE, "{odd}");
+        }
+        assert_eq!(wait(&with("retry-after", "-5")), Duration::ZERO);
+        // Backoff doubles and stays under the cap however many attempts.
+        assert!(retry_wait(1, None) <= RETRY_BASE * 2);
+        assert!(retry_wait(30, None) <= RETRY_MAX);
+        // What is worth another attempt.
+        for status in [408, 429, 500, 502, 503, 529] {
+            assert!(retryable(status), "{status}");
+        }
+        for status in [400, 401, 404, 413, 422] {
+            assert!(!retryable(status), "{status}");
+        }
+    }
+
+    #[test]
     fn urls_for_openai_style_v1_base() {
         assert_eq!(
             model_list_urls("https://api.openai.com/v1"),
@@ -1099,13 +1282,13 @@ mod tests {
     }
 
     #[test]
-    fn one_shot_menu_names_the_whole_path_and_caps_at_180() {
+    fn one_shot_menu_names_the_whole_path_and_caps_the_description() {
         let nodes = menu_fixture();
         let long = "가".repeat(400);
         let mut nodes = nodes;
         nodes[3].description = long;
         let scope: Vec<String> = nodes.iter().map(|n| n.id.clone()).collect();
-        let (menu, options, allowed) = llm_menu(&nodes, &scope, false);
+        let (menu, options, allowed) = llm_menu(&nodes, &scope, false, &HashMap::new());
         assert_eq!(menu.len(), 4);
         // 심층 노드는 조상 경로를 함께 보여 준다. 라우터가 위치만 보고 헷갈리지 않게.
         assert!(
@@ -1113,13 +1296,13 @@ mod tests {
             "{}",
             menu[3]
         );
-        // 설명은 180자에서 잘린다. 메뉴가 트리 크기만큼 커지지 않게.
+        // 설명은 Jev가 읽는 것과 같은 길이에서 잘린다. 메뉴가 트리 크기만큼 커지지 않게.
         assert_eq!(
             menu[3].chars().count(),
             "it_net_wifi_drop\tIT / 네트워크 / 와이파이 / 끊김\t"
                 .chars()
                 .count()
-                + 180
+                + MENU_DESCRIPTION_CHARS
         );
         assert_eq!(options.len(), 4);
         assert_eq!(allowed.len(), 4);
@@ -1133,7 +1316,7 @@ mod tests {
     fn one_shot_menu_offers_none_only_for_the_whole_forest() {
         let nodes = menu_fixture();
         let scope: Vec<String> = nodes.iter().map(|n| n.id.clone()).collect();
-        let (menu, options, allowed) = llm_menu(&nodes, &scope, true);
+        let (menu, options, allowed) = llm_menu(&nodes, &scope, true, &HashMap::new());
         assert_eq!(
             menu.last().unwrap(),
             "__none__\t없음\t어느 주제에도 속하지 않는다."
@@ -1146,10 +1329,34 @@ mod tests {
     }
 
     #[test]
+    fn the_review_reads_the_filed_questions_jev_read() {
+        let nodes = menu_fixture();
+        let scope: Vec<String> = nodes.iter().map(|n| n.id.clone()).collect();
+        let hints = HashMap::from([(
+            "it_net_wifi".to_string(),
+            " | 이미 있는 질문: 공유기 재부팅".to_string(),
+        )]);
+        let (menu, _, allowed) = llm_menu(&nodes, &scope, true, &hints);
+        assert!(
+            menu[2].ends_with("무선 연결 | 이미 있는 질문: 공유기 재부팅"),
+            "{}",
+            menu[2]
+        );
+        assert!(!menu[1].contains("이미 있는 질문"), "{}", menu[1]);
+        // The prompt explains the questions only when some are shown.
+        let with = one_shot_prompt(true, true, &allowed, "질문", "", &menu);
+        let without = one_shot_prompt(true, false, &allowed, "질문", "", &menu[..2]);
+        assert!(with.contains("이미 저장된 질문입니다"));
+        assert!(!without.contains("이미 저장된 질문입니다"));
+        // `__none__` is for a topic no node covers, and the prompt says so.
+        assert!(with.contains("하나도 없을 때만"));
+    }
+
+    #[test]
     fn one_shot_menu_skips_ids_that_left_the_scope() {
         let nodes = menu_fixture();
         let scope = vec!["it_net_wifi_drop".to_string(), "없는노드".to_string()];
-        let (menu, options, allowed) = llm_menu(&nodes, &scope, false);
+        let (menu, options, allowed) = llm_menu(&nodes, &scope, false, &HashMap::new());
         assert_eq!(menu.len(), 1);
         assert_eq!(options.len(), 1);
         assert_eq!(allowed, vec!["it_net_wifi_drop".to_string()]);

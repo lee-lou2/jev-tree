@@ -10,7 +10,8 @@ HTTP details live in [`docs/api.md`](docs/api.md) and [`static/openapi.json`](st
 A hierarchical knowledge service. One Rust process serves the HTTP API and the web UI.
 There are two operations, and they are the same descent:
 
-- `search` — walk the tree with the full context, then rank items under the selected node.
+- `search` — walk the tree with the full context, then rank the items under the selected
+  node together with the items that share the request's words.
 - `ingest` — walk the same tree, then draft or publish a Q&A there.
 
 There is no `classify` mode; `search` already returns `leaf_id` and `path`.
@@ -34,7 +35,11 @@ cargo run --release --example eval -- run --eval-dir eval/large --variant full -
 
 Two datasets: `eval/` (golden, 219 nodes — fits one Jev choice) and `eval/large` (1,902 nodes,
 synthetic). A routing change has to be measured on both: the golden tree never exercises
-the coarse map, the recall menu, or the zoom.
+the coarse map, the recall menu, or the zoom. Both are tidy by construction. A tree people
+actually maintain is not, and the golden set's 98% told nothing about it: measure against
+your own tree and requests too (`eval/README.md`, "내 트리로 평가하기"). Two runs of the same
+build differ by up to a point, so read a change as a paired comparison (`compare`), never as
+two headline numbers.
 
 Working directory must be the repo root: `JEV_TREE_DB`, `JEV_TREE_SEED`, and
 `JEV_TREE_STATIC_DIR` default to relative paths. If `/docs` 404s or the UI looks stale,
@@ -50,17 +55,23 @@ and `docs/api.md` in the same commit; a test asserts the path set matches the ro
 POST /api/run {mode: search|ingest, root?}
   → search asked before against the same store and settings generation → cached result
   → engine::flat_route   the walk's menu + __none__, one Jev choice
-        menu = every node in scope when one choice can name them (≤ 254 nodes, ≤ 80 KB)
+        menu = every node in scope when one choice can name them (≤ 254 nodes, ≤ 74 KB)
              = else engine::recall_menu: a coarse Jev choice over the deepest tree level
                that fits, its best branches opened whole, plus BM25 matches (src/recall.rs)
+        each node also shows the questions already filed under it that share the
+        request's words (engine::filed_hints)
+  → search only: `__none__` below 0.5 is not a refusal, the best node is the pick
   → pick < 0.8 and an LLM configured → engine::llm_review: the LLM picks from the same menu
-    pick < 0.85 and no review        → one scope judgment, which can hold the request
     pick whose subtree was cut from the menu → the walk repeats inside that pick
   → leaf or __none__
-  → search: retrieve that subtree (+ the two runners-up when the pick was < 0.9),
-        rank with Noul/Score, assign roles
+  → search: pool = that subtree
+                 + the two runners-up when the pick was < 0.9
+                 + the 20 items in scope that share the most words with the request
+        rank the pool with Noul/Score, assign roles
         (items ON the chosen node win near-ties against the rest — the walk already
         picked that level of specificity; `LEVEL_BONUS` in `src/engine.rs`)
+        best item < 0.55 → abstained
+        route said __none__ but an item answers → the search lands on that item's node
   → ingest: upsert as draft, or publish when auto_publish is true
 ```
 
@@ -72,7 +83,23 @@ The route is **one Jev choice** (`flat_route`):
   the forest, so it has `__none__` too: `leaf_id: null` there means "outside this root".
   A walk with a `start_node` (or a childless `root`) has no terminal: the start node itself
   is a candidate, and picking a parent is how the walk stays there.
-- Past `FLAT_MAX_NODES` (254) nodes, or `FLAT_MAX_MENU_BYTES` (80 KB) of menu text, the menu
+- The options go out **in tree order with `__none__` last**. The evaluator leans toward the
+  option it reads first, and a JSON object is sorted by key unless `serde_json` is built
+  with `preserve_order` — which put `__none__` ahead of every lowercase id until 0.11. A
+  test fails if that feature is dropped.
+- **A node shows what is filed under it.** `engine::word_matches` takes the 20 active items
+  in the walk's scope that share the most words with the request (BM25 over question and
+  answer, `src/recall.rs`), and each node's label ends with the questions of its own
+  matches (`이미 있는 질문: …`, three a node, 80 characters each, 6 KB a menu). A
+  description says what a node is meant to hold; the questions show what it does hold.
+  Right node on the 1,902-node benchmark: 69.5% without them, 84.9% with (Jev alone).
+- **On a search, `__none__` needs the majority** (`NONE_MIN`, 0.5). It shares one
+  distribution with the nodes, so on a request several nodes could hold it is often the
+  largest single option while the nodes together are far ahead. Below 0.5 the best node is
+  the pick. An ingest takes `__none__` as said and returns 400: a search checks its route
+  against the items, a filing has nothing to check it against, and a refusal turned into a
+  pick was filed in the wrong domain as often as not.
+- Past `FLAT_MAX_NODES` (254) nodes, or `FLAT_MAX_MENU_BYTES` (74 KB) of menu text, the menu
   is **recalled** (`recall_menu`) from two sources, both bounded by what one choice can read:
   - the **coarse map** — one Jev choice over the deepest level of the walk's tree (plus any
     shallower leaves) that one choice can name. Its best nodes are opened whole: until they
@@ -91,38 +118,79 @@ The route is **one Jev choice** (`flat_route`):
   candidate) — one level deeper each round, so it ends.
 - With `llm_base_url`, `llm_token`, and `llm_model` all set, a pick below
   `LLM_REVIEW_BELOW` (0.8) is **reviewed by the LLM** (`llm_review` → `JevClient::review`):
-  the one-shot prompt over the **same menu, in tree order**. Not Jev's top candidates: shown
-  only those, best first, the model agrees with Jev's mistakes (93% route accuracy on the
-  golden queries against 97% with the whole menu). Confident picks never wait for it. The
-  review gets a third of `JEV_TREE_RUN_TIMEOUT_SECS`; a failed or slow one keeps Jev's pick.
-  The call sends `reasoning_effort` from `llm_reasoning_effort` (default `low`); a higher level
-  thinks longer, so measure it against that budget before raising it. `trace.router` is `llm`
-  when the review decided.
-- A pick below 0.85 that no LLM reviewed gets **one more judgment on scope alone** ("does
-  this tree cover the request at all"). Only a confident `out` (p ≥ 0.8) refuses; a hesitant
-  one keeps the pick. A `start_node` walk must land on a node and never asks.
-- **Search rescues an unsure route** (`RESCUE_BELOW`, 0.9): the pool also holds the items
-  of the two next-best nodes of Jev's choice (`RESCUE_NODES`), never the pick's own
-  ancestors or descendants, and only a runner-up's own items when its subtree holds more
-  than `RESCUE_MAX_ITEMS` (64). Most misses on a big tree are sideways (a sibling, another
-  branch, another domain); without the runners-up the answer is outside the pool however
-  well the ranking reads.
+  the one-shot prompt over the **same menu, in tree order, with the same filed questions**.
+  Not Jev's top candidates: shown only those, best first, the model agrees with Jev's
+  mistakes (93% route accuracy on the golden queries against 97% with the whole menu).
+  Confident picks never wait for it. The review gets a third of
+  `JEV_TREE_RUN_TIMEOUT_SECS`; a failed or slow one keeps Jev's pick. The prompt says what
+  `__none__` is for (a request the tree does not cover), because "belongs to no node" was
+  read as "no node names exactly this" and refused requests the tree covers. The call sends
+  `reasoning_effort` from `llm_reasoning_effort` (default `low`); a higher level thinks
+  longer, so measure it against that budget before raising it. `trace.router` is `llm`
+  when the review decided, and every review leaves an `llm review` log line (Jev's pick,
+  the LLM's, whether it changed, milliseconds).
+- **A search ranks more than the routed subtree.** The pool also holds
+  - the items of the two next-best nodes when the pick was below `RESCUE_BELOW` (0.9)
+    (`RESCUE_NODES`; never the pick's own ancestors or descendants, and only a runner-up's
+    own items when its subtree holds more than `RESCUE_MAX_ITEMS`, 64), and
+  - the `RECALL_ITEMS` (20) items in scope that share the most words with the request,
+    always, wherever they are filed.
+  Most misses are sideways (a sibling, another branch): the answer is filed one node over
+  from where its description points. On a live tree the answer was among the results for
+  82% of answerable requests with the routed subtree alone and for 95% with the pool.
+  Every item is ranked the same way and held to the same line; none needs a higher score
+  for having come from outside.
+- **A refusal is checked against the items.** When the route says `__none__`, the word
+  matches are still ranked. If one clears the hold line the search lands on that item's
+  node (`leaf_id`, `path`); `trace.leaf_id` keeps the route's own verdict. If none does,
+  `leaf_id` stays `null`.
 - A Jev API key is required. Search and ingest return 400 without one.
   `GET /api/health` → `evaluator` is `jev` or `unconfigured`. That field is the ranker,
   not which router ran.
 - Item **ranking** always uses Jev, over every active item in the pool, in batches of up to
   32 items and 24 KB (`RANK_BATCH`, `RANK_BATCH_BYTES`), four calls at a time, in order.
-- Nothing routes by word overlap. BM25 only proposes menu entries; Jev (or the LLM) makes
-  every decision. The level-by-level beam is gone (0.10): it lost a leaf as soon as one
-  level guessed wrong, and the coarse map made it unreachable. `beam_width` is accepted
-  and ignored.
+- Nothing routes or ranks by word overlap. BM25 only proposes: menu entries, the questions
+  a node shows, and candidates for the pool. Jev (or the LLM) makes every decision. The
+  level-by-level beam is gone (0.10): it lost a leaf as soon as one level guessed wrong,
+  and the coarse map made it unreachable. `beam_width` is accepted and ignored.
 - Every model call leaves a `usage` event on the run's stream (`source`, `input_tokens`,
   `output_tokens`); the eval runner reads its cost from them.
+- Every finished run leaves one `run` log line: mode, root, where it landed, the route's
+  probability, pool size, `abstained`, the top item and its score, milliseconds, and the
+  first 200 characters of the request (`JEV_TREE_LOG_QUERIES=0` leaves the text out). That
+  line is what this server knows about how it is used; without it nothing here can be
+  measured against real requests.
 - A search is cached (`AppState.results`, 1,024 results, 10 minutes) under its text,
   context, `root`, `start_node`, `limit`, `Store::generation` and `JevClient::generation`.
   Any write to the taxonomy or an item, and any settings change, moves a generation, so a
   stale result never comes back. A hit emits `cache_hit` and makes no model call. The eval
   runner turns the cache off: every case is measured.
+
+### What only a search does
+
+A search can afford to be generous and an ingest cannot: a search's route is checked by the
+ranking that follows, and a wrong landing still finds the answer in the pool. An ingest's
+route *is* the result. So three things are a search's alone, each measured both ways:
+
+| | search | ingest |
+|---|---|---|
+| Filed questions in the menu | yes: right node 69.5% → 84.9% at 1,902 nodes | no: filed right 126–127 of 160 without, 118–122 with |
+| `__none__` below 0.5 becomes the best node | yes: refused live requests 43 → 29 | no: the pick it turns into is a weak guess |
+| A refusal checked against the items | yes: 21 → 1 with no result | nothing to check against |
+
+### What was measured and not kept
+
+Each of these looked right and was wrong on the data. Do not bring one back without a
+paired run on all three sets.
+
+| Idea | What happened |
+|---|---|
+| A companion Noul for scope ("is this about what the tree covers?") instead of `__none__` | Caught 23 of 38 out-of-scope requests where `__none__ ≥ 0.5` catches 32 |
+| A second "scope check" call on an unsure pick (below 0.85) | Refused nothing the menu had not already refused, on any set; removed |
+| One state field for the request instead of `conversation` + `current_request` + `background` | Ranking fell: E2E −5.7pp on the 1,902-node set |
+| Naming an item by its place (`items[3]`) in the ranking questions, or spelling out Noul/Score criteria | E2E −6pp golden, −12pp on the 1,902-node set |
+| A score floor for items the route did not pick (0.75) | Dropped one right answer in six on a live tree |
+| 40 word matches instead of 20 | No better; more look-alikes to rank |
 
 ### Evaluator limits
 
@@ -135,18 +203,27 @@ before it was a constant.
   the answer is HTTP 400 `max_tokens_exceeded`. A 254-option menu of 78 KB was 28.8K tokens
   and passed; 115 KB failed. That is bytes only loosely (Korean runs about 2.7 bytes a
   token): a batch of real Korean items passed at 100 KB and failed at 116 KB. The engine
-  keeps a menu under 80 KB and a ranking call under 24 KB.
+  keeps a menu under 80 KB (74 KB of node labels, 6 KB of filed questions) and a ranking
+  call under 24 KB. The documented limits are 64K tokens a request and 32K a question;
+  the long-context header raises both and is slower and less accurate, so it is not used.
 - One **request** has to fit about **64K tokens** across all its questions: three 21K-token
   questions pass, four fail. Questions share the request's state (billed once), so many
   small questions are cheap — 1,000 yes/no questions in one request took 0.37 s — but big
   menus go in separate requests (`REQUEST_MAX_BYTES`, 160 KB).
-- A 4xx from the evaluator is never retried (only 408, 429 and 5xx are), so one oversized
-  call fails the whole run. Size things before the call, not after.
+- A 4xx from the evaluator is never retried, so one oversized call fails the whole run.
+  Size things before the call, not after. 408, 429, 5xx (529 is "overloaded"), a dropped
+  connection and a reply cut off mid-body are tried again, three attempts in all: the wait
+  is what `retry-after` asks for, else 250 ms doubling, never more than 5 s, with a
+  quarter of it randomised so calls that failed together do not return together. A reply
+  that arrives whole and does not read as a judgment is not tried again.
+- `jev-latest` is the model (`jev-1.14.0` since 2026-10-14). An alias moves when a release
+  ships, and a line tuned here was tuned against that release: re-run the evals when it
+  moves, or pin the versioned id with `JEV_EVAL_JEV_MODEL` to compare.
 - Only input tokens are billed. A call takes 0.2–0.5 s whatever its size.
 
 Result roles: `recommended` ≥ 0.65, `alternative` ≥ 0.40, else `reference`.
-A weak best item sets `abstained: true` (score < 0.45, or < 0.30 with directness < 1.0).
-`leaf_id: null` means outside the tree.
+A best item below 0.55 sets `abstained: true` (`HOLD_BELOW`), and every item is then a
+`reference`. `leaf_id: null` means outside the tree: the route refused and no item answers.
 
 ## Where code goes
 
@@ -156,8 +233,8 @@ draft with `DELETE /api/items/{id}`.
 
 | Change | File | Do not put it in |
 |---|---|---|
-| Descent, coarse map, LLM review, rescue, ranking, abstain | `src/engine.rs` | HTTP handlers, UI |
-| BM25 recall index over the taxonomy | `src/recall.rs` | `src/jev.rs` (no network here) |
+| Descent, coarse map, LLM review, the search pool, ranking, abstain | `src/engine.rs` | HTTP handlers, UI |
+| BM25 recall indexes over the taxonomy and the items | `src/recall.rs` | `src/jev.rs` (no network here) |
 | Search result cache | `src/cache.rs` | |
 | Jev calls, optional LLM review | `src/jev.rs` | Anywhere else — this is the only network call |
 | Routes, auth, OpenAPI serving | `src/http.rs` | `src/engine.rs` |
@@ -175,13 +252,16 @@ Domain and product concepts belong in `data/seed.json` or bootstrap fixtures onl
 ## Invariants
 
 1. The evaluator receives the **full context** — current request, prior `context` turns,
-   ancestor path, and sibling descriptions. Never a bare sentence.
+   ancestor path, sibling descriptions, and the filed questions that share the request's
+   words. Never a bare sentence. Jev and the LLM read the same text about every node.
 2. `start_node` is optional. `search` and `ingest` must work with it unset.
    `root` is optional too. Unset `root` is the whole forest. Set `root` scopes the
    same descent to that node's children. Settings and keys never take a `root`.
 3. `mode` is `search` or `ingest`. Do not add `classify`.
 4. `__none__` must be able to win wherever a walk may abstain (a forest or `root` walk): in
-   the menu, in each chunk of a split coarse map, and in an LLM review.
+   the menu, in each chunk of a split coarse map, and in an LLM review. It is always the
+   last option. On a search it wins the menu only with the majority; on an ingest whenever
+   it is the pick.
 5. A recalled menu brings every node's ancestors along, so a walk can always stop at a
    parent; a pick whose subtree was cut from the menu is walked into, never dropped.
 6. Ingest without `auto_publish` is a draft and must stay out of search results.
@@ -189,8 +269,13 @@ Domain and product concepts belong in `data/seed.json` or bootstrap fixtures onl
 8. Never commit secrets: `data/.jev-tree.key`, `data/.jev-tree.salt`, `.env`, `data/*.db`.
 9. Keep the UI out of the core and the core out of the UI.
 10. `JevClient::script_choices` and `script_llm` exist for unit tests and the `eval` example's
-    mock router (a `~id` script entry picks `id` at 0.5, to reach the paths an unsure route
-    takes). They are compiled into the binary but unreachable over HTTP. Keep them that way.
+    mock router (a `~id` script entry picks `id` at 0.5 and `id@p` at `p`, to reach the paths
+    an unsure route takes; a script that picks `__none__` also scores every item low). They
+    are compiled into the binary but unreachable over HTTP. Keep them that way.
+11. Word overlap never decides. `src/recall.rs` proposes; a model disposes. A lexical match
+    that skips the ranking, or a score adjusted by BM25, breaks this.
+12. A constant in `src/engine.rs` carries the measurement that chose it. Change the number
+    and the comment together, from a run, or not at all.
 
 ## Auth
 
@@ -235,11 +320,17 @@ Verified against the current code. Do not assume the rest of this document hides
 
 | Severity | Issue |
 |---|---|
-| Medium | On the 1,902-node benchmark (`eval/large`) the right node is in the recalled menu for 98% of requests, but the final choice picks it for only 69% (Jev alone); most misses are sideways between nodes whose scopes overlap. Rescue recovers much of the answer (E2E 82%), the LLM review more. The benchmark's own labels are strict and its domains overlap by design, so part of that gap is label noise — but not all of it. |
+| Medium | **A search answers too readily when the knowledge base has no answer.** On a live customer-support tree, 131 of 489 real requests had no item that answers them; the search held 47 and answered 84 (71 with an item that is related but does not answer, 13 with an unrelated one). Jev's scores for "related" and "answers" overlap: a related top item scores 0.68 at the median, an answering one 0.88. Raising `HOLD_BELOW` trades real answers for holds (at 0.60, 16 of 358 real answers held against 6). Read `role`: only `recommended` (≥ 0.65) is an answer to send as it is. |
+| Medium | **Jev scores an item higher when weaker look-alikes are ranked beside it**, and the pool now always has some. The golden `sparse` tree (one item a leaf, the answer often missing) answers 46 of 264 unanswerable questions; so did 0.10.1 measured the same day (43), so the pool did not make it worse there, but the scores are not absolute. Ranking one item per call does not fix it (E2E 86.5% against 89.2%). |
+| Medium | On the 1,902-node benchmark (`eval/large`) the right node is in the recalled menu for 98% of requests and the final choice picks it for 83% (Jev alone; 69% before the menu showed filed questions). What is left is mostly sideways, between nodes whose scopes overlap; the pool recovers the answer (E2E 87%). The benchmark's labels are strict and its domains overlap by design, so part of the gap is label noise. |
+| Low | **Filed questions help a search and not an ingest**, so only a search sees them. A new Q&A filed with them landed in the right node 118–122 times of 160 on the benchmark, without them 126–127: look-alikes one branch over pull it there. An ingest therefore still routes by description alone, and a tree whose descriptions do not say what its nodes hold files worse than it finds. An LLM review recovers most of it (131–134 of 160). |
+| Low | The pool can bring in an item from a neighbouring domain that reads like the answer (a lost *personal* card for a lost *company* card). On the golden `deep` tree that costs a few cases (E2E 98.4% → 97.1%, 9 lost and 3 won, not significant); on the larger sets the pool wins by far more than it loses. |
+| Low | `jev-latest` moved from `jev-1.13.0` to `jev-1.14.0` on 2026-10-14 and scores moved with it (golden `sparse` 90.8% → 89.4% on unchanged code). A recorded run is comparable only with runs of the same model; compare builds on the same day. |
 | Low | The coarse map costs one more Jev call (about 19K input tokens on the benchmark) for every request on a scope past 254 nodes, and a pick whose branch was cut repeats it inside that branch. Not measured beyond 1,902 nodes. |
-| Low | On a big tree Jev is unsure more often: the LLM reviewed 43% of requests at 1,902 nodes against 12% on the golden tree, each review about 6.5K tokens and a few seconds. |
+| Low | The LLM reviews 9% of requests on the golden tree, 27% at 1,902 nodes and 45% on a live tree, each a few thousand tokens and 1–3 seconds (p95 7–9 s with `muse-ember-1.0` at `low`). On a search it changes little; turn it off for searches by leaving the LLM settings empty if the tail matters more than ingest filing. |
+| Low | The run log grows without bound (about 300 bytes a run) and holds request text. Rotate it; `JEV_TREE_LOG_QUERIES=0` drops the text. |
 | Low | The search result cache (`src/cache.rs`, 1,024 results for 10 minutes) is per process. Several processes behind a balancer each keep their own. |
-| Low | Ranking loads every active row in the landed subtree (plus up to 64 rows from each of two runners-up) and scores it with Jev in batches of up to 32 items / 24 KB, four at a time. A 2,201-item subtree is about a hundred calls. Fine at seed scale; not a plan for tens of thousands of rows under one node. |
+| Low | Ranking loads every active row in the landed subtree (plus up to 64 rows from each of two runners-up and 20 word matches) and scores it with Jev in batches of up to 32 items / 24 KB, four at a time. A 2,201-item subtree is about a hundred calls. Fine at seed scale; not a plan for tens of thousands of rows under one node. |
 | Low | A degraded Jev call still makes up to three attempts (the first try and two retries) before the run deadline trips. |
 | Low | `context` (32 turns, no per-turn limit) is sent twice per call. A very long one can push a request past the evaluator's window and the run ends 502 with a "shorten the input" message. |
 | Low | Re-sending the question of a *published* row without `auto_publish` turns it back into a draft, so it leaves search until it is published again. The golden set counts this as `live_demoted` and expects it; a separate pending revision would need a schema change. |
@@ -247,12 +338,17 @@ Verified against the current code. Do not assume the rest of this document hides
 
 ## Common mistakes
 
-1. Trusting `items[0]`. Read `role` and `abstained`.
+1. Trusting `items[0]`. Read `role` and `abstained`. An item's `category_id` need not be
+   `leaf_id`: the pool reaches past the routed subtree.
 2. Reading `evaluator: "unconfigured"` as a Jev outage. It means no key is saved,
    and `/api/run` will return 400 until one is.
 3. Treating `ingest` as a save. The default is a draft. Passing `item_id` files the row where
    it already is: to move it, pass `start_node`.
 4. Editing a route without updating `static/openapi.json` and `docs/api.md`.
 5. Growing the seed without describing siblings. Siblings must be mutually exclusive,
-   and each `description` should say how it differs from its siblings.
+   and each `description` should say how it differs from its siblings. A search can find
+   an item its node's description does not mention; an ingest cannot file by it.
 6. Adding a second runtime, a `classify` mode, or a new default port.
+7. Reading a public benchmark as your accuracy. Measure on your own tree and requests.
+8. Comparing a run with one recorded under another Jev release, or two single runs
+   without pairing them.

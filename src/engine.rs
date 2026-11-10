@@ -47,6 +47,7 @@ pub async fn execute(
             "Jev API key is required. Add it in Settings → Models.".into(),
         ));
     }
+    let started = std::time::Instant::now();
     let mode = request.mode.clone();
     let text = request.text();
     // A search asked before, against the same knowledge and settings, is
@@ -70,6 +71,16 @@ pub async fn execute(
         )
         .await;
         emit(&sender, json!({"type":"search_done","leaf_id":cached["leaf_id"],"abstained":cached["abstained"],"items":cached["items"],"results":cached["items"],"query":cached["query"],"path":cached["path"],"trace":cached["trace"]})).await;
+        tracing::info!(
+            mode = "search",
+            cached = true,
+            root = request.root.as_deref().unwrap_or(""),
+            leaf = cached["leaf_id"].as_str().unwrap_or(""),
+            abstained = cached["abstained"].as_bool().unwrap_or(false),
+            ms = started.elapsed().as_millis() as u64,
+            query = %logged(&text),
+            "run"
+        );
         return Ok(cached);
     }
     let Routed {
@@ -153,69 +164,96 @@ pub async fn execute(
         } else {
             emit(&sender, json!({"type":"ingest_draft","item":item,"duplicate_ids":result.duplicate_ids,"path":result.path,"trace":result.trace})).await;
         }
+        tracing::info!(
+            mode = "ingest",
+            root = request.root.as_deref().unwrap_or(""),
+            leaf = result.category_id.as_deref().unwrap_or(""),
+            router = %result.trace.router,
+            route_p = %shown(result.trace.score),
+            item = %item.id,
+            status = %item.status,
+            updated,
+            duplicates = result.duplicate_ids.len(),
+            ms = started.elapsed().as_millis() as u64,
+            query = %logged(&result.question),
+            "run"
+        );
         Ok(serde_json::to_value(result)?)
     } else {
         let nodes = state.taxonomy()?;
         let scope = resolve_root(&nodes, request.root.as_deref())?;
-        let in_scope = |id: &String| {
-            scope
-                .allowed
-                .as_ref()
-                .is_none_or(|allowed| allowed.contains(id))
+        // In scope: a node of the taxonomy, inside `root` when there is one. A
+        // row left under a node that no longer exists is in no scope.
+        let known: HashSet<&str> = nodes.iter().map(|node| node.id.as_str()).collect();
+        let in_scope = |id: &str| {
+            known.contains(id)
+                && scope
+                    .allowed
+                    .as_ref()
+                    .is_none_or(|allowed| allowed.contains(id))
         };
         let categories: Vec<String> = leaf
             .as_ref()
             .map(|id| {
                 descendant_ids(&nodes, id)
                     .into_iter()
-                    .filter(in_scope)
+                    .filter(|id| in_scope(id))
                     .collect()
             })
             .unwrap_or_default();
         let mut candidates = state.store.active_in(&categories)?;
+        let mut pooled: HashSet<String> = candidates.iter().map(|item| item.id.clone()).collect();
         // An unsure route also ranks what its runners-up hold: a sideways miss
         // otherwise loses the answer however well the ranking reads.
-        let routed = candidates.len();
         for runner in runners_up.iter().filter(|id| in_scope(id)) {
             let below: Vec<String> = descendant_ids(&nodes, runner)
                 .into_iter()
-                .filter(in_scope)
+                .filter(|id| in_scope(id))
                 .collect();
             let mut rescued = state.store.active_in(&below)?;
             if rescued.len() > RESCUE_MAX_ITEMS {
                 rescued = state.store.active_in(std::slice::from_ref(runner))?;
             }
-            for item in rescued {
-                if !candidates.iter().any(|known| known.id == item.id) {
-                    candidates.push(item);
-                }
-            }
+            candidates.extend(
+                rescued
+                    .into_iter()
+                    .filter(|item| pooled.insert(item.id.clone())),
+            );
         }
-        let outside: HashSet<String> = candidates[routed..]
-            .iter()
-            .map(|item| item.id.clone())
-            .collect();
+        // So do the items that share the most words with the request, wherever
+        // in the scope they are filed. A node's description never names
+        // everything filed under it, so the route alone misses answers that sit
+        // one branch over; the words of the item itself do not.
+        let walked: Option<HashSet<String>> = request
+            .start_node
+            .as_deref()
+            .map(|id| descendant_ids(&nodes, id).into_iter().collect());
+        let matched = word_matches(&state, &lexical_text(&text, &request.context), |node| {
+            in_scope(node) && walked.as_ref().is_none_or(|under| under.contains(node))
+        })?;
+        candidates.extend(
+            matched
+                .into_iter()
+                .filter(|item| pooled.insert(item.id.clone())),
+        );
         emit(
             &sender,
             json!({"type":"retrieval_completed","count":candidates.len(),"category_id":leaf}),
         )
         .await;
+        let pool = candidates.len();
         let ranked = rank(
             &state,
             &text,
             &request.context,
             candidates,
             leaf.as_deref(),
-            &outside,
             request.limit,
             sender.clone(),
         )
         .await?;
-        let abstained = ranked
-            .first()
-            .map(|item| holds(item.score, item.directness))
-            .unwrap_or(true);
-        let items = if abstained {
+        let abstained = ranked.first().is_none_or(|item| holds(item.score));
+        let items: Vec<RankedItem> = if abstained {
             ranked
                 .into_iter()
                 .map(|mut item| {
@@ -226,6 +264,41 @@ pub async fn execute(
         } else {
             ranked
         };
+        // A route that said "outside the tree" is contradicted by an item that
+        // answers the request: the search lands where that item is filed. The
+        // trace keeps what the route itself decided. (An item filed on the
+        // `root` node itself lands there, above the walk: an empty path.)
+        let (leaf, path) = match items.first() {
+            Some(top) if leaf.is_none() && !abstained => {
+                let walk: Vec<String> = scope
+                    .descent_nodes
+                    .iter()
+                    .map(|node| node.id.clone())
+                    .collect();
+                let path = if walk.contains(&top.item.category_id) {
+                    path_parts(&scope.descent_nodes, &walk, &top.item.category_id)
+                } else {
+                    Vec::new()
+                };
+                (Some(top.item.category_id.clone()), path)
+            }
+            _ => (leaf, path),
+        };
+        tracing::info!(
+            mode = "search",
+            root = request.root.as_deref().unwrap_or(""),
+            leaf = leaf.as_deref().unwrap_or(""),
+            router = %trace.router,
+            route_p = %shown(trace.score),
+            route_leaf = trace.leaf_id.as_deref().unwrap_or(""),
+            pool,
+            abstained,
+            top = items.first().map_or("", |item| item.item.id.as_str()),
+            top_score = %shown(items.first().map(|item| item.score)),
+            ms = started.elapsed().as_millis() as u64,
+            query = %logged(&text),
+            "run"
+        );
         let result = SearchResult {
             query: text,
             items,
@@ -241,6 +314,41 @@ pub async fn execute(
         }
         Ok(value)
     }
+}
+
+/// The request text as the run log shows it: the first 200 characters, on one
+/// line. `JEV_TREE_LOG_QUERIES=0` leaves it out, for a deployment whose
+/// requests must not be written to a log.
+fn logged(text: &str) -> String {
+    static KEEP: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let keep = KEEP.get_or_init(|| {
+        std::env::var("JEV_TREE_LOG_QUERIES").map_or(true, |value| value.trim() != "0")
+    });
+    if !keep {
+        return String::new();
+    }
+    text.chars()
+        .take(200)
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect()
+}
+
+/// A probability or score as a log line shows it: three decimals, `-` for none.
+fn shown(value: Option<f64>) -> String {
+    value.map_or_else(|| "-".into(), |value| format!("{value:.3}"))
+}
+
+/// The path from the top of the walk down to `id`, as a response shows it.
+fn path_parts(nodes: &[Node], pool: &[String], id: &str) -> Vec<PathPart> {
+    node_chain(nodes, pool, id)
+        .into_iter()
+        .map(|id| PathPart {
+            name: node_name(nodes, &id),
+            id,
+            probability: None,
+            confidence: None,
+        })
+        .collect()
 }
 
 /// Where a walk landed, plus the nodes a search also ranks when the walk was
@@ -289,15 +397,7 @@ async fn stored_route(
     sender: &Option<mpsc::Sender<Value>>,
 ) -> Routed {
     let pool: Vec<String> = nodes.iter().map(|node| node.id.clone()).collect();
-    let path: Vec<PathPart> = node_chain(nodes, &pool, category)
-        .into_iter()
-        .map(|id| PathPart {
-            name: node_name(nodes, &id),
-            id,
-            probability: None,
-            confidence: None,
-        })
-        .collect();
+    let path = path_parts(nodes, &pool, category);
     let run_id = Uuid::new_v4().to_string();
     let trace = Trace {
         run_id: run_id.clone(),
@@ -418,10 +518,11 @@ async fn descend(
 /// spends one of them on `__none__`.
 const FLAT_MAX_NODES: usize = 254;
 
-/// Most menu text (ids plus labels) one Jev choice can read. The whole request
+/// Most node text (ids plus labels) one Jev choice is given. The whole request
 /// has to fit the evaluator's context window: a 234-node menu of 94 KB passes
-/// against the live API and one of 124 KB is HTTP 400. 80 KB keeps the margin.
-const FLAT_MAX_MENU_BYTES: usize = 80_000;
+/// against the live API and one of 124 KB is HTTP 400. 80 KB keeps the margin,
+/// and [`HINT_MAX_BYTES`] of that is kept for the filed questions a menu shows.
+const FLAT_MAX_MENU_BYTES: usize = 74_000;
 
 /// JSON framing around one menu entry: quotes, colon, comma.
 const MENU_ENTRY_FRAMING: usize = 6;
@@ -436,136 +537,34 @@ const COARSE_CHUNK_NONE: &str =
 
 const FLAT_NONE: &str = "어느 분류에도 속하지 않음 — 요청이 이 분류들이 다루는 주제에 대한 문의가 아님(사이트 자체에 대한 일반 질문, 인사, 잡담, 완전히 다른 주제). 주제에 대한 문의라면 절대 고르지 마세요";
 
-/// Search holds rather than answers when the best item is weak. A score of 0.45
-/// or more answers outright; below that only a *direct* item answers (directness
-/// ≥ 1.0), and anything weaker is held. Swept over the golden set's 2,102 search
-/// cases: end-to-end +0.9pp with **no variant regressing** (deep +0.2, standard
-/// +0.2, shallow +0.5, flat 0.0, sparse +3.4), false answers 62 → 41 against
-/// false holds 10 → 14. Stricter lines trade that for regressions: a flat 0.45
-/// line alone gains more on `sparse` but loses +1.4pp on `flat`, where nothing
-/// is ever missing to hold back.
-const RANK_MIN_SCORE: f64 = 0.45;
+/// Search holds rather than answers when its best item scores below this. One
+/// line for every item in the pool, wherever it came from.
+///
+/// Measured on three sets with the pool below (subtree, runners-up, word
+/// matches). Golden (444 searches): 98.0% end to end at 0.45, 0.50 and 0.55,
+/// 97.7% at 0.60. The 1,902-node benchmark: 88.0% at 0.45, 88.3% at 0.55 and
+/// 0.60. A live customer-support tree (489 real requests, 131 of them with no
+/// answer in the knowledge base): at 0.45 the search answered 108 of those 131
+/// with an item that does not answer, at 0.55 76, at 0.60 56 — and 0.60 starts
+/// to hold real answers (16 of 358 against 6). 0.55 is the last line that
+/// costs the answerable side nothing.
+///
+/// Before 0.11 the line was 0.45 with a second, lower one for a "direct" item
+/// (0.30) and a third, higher one for items a rescue brought in (0.75). On the
+/// live tree the 0.75 line threw away one right answer in six, and the 0.30
+/// line let through answers nothing else supported.
+const HOLD_BELOW: f64 = 0.55;
 
-/// Below [`RANK_MIN_SCORE`] but at or above this, a direct item still answers.
-const RANK_GRAY_ZONE: f64 = 0.30;
-
-/// Directness (0..2) that lets a gray-zone item answer instead of holding.
-const RANK_DIRECT_MIN: f64 = 1.0;
-
-/// Below this chosen probability the route is unsure of its own pick, and one
-/// more judgment asks only whether this tree covers the request at all. Out-of-
-/// scope landings concentrate in that zone (median chosen probability 0.64
-/// against 0.99 for correct in-tree picks), so the check catches them without
-/// touching the confident majority.
-const ROUTE_SCOPE_CHECK_BELOW: f64 = 0.85;
-
-/// The scope check runs on an uncertain forest walk only. A `start_node` walk
-/// must land on a node and cannot abstain, so it never asks.
-fn scope_check_needed(chosen_probability: Option<f64>, start_forced: bool) -> bool {
-    !start_forced && chosen_probability.is_some_and(|p| p < ROUTE_SCOPE_CHECK_BELOW)
-}
-
-/// Only a confident `out` refuses the request. A hesitant "out" keeps the menu
-/// choice: one cross-domain question ("laptop battery swelled, where do I apply?")
-/// was refused at 0.5 and cost more than the timid refusals were worth.
-const SCOPE_OUT_MIN: f64 = 0.8;
-
-/// Only a confident `out` refuses: `choice` plus its probability.
-fn scope_refuses(choice: &str, out_probability: f64) -> bool {
-    choice == "out" && out_probability >= SCOPE_OUT_MIN
-}
-
-/// One judgment on scope alone. The menu asks "which node fits" and an
-/// out-of-scope request can still win one; this asks "does this tree cover the
-/// request at all". `None` when the call fails — the menu choice stands.
-async fn scope_check(
-    state: &AppState,
-    nodes: &[Node],
-    query: &str,
-    request: &RunRequest,
-    conversation: &str,
-    chosen: &str,
-    sender: &Option<mpsc::Sender<Value>>,
-) -> Option<(bool, TraceStep)> {
-    let mut criteria = serde_json::Map::new();
-    criteria.insert(
-        "in".into(),
-        Value::String("이 요청은 이 트리가 다루는 주제를 묻는다".into()),
-    );
-    criteria.insert(
-        "out".into(),
-        Value::String("이 요청은 이 트리가 다루지 않는 주제를 묻는다".into()),
-    );
-    let mut questions = BTreeMap::new();
-    questions.insert(
-        "scope".into(),
-        Question {
-            kind: "choice".into(),
-            instructions: "이 요청이 이 지식 트리가 다루는 주제인지 판정하세요. 참고로 고른 분류는 적혀 있지만, 판단은 요청 자체가 이 트리의 주제에 대한 문의인지로만 하세요. 인사, 잡담, 사이트 자체에 대한 일반 질문, 완전히 다른 주제는 out입니다.".into(),
-            criteria: Some(Value::Object(criteria)),
-        },
-    );
-    let judgment = judge(
-        state,
-        sender,
-        json!({
-            "conversation": conversation,
-            "current_request": query,
-            "background": &request.context,
-            "mode": request.mode,
-            "chosen": flat_label_for_scope(nodes, chosen),
-        }),
-        questions,
-    )
-    .await
-    .ok()?;
-    let Answer::Choice {
-        choice,
-        probabilities,
-        confidence,
-    } = judgment.answers.get("scope")?
-    else {
-        return None;
-    };
-    let in_scope = !scope_refuses(choice, probabilities.get("out").copied().unwrap_or(0.0));
-    let step = TraceStep {
-        depth: 1,
-        node_id: Some(chosen.to_string()),
-        node_name: "scope check".into(),
-        path: vec![],
-        candidates: vec![
-            Candidate {
-                id: Some("in".into()),
-                name: "request is in scope".into(),
-                probability: probabilities.get("in").copied(),
-            },
-            Candidate {
-                id: Some("out".into()),
-                name: "request is out of scope".into(),
-                probability: probabilities.get("out").copied(),
-            },
-        ],
-        choice_id: Some(choice.clone()),
-        choice_name: if in_scope {
-            "request is in scope".into()
-        } else {
-            "request is out of scope".into()
-        },
-        confidence: Some(*confidence),
-        reason: "flat: scope check".into(),
-    };
-    Some((in_scope, step))
-}
-
-/// The scope check's evidence for the chosen node: names plus description,
-/// without the examples, so the node's own wording cannot talk the check into
-/// seeing the request as in scope.
-fn flat_label_for_scope(nodes: &[Node], id: &str) -> String {
-    let Some(node) = nodes.iter().find(|node| node.id == id) else {
-        return id.to_string();
-    };
-    format!("{}: {}", node.name, node.description)
-}
+/// On a search, "nothing fits" has to be more likely than not. `__none__` shares one
+/// distribution with the nodes, so when a request could sit in several nodes
+/// they split their probability and `__none__` is often the largest single
+/// option while the nodes together are far ahead of it. Taking the largest
+/// option refused 43 of 489 real requests on a live tree (every one of them a
+/// request the tree covers) and 11 of 361 on the 1,902-node benchmark; asking
+/// for the majority refuses 29 and 2, and still catches 32 of the golden set's
+/// 38 out-of-scope requests (33 before). The refusals that remain are checked
+/// against the items (see `execute`).
+const NONE_MIN: f64 = 0.5;
 
 /// One Jev choice over the walk's menu: every node in scope when one choice can
 /// name them, else a recalled menu ([`recall_menu`]). `__none__` competes at a
@@ -627,11 +626,15 @@ async fn flat_route(
     }
     // Every node in scope is the menu whenever one Jev choice can name it: a
     // perfect evaluator must always see the right node, and a request may arrive
-    // in any script. Only scopes past the evaluator's limits fall back to
-    // lexical recall.
+    // in any script. Only a scope past the evaluator's limits gets a recalled
+    // menu instead.
     let mut steps = Vec::new();
     let menu: Vec<String> = if full_menu_fits(nodes, &pool) {
-        pool.clone()
+        ScopeIndex::new(nodes, &pool)
+            .order
+            .iter()
+            .map(|id| id.to_string())
+            .collect()
     } else {
         let (menu, coarse) = recall_menu(
             state,
@@ -651,29 +654,52 @@ async fn flat_route(
     if menu.is_empty() {
         return Ok(None);
     }
-    let mut criteria = serde_json::Map::new();
-    for id in &menu {
-        criteria.insert(id.clone(), Value::String(flat_label(nodes, &pool, id)));
-    }
-    if start.is_none() {
-        criteria.insert("__none__".into(), Value::String(FLAT_NONE.into()));
-    }
+    // A search shows, under each node, the questions already filed there that
+    // share its words: what the node holds, which its description may not say.
+    // An ingest does not. Its Q&A is new, so nothing filed is the same question
+    // (a row that is comes back in `duplicate_ids`), and look-alikes one branch
+    // over only pull it there: with them the 1,902-node benchmark filed 118 to
+    // 122 of 160 Q&As in the right node, without them 126 to 127.
+    let hints = if mode == "search" {
+        let on_menu: HashSet<&str> = menu.iter().map(String::as_str).collect();
+        filed_hints(&word_matches(
+            state,
+            &lexical_text(query, &request.context),
+            |node| on_menu.contains(node),
+        )?)
+    } else {
+        HashMap::new()
+    };
+    let criteria = options(
+        menu.iter().map(|id| {
+            (
+                id.clone(),
+                format!(
+                    "{}{}",
+                    flat_label(nodes, &pool, id),
+                    hints.get(id).map_or("", String::as_str)
+                ),
+            )
+        }),
+        start.is_none().then_some(FLAT_NONE),
+    );
+    let hint_rule = if hints.is_empty() { "" } else { HINT_RULE };
     let mut questions = BTreeMap::new();
     questions.insert(
         "flat".into(),
         Question {
             kind: "choice".into(),
             instructions: if start.is_none() {
-                format!("{FLAT_RULES} 어느 분류에도 맞지 않으면 __none__을 고르세요.")
+                format!("{FLAT_RULES} 어느 분류에도 맞지 않으면 __none__을 고르세요.{hint_rule}")
             } else {
-                format!("{FLAT_RULES} 여기 있는 분류 중에서만 고르세요.")
+                format!("{FLAT_RULES} 여기 있는 분류 중에서만 고르세요.{hint_rule}")
             },
-            criteria: Some(Value::Object(criteria)),
+            criteria: Some(criteria),
         },
     );
     emit(
         sender,
-        json!({"type":"descent_step","status":"asking","depth":steps.len(),"run_id":run_id,"frontiers":[{"node_id":start,"path":[],"parent":parent_name,"children":menu.iter().map(|id|json!({"id":id,"name":node_name(nodes,id)})).collect::<Vec<_>>()}]}),
+        json!({"type":"descent_step","status":"asking","depth":steps.len(),"run_id":run_id,"hinted":hints.len(),"frontiers":[{"node_id":start,"path":[],"parent":parent_name,"children":menu.iter().map(|id|json!({"id":id,"name":node_name(nodes,id)})).collect::<Vec<_>>()}]}),
     )
     .await;
     let judgment = judge(
@@ -697,6 +723,27 @@ async fn flat_route(
             ..
         }) => (choice.clone(), probabilities.clone(), *confidence),
         _ => return Err(Error::Internal("missing flat choice".into())),
+    };
+    // On a search, "nothing fits" without the majority is not a refusal: the
+    // best node is the pick (see [`NONE_MIN`]). The first of equals wins, in
+    // menu order. An ingest takes `__none__` as said: a search checks its
+    // route against the items, a filing has nothing to check it against, and
+    // on the benchmarks a refusal turned into a pick was filed in the wrong
+    // domain as often as not.
+    let choice = if mode == "search"
+        && choice == "__none__"
+        && probabilities.get("__none__").copied().unwrap_or(0.0) < NONE_MIN
+    {
+        let p = |id: &String| probabilities.get(id).copied().unwrap_or(0.0);
+        menu.iter()
+            .fold(None::<&String>, |best, id| match best {
+                Some(best) if p(best) >= p(id) => Some(best),
+                _ => Some(id),
+            })
+            .cloned()
+            .unwrap_or(choice)
+    } else {
+        choice
     };
     let score = probabilities.get(&choice).copied();
     let jev_score = score;
@@ -746,6 +793,7 @@ async fn flat_route(
     let mut score = score;
     // A doubtful pick goes to the LLM when one is configured: it reads the same
     // menu, in tree order, and picks again. A confident pick never pays for it.
+    let asked = std::time::Instant::now();
     let reviewed = if review_needed(score, state.jev.llm_routing()) {
         llm_review(
             state,
@@ -755,6 +803,7 @@ async fn flat_route(
             &conversation,
             &probabilities,
             start.is_none(),
+            &hints,
             sender,
         )
         .await
@@ -762,20 +811,22 @@ async fn flat_route(
         None
     };
     if let Some((pick, review_step)) = reviewed {
+        // What the review did, so its worth can be read off the log: how often
+        // it runs, how long it takes and how often it changes the pick.
+        let llm = pick.as_deref().unwrap_or("__none__");
+        tracing::info!(
+            jev = %choice,
+            jev_p = %shown(score),
+            llm = %llm,
+            changed = llm != choice,
+            ms = asked.elapsed().as_millis() as u64,
+            "llm review"
+        );
         steps.push(review_step);
         router = "llm".into();
         score = None;
         abstained = pick.is_none();
         choice = pick.unwrap_or_else(|| "__none__".into());
-    } else if !abstained
-        && scope_check_needed(score, start.is_some())
-        && let Some((in_scope, scope_step)) =
-            scope_check(state, nodes, query, request, &conversation, &choice, sender).await
-    {
-        steps.push(scope_step);
-        if !in_scope {
-            abstained = true;
-        }
     }
     let mut leaf = (!abstained).then(|| choice.clone());
     // A pick whose subtree did not fit the recalled menu has only been seen
@@ -818,17 +869,7 @@ async fn flat_route(
         .unwrap_or_else(|| runners_up(nodes, &pool, leaf.as_deref(), jev_score, &probabilities));
     let path: Vec<PathPart> = leaf
         .as_deref()
-        .map(|id| {
-            node_chain(nodes, &pool, id)
-                .into_iter()
-                .map(|id| PathPart {
-                    name: node_name(nodes, &id),
-                    id,
-                    probability: None,
-                    confidence: None,
-                })
-                .collect()
-        })
+        .map(|id| path_parts(nodes, &pool, id))
         .unwrap_or_default();
     let trace = Trace {
         run_id: run_id.to_string(),
@@ -866,24 +907,30 @@ async fn flat_route(
 /// best nodes. On the 1,902-node benchmark most misses are sideways (a sibling,
 /// another branch, another domain), and those leave the answer outside the
 /// pool however well the ranking reads; with the runners-up in the pool the
-/// ranking finds it. Measured there: E2E 72.3% → 82.0% (with
-/// [`RESCUE_MIN_SCORE`]); on the golden set +0.2 to +0.9pp in every tree shape.
+/// ranking finds it. Measured there: E2E 72.3% → 82.0%; on the golden set +0.2
+/// to +0.9pp in every tree shape.
 const RESCUE_BELOW: f64 = 0.9;
 
 /// Runners-up a search ranks besides the chosen node.
 const RESCUE_NODES: usize = 2;
 
-/// A runner-up's item stays in the result only at this score or more. The
-/// router did not pick its node, so it needs stronger evidence than the hold
-/// line: on the 1,902-node benchmark rescued answers scored 0.77 or more in 95%
-/// of the cases they fixed, while 14 of the 15 false answers rescue let through
-/// scored 0.33-0.73. At 0.75 the fixes stay and false answers return to where
-/// they were without rescue.
-const RESCUE_MIN_SCORE: f64 = 0.75;
-
 /// A runner-up whose subtree holds more items than this contributes only its
 /// own: rescue must not turn one ranking call into dozens.
 const RESCUE_MAX_ITEMS: usize = 64;
+
+/// Items a search adds to its pool by their words alone: the best BM25 matches
+/// of the request among the items in scope ([`crate::recall`]), wherever they
+/// are filed. Every search does this, sure of its route or not: on a live
+/// customer-support tree one confident pick in ten still pointed at the wrong
+/// branch.
+///
+/// Measured with 20. Live tree, 489 real requests: the answer was in the
+/// results for 82% of the answerable ones without the matches and for 95% with
+/// them, and requests refused as "outside the tree" fell from 19 to 1. The
+/// 1,902-node benchmark: E2E 82.6% → 88.3%. Golden: 98.6% → 98.0%, two cases,
+/// where a matched overview item out-scored the leaf's own. 40 was no better
+/// than 20 (more look-alikes to rank).
+const RECALL_ITEMS: usize = 20;
 
 /// The next best nodes of an unsure pick, best first. The pick's ancestors
 /// and descendants are left out: their items are either in the pool already
@@ -920,10 +967,18 @@ fn runners_up(
 
 /// Below this chosen probability a configured LLM reviews Jev's pick. On the
 /// golden set's `standard` tree most of Jev's route errors sit below it (22 of
-/// 28) while 83% of requests sit above and never wait for the LLM; reviewing
-/// those 13-15% matched an LLM that routes everything (E2E 98.4% vs 97.7%) at a
-/// tenth of the median latency. A big tree leaves Jev unsure more often: 50% of
-/// requests were reviewed on the 1,902-node benchmark.
+/// 28 in 0.10) while most requests sit above and never wait for the LLM.
+///
+/// What the review is worth since the menu shows filed questions (0.11,
+/// reviewer `muse-ember-1.0` at `low`): it settles 9% of golden requests, 27%
+/// on the 1,902-node benchmark and 45% on a live customer-support tree. A
+/// search gains little, because the pool already holds the answer when the
+/// route is one node off: right node 84.9% -> 87.3% and E2E 88.5% -> 89.2% on
+/// the benchmark, nothing measurable on the other two. An ingest gains a lot,
+/// because there the node is the result: Q&As filed in the right node went
+/// from 122-126 to 131-134 of 160 on the benchmark and from 65-66 to 68 of 68 on
+/// golden.
+/// Its price is the tail: p95 of a search 1 s without it, 7-9 s with.
 const LLM_REVIEW_BELOW: f64 = 0.8;
 
 /// A configured LLM reviews only doubtful picks: a confident one never waits.
@@ -943,6 +998,7 @@ async fn llm_review(
     conversation: &str,
     probabilities: &BTreeMap<String, f64>,
     abstain: bool,
+    hints: &HashMap<String, String>,
     sender: &Option<mpsc::Sender<Value>>,
 ) -> Option<(Option<String>, TraceStep)> {
     emit(
@@ -952,7 +1008,9 @@ async fn llm_review(
     .await;
     let reviewed = tokio::time::timeout(
         llm_route_budget(),
-        state.jev.review(query, conversation, nodes, menu, abstain),
+        state
+            .jev
+            .review(query, conversation, nodes, menu, abstain, hints),
     )
     .await;
     let route = match reviewed {
@@ -1002,6 +1060,101 @@ async fn llm_review(
     Some((leaf, step))
 }
 
+/// A choice's options in the order given, the way out last. The evaluator
+/// leans toward what it reads first, so the order is part of the question:
+/// nodes go in tree order, where siblings sit side by side, and `__none__`
+/// never leads. (`serde_json` keeps insertion order only with its
+/// `preserve_order` feature; a test below fails if that is ever dropped.)
+fn options(entries: impl Iterator<Item = (String, String)>, none: Option<&str>) -> Value {
+    let mut map = serde_json::Map::new();
+    for (id, label) in entries {
+        map.insert(id, Value::String(label));
+    }
+    if let Some(label) = none {
+        map.insert("__none__".into(), Value::String(label.into()));
+    }
+    Value::Object(map)
+}
+
+/// The active items filed under the nodes `inside` accepts that share the most
+/// words with the request, best first: at most [`RECALL_ITEMS`]. One lookup
+/// with two readers. The route shows them under their nodes as evidence of
+/// what each node holds ([`filed_hints`]); a search adds them to its pool.
+fn word_matches(
+    state: &AppState,
+    text: &str,
+    inside: impl Fn(&str) -> bool,
+) -> Result<Vec<Item>, Error> {
+    let index = recall_index(state)?;
+    let ids: Vec<String> = index
+        .items
+        .rank(text)
+        .into_iter()
+        .filter(|(id, _)| index.item_node.get(*id).is_some_and(|node| inside(node)))
+        .take(RECALL_ITEMS)
+        .map(|(id, _)| id.to_string())
+        .collect();
+    // The index remembers where an item was filed when it was built; the row
+    // says where it is now. A row re-filed in between must not slip a scope.
+    let mut rows = state.store.active_by_ids(&ids)?;
+    rows.retain(|item| inside(&item.category_id));
+    Ok(rows)
+}
+
+/// Filed questions one node shows in a menu.
+const HINTS_PER_NODE: usize = 3;
+
+/// Characters of one filed question a menu shows.
+const HINT_CHARS: usize = 80;
+
+/// Bytes all the filed questions of one menu may take. With
+/// [`FLAT_MAX_MENU_BYTES`] of node labels that is the 80 KB one choice reads
+/// with room to spare.
+const HINT_MAX_BYTES: usize = 6_000;
+const _: () = assert!(FLAT_MAX_MENU_BYTES + HINT_MAX_BYTES <= 80_000);
+
+/// What the menu says about the questions it shows.
+const HINT_RULE: &str = " 분류 설명 끝의 '이미 있는 질문'은 그 분류에 이미 저장된 질문입니다. 요청과 같은 것을 묻는 질문이 있는 분류가 맞는 분류입니다.";
+
+/// The questions already filed under each node that share the most words with
+/// the request, by node. A description says what a node is meant to hold; the
+/// questions filed there show what it does hold, and that is what the choice
+/// was missing. Shown to Jev and to the LLM alike.
+///
+/// Measured against the same walk without them. The 1,902-node benchmark:
+/// right node 69.5% → 84.9% (Jev alone; an LLM reviewing half the requests had
+/// reached 78%). Golden: 95.9% → 97.1%. A live customer-support tree, whose
+/// descriptions name little of what is filed: 53% → 60%.
+///
+/// Returns, by node, the text its label ends with: the same text for both.
+fn filed_hints(matches: &[Item]) -> HashMap<String, String> {
+    let mut shown: HashMap<&str, Vec<String>> = HashMap::new();
+    let mut bytes = 0;
+    for item in matches {
+        let questions = shown.entry(item.category_id.as_str()).or_default();
+        let question: String = item.question.chars().take(HINT_CHARS).collect();
+        let cost = question.len() + HINT_FRAMING;
+        if questions.len() < HINTS_PER_NODE && bytes + cost <= HINT_MAX_BYTES {
+            bytes += cost;
+            questions.push(question);
+        }
+    }
+    shown
+        .into_iter()
+        .filter(|(_, questions)| !questions.is_empty())
+        .map(|(node, questions)| {
+            (
+                node.to_string(),
+                format!(" | 이미 있는 질문: {}", questions.join(" / ")),
+            )
+        })
+        .collect()
+}
+
+/// Bytes around one filed question in a label: its share of the lead-in and
+/// the separator.
+const HINT_FRAMING: usize = 32;
+
 /// Candidate label for the flat choice: the node's full path inside the walk
 /// plus its own description. The path is what lets the choice tell a node from
 /// its siblings and stay at a parent when the request names no deeper topic.
@@ -1013,7 +1166,12 @@ fn flat_label(nodes: &[Node], pool: &[String], id: &str) -> String {
     let description = nodes
         .iter()
         .find(|node| node.id == id)
-        .map(|node| node.description.chars().take(240).collect::<String>())
+        .map(|node| {
+            node.description
+                .chars()
+                .take(crate::jev::MENU_DESCRIPTION_CHARS)
+                .collect::<String>()
+        })
         .unwrap_or_default();
     format!("{} | {}", names.join("/"), description)
 }
@@ -1145,7 +1303,12 @@ impl<'a> ScopeIndex<'a> {
         let description: String = self
             .by_id
             .get(id)
-            .map(|node| node.description.chars().take(240).collect())
+            .map(|node| {
+                node.description
+                    .chars()
+                    .take(crate::jev::MENU_DESCRIPTION_CHARS)
+                    .collect()
+            })
             .unwrap_or_default();
         format!("{} | {}", names.join("/"), description)
     }
@@ -1313,20 +1476,20 @@ async fn recall_menu(
     let mut requests: Vec<BTreeMap<String, Question>> = vec![BTreeMap::new()];
     let mut request_bytes = 0;
     for (index, chunk) in chunks.iter().enumerate() {
-        let mut criteria = serde_json::Map::new();
-        let mut bytes = 0;
-        for id in chunk {
-            bytes += scope.entry_bytes(id);
-            criteria.insert(id.to_string(), Value::String(scope.label(id)));
-        }
+        let bytes: usize = chunk.iter().map(|id| scope.entry_bytes(id)).sum();
         // Each chunk of a split map needs its own way out: forced to choose,
         // a chunk without the right node would still answer with confidence,
         // and its pick would crowd out the chunk that has it.
-        if chunked {
-            criteria.insert("__none__".into(), Value::String(COARSE_CHUNK_NONE.into()));
-        } else if abstain {
-            criteria.insert("__none__".into(), Value::String(FLAT_NONE.into()));
-        }
+        let criteria = options(
+            chunk.iter().map(|id| (id.to_string(), scope.label(id))),
+            if chunked {
+                Some(COARSE_CHUNK_NONE)
+            } else if abstain {
+                Some(FLAT_NONE)
+            } else {
+                None
+            },
+        );
         if request_bytes > 0 && request_bytes + bytes > REQUEST_MAX_BYTES {
             requests.push(BTreeMap::new());
             request_bytes = 0;
@@ -1343,7 +1506,7 @@ async fn recall_menu(
                 } else {
                     format!("{FLAT_RULES} 여기 있는 분류 중에서만 고르세요.")
                 },
-                criteria: Some(Value::Object(criteria)),
+                criteria: Some(criteria),
             },
         );
     }
@@ -1409,6 +1572,7 @@ async fn recall_menu(
     let index = recall_index(state)?;
     let text = lexical_text(query, &request.context);
     let lexical: Vec<&str> = index
+        .nodes
         .rank(&text)
         .into_iter()
         .filter_map(|(id, _)| scope.inside.get(id).copied())
@@ -1490,17 +1654,14 @@ fn lexical_text(query: &str, context: &[Value]) -> String {
 
 /// The lexical index for the current taxonomy and items, rebuilt when the
 /// store has changed since it was built.
-fn recall_index(state: &AppState) -> Result<std::sync::Arc<crate::recall::NodeIndex>, Error> {
+fn recall_index(state: &AppState) -> Result<std::sync::Arc<crate::recall::Index>, Error> {
     let nodes = state.nodes.read().map_err(|_| Error::Poisoned)?;
     state
         .recall
         .get_or_build((state.store.generation(), nodes.len()), || {
-            let questions = state.store.active_questions()?;
-            Ok::<_, Error>(crate::recall::NodeIndex::build(
+            Ok::<_, Error>(crate::recall::Index::build(
                 &nodes,
-                questions
-                    .iter()
-                    .map(|(category, question)| (category.as_str(), question.as_str())),
+                &state.store.active_items()?,
             ))
         })
 }
@@ -1761,11 +1922,10 @@ fn role_for(score: f64) -> &'static str {
     }
 }
 
-/// Search holds instead of answering when the best item is weak: below
-/// [`RANK_MIN_SCORE`], unless it is a direct item in the gray zone.
-fn holds(score: f64, directness: f64) -> bool {
-    !at_least(score, RANK_MIN_SCORE)
-        && !(at_least(score, RANK_GRAY_ZONE) && at_least(directness, RANK_DIRECT_MIN))
+/// Search holds instead of answering when its best item is below
+/// [`HOLD_BELOW`].
+fn holds(score: f64) -> bool {
+    !at_least(score, HOLD_BELOW)
 }
 
 /// First `max` characters of `text`, with an ellipsis when something was cut.
@@ -1835,35 +1995,33 @@ fn rank_batches(views: &[Item], overhead: usize) -> Vec<std::ops::Range<usize>> 
     ranges
 }
 
-/// Break near-ties upward when the walk stops at a node.
+/// Break near-ties toward the node the walk stopped at.
 ///
 /// A descent that stops at `X` has already decided `X` is the right level of
-/// specificity, and `X`'s own items sit there; everything below it is more
-/// specific than the request asked for. Jev's scores routinely put a deeper item
-/// a hair above `X`'s overview item (measured gaps 0.015-0.021), which is enough
-/// to lose the answer to a vague question. Applied only where deeper items are
-/// actually competing: a leaf's lone item beats nothing and must not be inflated.
+/// specificity, and `X`'s own items sit there; what is filed below it is more
+/// specific than the request asked for, and what the pool brought in from
+/// elsewhere (runners-up, word matches) has only the ranking on its side.
+/// Jev's scores routinely put a deeper item a hair above `X`'s overview item
+/// (measured gaps 0.015-0.021), which is enough to lose the answer to a vague
+/// question. Applied only where other items are actually competing: a node's
+/// lone item beats nothing and must not be inflated.
 const LEVEL_BONUS: f64 = 0.10;
 
-#[allow(clippy::too_many_arguments)]
 async fn rank(
     state: &AppState,
     query: &str,
     context: &[Value],
     items: Vec<Item>,
     // The node the walk stopped at, if any. Its own items sit at the specificity
-    // the request asked for, so they win near-ties against deeper ones.
+    // the request asked for, so they win near-ties against the rest of the pool.
     prefer: Option<&str>,
-    // Items a rescue brought in from the runners-up: they stay only when they
-    // clear `RESCUE_MIN_SCORE`.
-    outside: &HashSet<String>,
     limit: usize,
     sender: Option<mpsc::Sender<Value>>,
 ) -> Result<Vec<RankedItem>, Error> {
     if items.is_empty() {
         return Ok(vec![]);
     }
-    // Only worth a nudge when deeper candidates are in the pool to nudge against.
+    // Only worth a nudge when other candidates are in the pool to nudge against.
     let nested = prefer.is_some_and(|node| {
         let own = items.iter().filter(|item| item.category_id == node).count();
         items.len() > own
@@ -1931,8 +2089,6 @@ async fn rank(
             ranked.push(ranked_item);
         }
     }
-    ranked
-        .retain(|item| !outside.contains(&item.item.id) || at_least(item.score, RESCUE_MIN_SCORE));
     ranked.sort_by(|a, b| {
         b.score
             .total_cmp(&a.score)
@@ -2073,73 +2229,268 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn scope_check_says_out_of_scope() {
-        // One judgment on scope alone turns an uncertain route into a hold.
-        let (_dir, state) = fixture_state();
-        state.jev.script_choices(vec!["out".into()]);
-        let request = run_req("오늘 날씨가 어때요?");
-        let (in_scope, step) = scope_check(
-            &state,
-            &state.taxonomy().unwrap(),
-            "오늘 날씨가 어때요?",
-            &request,
-            "오늘 날씨가 어때요?",
-            "orders",
-            &None,
-        )
-        .await
-        .expect("scripted evaluator answers");
-        assert!(!in_scope);
-        assert_eq!(step.choice_name, "request is out of scope");
-    }
-
-    #[tokio::test]
-    async fn confident_route_skips_the_scope_check() {
-        // Scripted choices land at 0.95, above the check line: the second pick
-        // in the script would say "out" and must never be consulted.
-        let (_dir, state) = fixture_state();
-        state
-            .jev
-            .script_choices(vec!["orders_tracking".into(), "out".into()]);
-        let result = execute(state, run_req("해외 배송이 통관에서 멈췄어요"), None)
-            .await
-            .unwrap();
-        assert_eq!(result["leaf_id"], "orders_tracking", "{result}");
-        assert_eq!(
-            result["trace"]["steps"].as_array().unwrap().len(),
-            1,
-            "{result}"
-        );
-    }
-
-    #[test]
-    fn a_timid_out_does_not_refuse_the_request() {
-        assert!(scope_refuses("out", 0.8));
-        assert!(scope_refuses("out", 0.95));
-        assert!(!scope_refuses("out", 0.79));
-        assert!(!scope_refuses("in", 0.95));
-    }
-
-    #[test]
-    fn scope_check_guards_only_uncertain_forest_walks() {
-        assert!(scope_check_needed(Some(0.64), false));
-        assert!(scope_check_needed(Some(0.84), false));
-        assert!(!scope_check_needed(Some(0.85), false));
-        assert!(!scope_check_needed(Some(0.99), false));
-        // A forced start must land on a node; it never refuses the request.
-        assert!(!scope_check_needed(Some(0.10), true));
-    }
-
-    #[tokio::test]
     async fn flat_choice_none_abstains() {
-        // `__none__` competes in the same choice and leaves the tree.
+        // `__none__` competes in the same choice and leaves the tree. The items
+        // that share the request's words are still ranked, and when none of
+        // them answers (a script that picks `__none__` scores them low) the
+        // search stays outside and holds.
         let (_dir, state) = fixture_state();
         state.jev.script_choices(vec!["__none__".into()]);
         let result = execute(state, run_req("해외 배송이 통관에서 멈췄어요"), None)
             .await
             .unwrap();
         assert!(result["leaf_id"].is_null(), "{result}");
-        assert_eq!(result["items"].as_array().unwrap().len(), 0);
+        assert!(result["abstained"].as_bool().unwrap(), "{result}");
+        assert!(
+            result["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|row| row["role"] == "reference"),
+            "{result}"
+        );
+    }
+
+    #[tokio::test]
+    async fn none_without_the_majority_is_not_a_refusal() {
+        // `__none__` is the largest single option at 0.4 while the nodes hold
+        // the other 0.6 between them: the best node is the pick.
+        let (_dir, state) = fixture_state();
+        state
+            .jev
+            .script_choices(vec!["__none__@0.4".into(), "orders_tracking@0.35".into()]);
+        let result = execute(state, run_req("해외 배송이 통관에서 멈췄어요"), None)
+            .await
+            .unwrap();
+        assert_eq!(result["leaf_id"], "orders_tracking", "{result}");
+        assert_eq!(result["trace"]["leaf_id"], "orders_tracking", "{result}");
+        assert_eq!(result["trace"]["score"], 0.35, "{result}");
+    }
+
+    #[tokio::test]
+    async fn an_ingest_takes_none_as_said() {
+        // The same distribution that a search reads as "the best node" is a
+        // refusal on an ingest: nothing is filed on a weak guess.
+        let (_dir, state) = fixture_state();
+        state
+            .jev
+            .script_choices(vec!["__none__@0.4".into(), "orders_tracking@0.35".into()]);
+        let rows = |state: &AppState| {
+            state
+                .store
+                .list_items(0, 1, None, None, false, "all")
+                .unwrap()
+                .1
+        };
+        let before = rows(&state);
+        let error = execute(
+            state.clone(),
+            ingest_request(
+                "해외 배송이 통관에서 멈췄어요",
+                "세관 통관 안내를 확인하세요.",
+            ),
+            None,
+        )
+        .await
+        .expect_err("no category");
+        assert!(matches!(error, Error::BadRequest(_)), "{error}");
+        assert_eq!(rows(&state), before, "nothing stored");
+    }
+
+    #[tokio::test]
+    async fn a_row_under_a_node_that_is_gone_is_in_no_scope() {
+        // An active row whose category is not in the taxonomy shares every
+        // word with the request, and still never reaches a result.
+        let (_dir, state) = fixture_state();
+        state.jev.script_choices(vec!["account".into()]);
+        {
+            let nodes = state.taxonomy().unwrap();
+            assert!(!nodes.iter().any(|node| node.id == "ghost"));
+        }
+        state
+            .store
+            .upsert(
+                "ghost",
+                "해외 배송이 통관에서 멈췄어요",
+                "유령 노드의 답",
+                "qa",
+                None,
+                None,
+                true,
+            )
+            .unwrap();
+        let result = execute(state, run_req("해외 배송이 통관에서 멈췄어요"), None)
+            .await
+            .unwrap();
+        assert!(
+            result["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|row| row["item"]["category_id"] != "ghost"),
+            "{result}"
+        );
+    }
+
+    #[tokio::test]
+    async fn none_with_the_majority_refuses() {
+        let (_dir, state) = fixture_state();
+        state.jev.script_choices(vec!["__none__@0.5".into()]);
+        let result = execute(state, run_req("오늘 날씨가 어때요?"), None)
+            .await
+            .unwrap();
+        assert!(result["leaf_id"].is_null(), "{result}");
+        assert!(result["trace"]["leaf_id"].is_null(), "{result}");
+    }
+
+    #[tokio::test]
+    async fn a_refusal_the_items_contradict_lands_on_the_answer() {
+        // The route says "outside the tree"; an item in scope shares the
+        // request's words and the ranking says it answers. The search lands
+        // where that item is filed, and the trace keeps the route's own verdict.
+        let (_dir, state) = fixture_state();
+        // Jev is unsure, the LLM pin reviews and refuses, and the ranking keeps
+        // its usual scripted scores, which clear the hold line.
+        state.jev.script_choices(vec!["~account".into()]);
+        state.jev.script_llm(Some("__none__".into()));
+        let result = execute(state, run_req("해외 배송이 통관에서 멈췄어요"), None)
+            .await
+            .unwrap();
+        assert!(result["trace"]["leaf_id"].is_null(), "{result}");
+        assert!(!result["abstained"].as_bool().unwrap(), "{result}");
+        let top = &result["items"][0]["item"]["category_id"];
+        assert_eq!(&result["leaf_id"], top, "{result}");
+        assert_eq!(
+            result["path"].as_array().unwrap().last().unwrap()["id"],
+            *top,
+            "{result}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_menu_shows_the_filed_questions_that_share_the_requests_words() {
+        let (_dir, state) = fixture_state();
+        let everywhere = |_: &str| true;
+        let matches = word_matches(&state, "해외 배송이 통관에서 멈췄어요", everywhere).unwrap();
+        assert!(!matches.is_empty());
+        let hints = filed_hints(&matches);
+        let tail = hints
+            .get("orders_tracking")
+            .expect("the node that holds them");
+        assert!(tail.starts_with(" | 이미 있는 질문: "), "{tail}");
+        // Only nodes that hold a match get a tail, and only inside the scope asked.
+        assert!(
+            hints
+                .keys()
+                .all(|node| { matches.iter().any(|item| &item.category_id == node) })
+        );
+        let only_account = word_matches(
+            &state,
+            "해외 배송이 통관에서 멈췄어요",
+            |node| node == "account",
+        )
+        .unwrap();
+        assert!(
+            only_account
+                .iter()
+                .all(|item| item.category_id == "account")
+        );
+    }
+
+    /// How many nodes of the menu a run showed filed questions under.
+    async fn hinted(state: &AppState, request: RunRequest) -> u64 {
+        let (tx, mut rx) = mpsc::channel(1024);
+        execute(state.clone(), request, Some(tx)).await.unwrap();
+        let mut hinted = 0;
+        while let Ok(event) = rx.try_recv() {
+            if event["type"] == "descent_step" && event["status"] == "asking" {
+                hinted = event["hinted"].as_u64().unwrap();
+            }
+        }
+        hinted
+    }
+
+    #[tokio::test]
+    async fn a_search_reads_the_filed_questions_and_an_ingest_does_not() {
+        let (_dir, state) = fixture_state();
+        state.jev.script_choices(vec!["orders_tracking".into()]);
+        assert!(hinted(&state, run_req("해외 배송이 통관에서 멈췄어요")).await > 0);
+        // The same words as a new Q&A: nothing filed is the same question, and
+        // look-alikes must not pull the filing.
+        let ingest = ingest_request(
+            "해외 배송이 통관에서 멈췄어요",
+            "세관 통관 안내를 확인하세요.",
+        );
+        assert_eq!(hinted(&state, ingest).await, 0);
+    }
+
+    #[test]
+    fn filed_questions_are_capped_per_node_per_question_and_per_menu() {
+        let long = "가".repeat(300);
+        let many: Vec<Item> = (0..200)
+            .map(|index| Item {
+                id: index.to_string(),
+                category_id: format!("node_{}", index / 5),
+                question: long.clone(),
+                answer: String::new(),
+                kind: "qa".into(),
+                status: "active".into(),
+                version: 1,
+            })
+            .collect();
+        let hints = filed_hints(&many);
+        let lead = " | 이미 있는 질문: ";
+        for tail in hints.values() {
+            let questions: Vec<&str> = tail[lead.len()..].split(" / ").collect();
+            assert!(questions.len() <= HINTS_PER_NODE);
+            assert!(questions.iter().all(|q| q.chars().count() == HINT_CHARS));
+        }
+        let bytes: usize = hints.values().map(String::len).sum();
+        assert!(bytes <= HINT_MAX_BYTES, "{bytes}");
+    }
+
+    #[test]
+    fn options_keep_the_order_given_and_none_comes_last() {
+        // The evaluator leans toward what it reads first. This fails if
+        // `serde_json` loses `preserve_order` and goes back to sorting keys,
+        // which put `__none__` ahead of every lowercase id.
+        let criteria = options(
+            ["orders", "orders_tracking", "account", "Zeta"]
+                .into_iter()
+                .map(|id| (id.to_string(), format!("label {id}"))),
+            Some("none of these"),
+        );
+        let sent = serde_json::to_string(&criteria).unwrap();
+        let at = |key: &str| sent.find(&format!("\"{key}\":")).expect(key);
+        assert!(at("orders") < at("orders_tracking"));
+        assert!(at("orders_tracking") < at("account"));
+        assert!(at("account") < at("Zeta"));
+        assert!(at("Zeta") < at("__none__"));
+    }
+
+    #[tokio::test]
+    async fn the_menu_is_asked_in_tree_order() {
+        // Siblings sit next to each other and a child follows its parent,
+        // whatever order the rows come out of the store in.
+        let (_dir, state) = fixture_state();
+        state.jev.script_choices(vec!["orders_tracking".into()]);
+        let (tx, mut rx) = mpsc::channel(1024);
+        execute(state, run_req("해외 배송이 통관에서 멈췄어요"), Some(tx))
+            .await
+            .unwrap();
+        let mut asked = Vec::new();
+        while let Ok(event) = rx.try_recv() {
+            if event["type"] == "descent_step" && event["status"] == "asking" {
+                asked = event["frontiers"][0]["children"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|child| child["id"].as_str().unwrap().to_string())
+                    .collect();
+            }
+        }
+        let at = |id: &str| asked.iter().position(|known| known == id).expect(id);
+        assert_eq!(at("orders_tracking"), at("orders") + 1, "{asked:?}");
     }
 
     #[tokio::test]
@@ -2251,7 +2602,17 @@ mod tests {
         request.root = Some("orders".into());
         let result = execute(state, request, None).await.unwrap();
         assert!(result["leaf_id"].is_null(), "{result}");
-        assert_eq!(result["items"].as_array().unwrap().len(), 0);
+        assert!(result["abstained"].as_bool().unwrap(), "{result}");
+        // Whatever the request's words bring in comes from inside the root.
+        assert!(
+            result["items"].as_array().unwrap().iter().all(|row| {
+                row["item"]["category_id"]
+                    .as_str()
+                    .unwrap()
+                    .starts_with("orders")
+            }),
+            "{result}"
+        );
     }
 
     #[tokio::test]
@@ -2430,10 +2791,11 @@ mod tests {
 
     #[tokio::test]
     async fn a_leaf_item_gets_no_bonus_because_nothing_competes() {
-        // 리프에 아이템이 하나뿐이면 가산할 대상이 없다. 점수를 부풀리면 안 된다.
+        // 리프에 아이템이 하나뿐이고 요청의 낱말로 딸려 오는 것도 없으면 가산할
+        // 대상이 없다. 점수를 부풀리면 안 된다.
         let (_dir, state) = nested_state();
         state.jev.script_choices(vec!["topic_case".into()]);
-        let result = execute(state, run_req("세부 사례 하나를 어떻게 처리하나요"), None)
+        let result = execute(state, run_req("how is one specific case handled"), None)
             .await
             .unwrap();
         let items = result["items"].as_array().unwrap();
@@ -2705,7 +3067,7 @@ mod tests {
         assert_eq!(result["leaf_id"], "orders_tracking", "{result}");
         assert_eq!(result["trace"]["router"], "flat");
         let steps = result["trace"]["steps"].as_array().unwrap();
-        assert_eq!(steps.last().unwrap()["node_name"], "scope check");
+        assert_eq!(steps.len(), 1, "no review step, and nothing asked after it");
     }
 
     #[tokio::test]
@@ -2730,15 +3092,65 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_confident_pick_ranks_only_its_own_subtree() {
+    async fn a_confident_pick_takes_no_runners_up() {
+        // Nothing outside `account` shares a word with this request, so the
+        // pool is the routed subtree alone: runners-up are for unsure picks.
         let (_dir, state) = fixture_state();
         state.jev.script_choices(vec!["account".into()]);
-        let result = execute(state, run_req("비밀번호를 재설정하려면?"), None)
+        let result = execute(state, run_req("password reset"), None)
             .await
             .unwrap();
         let items = result["items"].as_array().unwrap();
+        assert!(!items.is_empty(), "{result}");
         assert!(
             items
+                .iter()
+                .all(|row| row["item"]["category_id"] == "account"),
+            "{result}"
+        );
+    }
+
+    #[tokio::test]
+    async fn items_that_share_the_requests_words_join_the_pool() {
+        // A confident route to the wrong branch: the item that answers is
+        // filed under `orders_tracking`, and its own words bring it in.
+        let (_dir, state) = fixture_state();
+        state.jev.script_choices(vec!["account".into()]);
+        let result = execute(state, run_req("해외 배송이 통관에서 멈췄어요"), None)
+            .await
+            .unwrap();
+        assert_eq!(result["leaf_id"], "account", "{result}");
+        let categories: Vec<&str> = result["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["item"]["category_id"].as_str().unwrap())
+            .collect();
+        assert!(categories.contains(&"orders_tracking"), "{result}");
+    }
+
+    #[tokio::test]
+    async fn word_matches_stay_inside_the_root_and_the_start_node() {
+        let (_dir, state) = fixture_state();
+        state.jev.script_choices(vec!["account".into()]);
+        let mut request = run_req("해외 배송이 통관에서 멈췄어요");
+        request.start_node = Some("account".into());
+        let result = execute(state.clone(), request, None).await.unwrap();
+        assert!(
+            result["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|row| row["item"]["category_id"] == "account"),
+            "{result}"
+        );
+        let mut request = run_req("해외 배송이 통관에서 멈췄어요");
+        request.root = Some("account".into());
+        let result = execute(state, request, None).await.unwrap();
+        assert!(
+            result["items"]
+                .as_array()
+                .unwrap()
                 .iter()
                 .all(|row| row["item"]["category_id"] == "account"),
             "{result}"
@@ -2944,19 +3356,16 @@ mod tests {
         // These sums are mathematically on the line but one step under it in f64.
         let on_recommended = 0.5 * 0.7 + (2.0_f64 / 2.0) * 0.3;
         let on_alternative = 0.25 * 0.7 + (1.5_f64 / 2.0) * 0.3;
-        let on_hold = 0.6 * 0.7 + (0.2_f64 / 2.0) * 0.3;
-        assert!(on_recommended < 0.65 && on_alternative < 0.4 && on_hold < 0.45);
+        let on_hold = 0.7 * 0.7 + (0.4_f64 / 2.0) * 0.3;
+        assert!(on_recommended < 0.65 && on_alternative < 0.4 && on_hold < HOLD_BELOW);
         assert_eq!(role_for(on_recommended), "recommended");
         assert_eq!(role_for(on_alternative), "alternative");
-        assert!(!holds(on_hold, 0.2), "0.45 answers outright");
+        assert!(!holds(on_hold), "the line itself answers");
         // A real step under a line still falls on the lower side.
         assert_eq!(role_for(0.649), "alternative");
         assert_eq!(role_for(0.399), "reference");
-        assert!(holds(0.449, 0.99));
-        // The gray zone answers only a direct item.
-        assert!(!holds(0.30, 1.0));
-        assert!(holds(0.30, 0.9));
-        assert!(holds(0.299, 2.0));
+        assert!(holds(0.549));
+        assert!(!holds(0.55));
     }
 
     fn ingest_request(question: &str, answer: &str) -> RunRequest {

@@ -20,7 +20,7 @@ pub struct Cache(Arc<Mutex<Option<Built>>>);
 
 struct Built {
     key: (u64, usize),
-    index: Arc<NodeIndex>,
+    index: Arc<Index>,
 }
 
 impl Cache {
@@ -28,8 +28,8 @@ impl Cache {
     pub fn get_or_build<E>(
         &self,
         key: (u64, usize),
-        build: impl FnOnce() -> Result<NodeIndex, E>,
-    ) -> Result<Arc<NodeIndex>, E> {
+        build: impl FnOnce() -> Result<Index, E>,
+    ) -> Result<Arc<Index>, E> {
         if let Ok(guard) = self.0.lock()
             && let Some(built) = guard.as_ref()
             && built.key == key
@@ -69,8 +69,8 @@ pub fn terms(text: &str) -> Vec<String> {
     out
 }
 
-/// BM25 over one document per node.
-pub struct NodeIndex {
+/// BM25 over a set of documents, each under an id.
+pub struct Bm25 {
     ids: Vec<String>,
     lengths: Vec<f64>,
     average: f64,
@@ -78,54 +78,14 @@ pub struct NodeIndex {
     idf: HashMap<String, f64>,
 }
 
-impl NodeIndex {
-    /// `questions` are `(category_id, question)` pairs of active items.
-    pub fn build<'a>(
-        nodes: &[Node],
-        questions: impl IntoIterator<Item = (&'a str, &'a str)>,
-    ) -> Self {
-        let by_id: HashMap<&str, &Node> =
-            nodes.iter().map(|node| (node.id.as_str(), node)).collect();
-        let mut docs: Vec<String> = nodes
-            .iter()
-            .map(|node| {
-                let mut names = Vec::new();
-                let mut cursor = node.parent_id.as_deref();
-                let mut guard = 0;
-                while let Some(id) = cursor {
-                    guard += 1;
-                    let Some(parent) = by_id.get(id).filter(|_| guard <= nodes.len()) else {
-                        break;
-                    };
-                    names.push(parent.name.as_str());
-                    cursor = parent.parent_id.as_deref();
-                }
-                names.reverse();
-                format!(
-                    "{} {} {} {}",
-                    names.join(" "),
-                    node.name,
-                    node.description,
-                    node.examples.join(" ")
-                )
-            })
-            .collect();
-        let position: HashMap<&str, usize> = nodes
-            .iter()
-            .enumerate()
-            .map(|(index, node)| (node.id.as_str(), index))
-            .collect();
-        for (category, question) in questions {
-            if let Some(index) = position.get(category) {
-                docs[*index].push(' ');
-                docs[*index].push_str(question);
-            }
-        }
+impl Bm25 {
+    pub fn build(docs: impl IntoIterator<Item = (String, String)>) -> Self {
+        let mut ids = Vec::new();
         let mut postings: HashMap<String, Vec<(usize, f64)>> = HashMap::new();
-        let mut lengths = Vec::with_capacity(docs.len());
-        for (index, doc) in docs.iter().enumerate() {
+        let mut lengths = Vec::new();
+        for (index, (id, doc)) in docs.into_iter().enumerate() {
             let mut counts: HashMap<String, f64> = HashMap::new();
-            let words = terms(doc);
+            let words = terms(&doc);
             lengths.push(words.len() as f64);
             for term in words {
                 *counts.entry(term).or_default() += 1.0;
@@ -133,8 +93,9 @@ impl NodeIndex {
             for (term, count) in counts {
                 postings.entry(term).or_default().push((index, count));
             }
+            ids.push(id);
         }
-        let n = docs.len() as f64;
+        let n = ids.len() as f64;
         let idf = postings
             .iter()
             .map(|(term, docs)| {
@@ -148,7 +109,7 @@ impl NodeIndex {
             (lengths.iter().sum::<f64>() / n).max(1.0)
         };
         Self {
-            ids: nodes.iter().map(|node| node.id.clone()).collect(),
+            ids,
             lengths,
             average,
             postings,
@@ -156,8 +117,9 @@ impl NodeIndex {
         }
     }
 
-    /// Node ids that share at least one term with `text`, best first, with
-    /// their scores. Ties keep index order, so the result is deterministic.
+    /// Ids of the documents that share at least one term with `text`, best
+    /// first, with their scores. Ties keep build order, so the result is
+    /// deterministic.
     pub fn rank(&self, text: &str) -> Vec<(&str, f64)> {
         let mut query: HashMap<String, f64> = HashMap::new();
         for term in terms(text) {
@@ -182,6 +144,76 @@ impl NodeIndex {
     }
 }
 
+/// What lexical recall reads: one document per node, and one per active item.
+pub struct Index {
+    /// A node's document is its path, description and examples plus the
+    /// questions of its active items.
+    pub nodes: Bm25,
+    /// An item's document is its question and its answer.
+    pub items: Bm25,
+    /// The node each indexed item is filed under.
+    pub item_node: HashMap<String, String>,
+}
+
+impl Index {
+    /// `items` are the active items.
+    pub fn build(nodes: &[Node], items: &[crate::models::Item]) -> Self {
+        let by_id: HashMap<&str, &Node> =
+            nodes.iter().map(|node| (node.id.as_str(), node)).collect();
+        let mut docs: Vec<(String, String)> = nodes
+            .iter()
+            .map(|node| {
+                let mut names = Vec::new();
+                let mut cursor = node.parent_id.as_deref();
+                let mut guard = 0;
+                while let Some(id) = cursor {
+                    guard += 1;
+                    let Some(parent) = by_id.get(id).filter(|_| guard <= nodes.len()) else {
+                        break;
+                    };
+                    names.push(parent.name.as_str());
+                    cursor = parent.parent_id.as_deref();
+                }
+                names.reverse();
+                (
+                    node.id.clone(),
+                    format!(
+                        "{} {} {} {}",
+                        names.join(" "),
+                        node.name,
+                        node.description,
+                        node.examples.join(" ")
+                    ),
+                )
+            })
+            .collect();
+        let position: HashMap<&str, usize> = nodes
+            .iter()
+            .enumerate()
+            .map(|(index, node)| (node.id.as_str(), index))
+            .collect();
+        for item in items {
+            if let Some(index) = position.get(item.category_id.as_str()) {
+                docs[*index].1.push(' ');
+                docs[*index].1.push_str(&item.question);
+            }
+        }
+        Self {
+            nodes: Bm25::build(docs),
+            items: Bm25::build(items.iter().map(|item| {
+                (
+                    item.id.clone(),
+                    format!("{} {}", item.question, item.answer),
+                )
+            })),
+            item_node: items
+                .iter()
+                .map(|item| (item.id.clone(), item.category_id.clone()))
+                .collect(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,6 +225,18 @@ mod tests {
             description: description.into(),
             examples: vec![],
             parent_id: parent.map(str::to_string),
+        }
+    }
+
+    fn item(id: &str, category: &str, question: &str, answer: &str) -> crate::models::Item {
+        crate::models::Item {
+            id: id.into(),
+            category_id: category.into(),
+            question: question.into(),
+            answer: answer.into(),
+            kind: "qa".into(),
+            status: "active".into(),
+            version: 1,
         }
     }
 
@@ -219,13 +263,21 @@ mod tests {
             ),
             node("account", None, "계정", "로그인과 비밀번호"),
         ];
-        let bare = NodeIndex::build(&nodes, []);
-        assert!(bare.rank("통관에서 멈췄어요").is_empty());
-        let index = NodeIndex::build(
+        let bare = Index::build(&nodes, &[]);
+        assert!(bare.nodes.rank("통관에서 멈췄어요").is_empty());
+        let index = Index::build(
             &nodes,
-            [("orders_tracking", "해외 직구가 통관에서 멈췄어요")],
+            &[item(
+                "7",
+                "orders_tracking",
+                "해외 직구가 통관에서 멈췄어요",
+                "세관 안내",
+            )],
         );
-        assert_eq!(index.rank("통관에서 멈췄어요")[0].0, "orders_tracking");
+        assert_eq!(
+            index.nodes.rank("통관에서 멈췄어요")[0].0,
+            "orders_tracking"
+        );
     }
 
     #[test]
@@ -240,7 +292,7 @@ mod tests {
             ),
             node("c", None, "결제 안내", "결제 방법 안내"),
         ];
-        let index = NodeIndex::build(&nodes, []);
-        assert_eq!(index.rank("공유기 비밀번호")[0].0, "b");
+        let index = Index::build(&nodes, &[]);
+        assert_eq!(index.nodes.rank("공유기 비밀번호")[0].0, "b");
     }
 }
