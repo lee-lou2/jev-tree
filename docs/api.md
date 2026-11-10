@@ -160,10 +160,11 @@ answer is the earlier one, `trace.run_id` included.
 The menu is **every node in the walk** whenever one choice can name them (up to 254 nodes,
 Jev takes at most 255 options with `__none__`, and 74 KB of menu text), so the evaluator
 judges meaning even when the request shares no characters with the taxonomy. Options go out
-in tree order with `__none__` last, and `__none__` is a refusal only at 0.5 or more;
-below that the best node is the pick. Each node also shows the questions already filed
-under it that share the request's words, so the choice sees what a node holds and not only
-what its description says. A walk with
+in tree order with `__none__` last. On a search `__none__` is a refusal only at 0.5 or
+more (below that the best node is the pick), and each node also shows the questions
+already filed under it that share the request's words, so the choice sees what a node holds
+and not only what its description says. An ingest gets neither: `__none__` as the pick is
+a 400, and the menu is paths and descriptions only. A walk with
 `start_node` picks inside that subtree only and has no `__none__`. The forest walk can
 abstain, and so can a `root` scope: it walks the root's children as the forest, so
 `leaf_id: null` there means "outside this root". A bigger scope builds the menu from two

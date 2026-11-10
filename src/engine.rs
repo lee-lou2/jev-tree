@@ -182,11 +182,15 @@ pub async fn execute(
     } else {
         let nodes = state.taxonomy()?;
         let scope = resolve_root(&nodes, request.root.as_deref())?;
+        // In scope: a node of the taxonomy, inside `root` when there is one. A
+        // row left under a node that no longer exists is in no scope.
+        let known: HashSet<&str> = nodes.iter().map(|node| node.id.as_str()).collect();
         let in_scope = |id: &str| {
-            scope
-                .allowed
-                .as_ref()
-                .is_none_or(|allowed| allowed.contains(id))
+            known.contains(id)
+                && scope
+                    .allowed
+                    .as_ref()
+                    .is_none_or(|allowed| allowed.contains(id))
         };
         let categories: Vec<String> = leaf
             .as_ref()
@@ -551,7 +555,7 @@ const FLAT_NONE: &str = "어느 분류에도 속하지 않음 — 요청이 이 
 /// line let through answers nothing else supported.
 const HOLD_BELOW: f64 = 0.55;
 
-/// "Nothing fits" has to be more likely than not. `__none__` shares one
+/// On a search, "nothing fits" has to be more likely than not. `__none__` shares one
 /// distribution with the nodes, so when a request could sit in several nodes
 /// they split their probability and `__none__` is often the largest single
 /// option while the nodes together are far ahead of it. Taking the largest
@@ -720,9 +724,14 @@ async fn flat_route(
         }) => (choice.clone(), probabilities.clone(), *confidence),
         _ => return Err(Error::Internal("missing flat choice".into())),
     };
-    // "Nothing fits" without the majority is not a refusal: the best node is
-    // the pick (see [`NONE_MIN`]). The first of equals wins, in menu order.
-    let choice = if choice == "__none__"
+    // On a search, "nothing fits" without the majority is not a refusal: the
+    // best node is the pick (see [`NONE_MIN`]). The first of equals wins, in
+    // menu order. An ingest takes `__none__` as said: a search checks its
+    // route against the items, a filing has nothing to check it against, and
+    // on the benchmarks a refusal turned into a pick was filed in the wrong
+    // domain as often as not.
+    let choice = if mode == "search"
+        && choice == "__none__"
         && probabilities.get("__none__").copied().unwrap_or(0.0) < NONE_MIN
     {
         let p = |id: &String| probabilities.get(id).copied().unwrap_or(0.0);
@@ -967,7 +976,8 @@ fn runners_up(
 /// route is one node off: right node 84.9% -> 87.3% and E2E 88.5% -> 89.2% on
 /// the benchmark, nothing measurable on the other two. An ingest gains a lot,
 /// because there the node is the result: Q&As filed in the right node went
-/// from 122 to 134 of 160 on the benchmark and from 66 to 68 of 68 on golden.
+/// from 122-126 to 131-134 of 160 on the benchmark and from 65-66 to 68 of 68 on
+/// golden.
 /// Its price is the tail: p95 of a search 1 s without it, 7-9 s with.
 const LLM_REVIEW_BELOW: f64 = 0.8;
 
@@ -1084,7 +1094,11 @@ fn word_matches(
         .take(RECALL_ITEMS)
         .map(|(id, _)| id.to_string())
         .collect();
-    state.store.active_by_ids(&ids)
+    // The index remembers where an item was filed when it was built; the row
+    // says where it is now. A row re-filed in between must not slip a scope.
+    let mut rows = state.store.active_by_ids(&ids)?;
+    rows.retain(|item| inside(&item.category_id));
+    Ok(rows)
 }
 
 /// Filed questions one node shows in a menu.
@@ -2251,6 +2265,71 @@ mod tests {
         assert_eq!(result["leaf_id"], "orders_tracking", "{result}");
         assert_eq!(result["trace"]["leaf_id"], "orders_tracking", "{result}");
         assert_eq!(result["trace"]["score"], 0.35, "{result}");
+    }
+
+    #[tokio::test]
+    async fn an_ingest_takes_none_as_said() {
+        // The same distribution that a search reads as "the best node" is a
+        // refusal on an ingest: nothing is filed on a weak guess.
+        let (_dir, state) = fixture_state();
+        state
+            .jev
+            .script_choices(vec!["__none__@0.4".into(), "orders_tracking@0.35".into()]);
+        let rows = |state: &AppState| {
+            state
+                .store
+                .list_items(0, 1, None, None, false, "all")
+                .unwrap()
+                .1
+        };
+        let before = rows(&state);
+        let error = execute(
+            state.clone(),
+            ingest_request(
+                "해외 배송이 통관에서 멈췄어요",
+                "세관 통관 안내를 확인하세요.",
+            ),
+            None,
+        )
+        .await
+        .expect_err("no category");
+        assert!(matches!(error, Error::BadRequest(_)), "{error}");
+        assert_eq!(rows(&state), before, "nothing stored");
+    }
+
+    #[tokio::test]
+    async fn a_row_under_a_node_that_is_gone_is_in_no_scope() {
+        // An active row whose category is not in the taxonomy shares every
+        // word with the request, and still never reaches a result.
+        let (_dir, state) = fixture_state();
+        state.jev.script_choices(vec!["account".into()]);
+        {
+            let nodes = state.taxonomy().unwrap();
+            assert!(!nodes.iter().any(|node| node.id == "ghost"));
+        }
+        state
+            .store
+            .upsert(
+                "ghost",
+                "해외 배송이 통관에서 멈췄어요",
+                "유령 노드의 답",
+                "qa",
+                None,
+                None,
+                true,
+            )
+            .unwrap();
+        let result = execute(state, run_req("해외 배송이 통관에서 멈췄어요"), None)
+            .await
+            .unwrap();
+        assert!(
+            result["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|row| row["item"]["category_id"] != "ghost"),
+            "{result}"
+        );
     }
 
     #[tokio::test]

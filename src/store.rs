@@ -167,8 +167,6 @@ impl Store {
         self.generation.fetch_add(1, Ordering::AcqRel);
     }
 
-    /// `(category_id, question)` of every active item: the words search can
-    /// reach a node by.
     /// Every active item, for the lexical index.
     pub fn active_items(&self) -> Result<Vec<Item>, crate::error::Error> {
         let connection = self.lock()?;

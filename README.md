@@ -50,8 +50,8 @@ A Jev API key is required. The LLM is optional.
    **coarse map** first — one Jev choice over the deepest level that still fits, whose best
    branches are opened whole — plus **BM25** matches over every node's text and the
    questions filed under it. A pick whose branch did not fit is walked into. `__none__`
-   abstains when it is more likely than not (a `root` scope abstains for "outside this
-   root"); a `start_node` walk stays in that subtree and cannot.
+   abstains (a `root` scope abstains for "outside this root") — on a search only when it
+   is more likely than not; a `start_node` walk stays in that subtree and cannot.
 3. **A node shows what is filed under it.** On a search, each node in the menu ends with
    the questions already filed there that share the request's words. A description says
    what a node is meant to hold; the questions show what it does hold. That one line of
@@ -207,7 +207,7 @@ Things worth knowing before trusting a result:
   right node +1.3 to +3.7 points on every tree shape.
 - **The LLM is worth most where a filing is at stake.** On a search it now changes little,
   because the pool already reaches the answer when the route is one node off. On an ingest
-  the node is the result: Q&As filed in the right node went from 122 to 134 of 160 on the
+  the node is the result: Q&As filed in the right node went from 122–126 to 131–134 of 160 on the
   benchmark with the review. It must see the whole menu: given only Jev's favourites it
   repeats Jev's mistakes.
 - **Compare runs of the same day.** `jev-latest` moved to `jev-1.14.0` in October and scores

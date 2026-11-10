@@ -60,7 +60,7 @@ POST /api/run {mode: search|ingest, root?}
                that fits, its best branches opened whole, plus BM25 matches (src/recall.rs)
         each node also shows the questions already filed under it that share the
         request's words (engine::filed_hints)
-  → `__none__` below 0.5 is not a refusal: the best node is the pick
+  → search only: `__none__` below 0.5 is not a refusal, the best node is the pick
   → pick < 0.8 and an LLM configured → engine::llm_review: the LLM picks from the same menu
     pick whose subtree was cut from the menu → the walk repeats inside that pick
   → leaf or __none__
@@ -93,9 +93,12 @@ The route is **one Jev choice** (`flat_route`):
   matches (`이미 있는 질문: …`, three a node, 80 characters each, 6 KB a menu). A
   description says what a node is meant to hold; the questions show what it does hold.
   Right node on the 1,902-node benchmark: 69.5% without them, 84.9% with (Jev alone).
-- **`__none__` needs the majority** (`NONE_MIN`, 0.5). It shares one distribution with the
-  nodes, so on a request several nodes could hold it is often the largest single option
-  while the nodes together are far ahead. Below 0.5 the best node is the pick.
+- **On a search, `__none__` needs the majority** (`NONE_MIN`, 0.5). It shares one
+  distribution with the nodes, so on a request several nodes could hold it is often the
+  largest single option while the nodes together are far ahead. Below 0.5 the best node is
+  the pick. An ingest takes `__none__` as said and returns 400: a search checks its route
+  against the items, a filing has nothing to check it against, and a refusal turned into a
+  pick was filed in the wrong domain as often as not.
 - Past `FLAT_MAX_NODES` (254) nodes, or `FLAT_MAX_MENU_BYTES` (74 KB) of menu text, the menu
   is **recalled** (`recall_menu`) from two sources, both bounded by what one choice can read:
   - the **coarse map** — one Jev choice over the deepest level of the walk's tree (plus any
@@ -163,6 +166,18 @@ The route is **one Jev choice** (`flat_route`):
   stale result never comes back. A hit emits `cache_hit` and makes no model call. The eval
   runner turns the cache off: every case is measured.
 
+### What only a search does
+
+A search can afford to be generous and an ingest cannot: a search's route is checked by the
+ranking that follows, and a wrong landing still finds the answer in the pool. An ingest's
+route *is* the result. So three things are a search's alone, each measured both ways:
+
+| | search | ingest |
+|---|---|---|
+| Filed questions in the menu | yes: right node 69.5% → 84.9% at 1,902 nodes | no: filed right 126–127 of 160 without, 118–122 with |
+| `__none__` below 0.5 becomes the best node | yes: refused live requests 43 → 29 | no: the pick it turns into is a weak guess |
+| A refusal checked against the items | yes: 21 → 1 with no result | nothing to check against |
+
 ### What was measured and not kept
 
 Each of these looked right and was wrong on the data. Do not bring one back without a
@@ -199,7 +214,8 @@ before it was a constant.
   Size things before the call, not after. 408, 429, 5xx (529 is "overloaded"), a dropped
   connection and a reply cut off mid-body are tried again, three attempts in all: the wait
   is what `retry-after` asks for, else 250 ms doubling, never more than 5 s, with a
-  quarter of it randomised so calls that failed together do not return together.
+  quarter of it randomised so calls that failed together do not return together. A reply
+  that arrives whole and does not read as a judgment is not tried again.
 - `jev-latest` is the model (`jev-1.14.0` since 2026-10-14). An alias moves when a release
   ships, and a line tuned here was tuned against that release: re-run the evals when it
   moves, or pin the versioned id with `JEV_EVAL_JEV_MODEL` to compare.
@@ -244,7 +260,8 @@ Domain and product concepts belong in `data/seed.json` or bootstrap fixtures onl
 3. `mode` is `search` or `ingest`. Do not add `classify`.
 4. `__none__` must be able to win wherever a walk may abstain (a forest or `root` walk): in
    the menu, in each chunk of a split coarse map, and in an LLM review. It is always the
-   last option, and it wins the menu only with the majority.
+   last option. On a search it wins the menu only with the majority; on an ingest whenever
+   it is the pick.
 5. A recalled menu brings every node's ancestors along, so a walk can always stop at a
    parent; a pick whose subtree was cut from the menu is walked into, never dropped.
 6. Ingest without `auto_publish` is a draft and must stay out of search results.
@@ -306,7 +323,7 @@ Verified against the current code. Do not assume the rest of this document hides
 | Medium | **A search answers too readily when the knowledge base has no answer.** On a live customer-support tree, 131 of 489 real requests had no item that answers them; the search held 47 and answered 84 (71 with an item that is related but does not answer, 13 with an unrelated one). Jev's scores for "related" and "answers" overlap: a related top item scores 0.68 at the median, an answering one 0.88. Raising `HOLD_BELOW` trades real answers for holds (at 0.60, 16 of 358 real answers held against 6). Read `role`: only `recommended` (≥ 0.65) is an answer to send as it is. |
 | Medium | **Jev scores an item higher when weaker look-alikes are ranked beside it**, and the pool now always has some. The golden `sparse` tree (one item a leaf, the answer often missing) answers 46 of 264 unanswerable questions; so did 0.10.1 measured the same day (43), so the pool did not make it worse there, but the scores are not absolute. Ranking one item per call does not fix it (E2E 86.5% against 89.2%). |
 | Medium | On the 1,902-node benchmark (`eval/large`) the right node is in the recalled menu for 98% of requests and the final choice picks it for 83% (Jev alone; 69% before the menu showed filed questions). What is left is mostly sideways, between nodes whose scopes overlap; the pool recovers the answer (E2E 87%). The benchmark's labels are strict and its domains overlap by design, so part of the gap is label noise. |
-| Low | **Filed questions help a search and not an ingest**, so only a search sees them. A new Q&A filed with them landed in the right node 118–122 times of 160 on the benchmark, without them 126–127: look-alikes one branch over pull it there. An ingest therefore still routes by description alone, and a tree whose descriptions do not say what its nodes hold files worse than it finds. An LLM review recovers most of it (134 of 160). |
+| Low | **Filed questions help a search and not an ingest**, so only a search sees them. A new Q&A filed with them landed in the right node 118–122 times of 160 on the benchmark, without them 126–127: look-alikes one branch over pull it there. An ingest therefore still routes by description alone, and a tree whose descriptions do not say what its nodes hold files worse than it finds. An LLM review recovers most of it (131–134 of 160). |
 | Low | The pool can bring in an item from a neighbouring domain that reads like the answer (a lost *personal* card for a lost *company* card). On the golden `deep` tree that costs a few cases (E2E 98.4% → 97.1%, 9 lost and 3 won, not significant); on the larger sets the pool wins by far more than it loses. |
 | Low | `jev-latest` moved from `jev-1.13.0` to `jev-1.14.0` on 2026-10-14 and scores moved with it (golden `sparse` 90.8% → 89.4% on unchanged code). A recorded run is comparable only with runs of the same model; compare builds on the same day. |
 | Low | The coarse map costs one more Jev call (about 19K input tokens on the benchmark) for every request on a scope past 254 nodes, and a pick whose branch was cut repeats it inside that branch. Not measured beyond 1,902 nodes. |

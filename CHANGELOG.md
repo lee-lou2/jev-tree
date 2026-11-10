@@ -27,10 +27,11 @@ on the same day: `jev-latest` moved to `jev-1.14.0` on 2026-10-14 and scores mov
 - **One hold line, 0.55.** `abstained` is true when the best item scores below it. The
   second line for a "direct" item (0.30) and the third for items a rescue brought in (0.75)
   are gone: on the live tree the 0.75 line threw away one right answer in six.
-- **`__none__` is a refusal only at 0.5 or more.** Below that the best node is the pick.
-  Several plausible nodes split their probability and left `__none__` the largest single
-  option: 43 of 489 live requests were refused that way, 29 with the majority rule, and the
-  golden set's out-of-scope requests are caught 32 times in 38 against 33.
+- **On a search, `__none__` is a refusal only at 0.5 or more.** Below that the best node is
+  the pick. Several plausible nodes split their probability and left `__none__` the largest
+  single option: 43 of 489 live requests were refused that way, 29 with the majority rule,
+  and the golden set's out-of-scope requests are caught 32 times in 38 against 33. An
+  ingest still takes `__none__` as said (400): nothing checks its route afterwards.
 - **A refusal is checked against the items.** A route that says "outside the tree" still
   ranks the word matches. If one clears the hold line the search lands on its node
   (`leaf_id`, `path`); `trace.leaf_id` keeps the route's `null`. `leaf_id: null` now means
@@ -42,8 +43,9 @@ on the same day: `jev-latest` moved to `jev-1.14.0` on 2026-10-14 and scores mov
 - **The LLM review prompt says what `__none__` is for:** a topic no node covers. "Belongs to
   no node" was read as "no node names exactly this" and refused 39 live requests the tree
   covers. The review also reads the description to 240 characters, as Jev does (was 180).
-- **Evaluator retries** honour `retry-after` and `retry-after-ms`, wait 250 ms doubling up
-  to 5 s with a quarter of it randomised, and retry a reply cut off mid-body. An LLM failure
+- **Evaluator retries** honour `retry-after` and `retry-after-ms` (a finite number of
+  seconds, capped at 5 s), wait 250 ms doubling with a quarter of it randomised, and retry
+  a reply cut off mid-body but not one that arrives whole and unreadable. An LLM failure
   is logged as the LLM's (`LLM returned HTTP 502`, not `TypeSafe returned …`), and a
   transient one is tried once more inside the review's budget.
 - Toolchain 1.99.1 (was 1.98.1); `rusqlite` 0.41 and current patch releases of the rest.
@@ -96,10 +98,10 @@ The LLM review, with the new menu (reviewer on picks below 0.8):
 
 | | benchmark E2E / right node | live: top answers / among results | search p95 | ingest filed right (160 / 68) |
 |---|---:|---:|---:|---:|
-| Jev alone | 88.5% / 84.9% | 80–82% / 95–96% | 1 s | 122 / 66 |
+| Jev alone | 88.5% / 84.9% | 80–82% / 95–96% | 1 s | 122–126 / 65–66 |
 | + `muse-wonder-1.0-contributor` · high | 89.7% / 87.0% | 82.3% / 96.9% | 18–20 s | 136 / 67 |
 | + `muse-ember-1.0` · high | 88.7% / 86.8% | 81.0% / 96.9% | 8–10 s | – / 67 |
-| + `muse-ember-1.0` · low | 89.2% / 87.3% | 82.1% / 96.6% | 7–9 s | 134 / 68 |
+| + `muse-ember-1.0` · low | 89.2% / 87.3% | 82.1% / 96.6% | 7–9 s | 131–134 / 68 |
 
 On a search the review now adds little: the menu shows what the nodes hold and the pool
 reaches one branch over, which is what the review used to fix. On an ingest it adds a lot,
@@ -114,6 +116,8 @@ instead of 20; ranking one item per call (golden `sparse` 89.2% → 86.5%).
 
 ### Fixed
 
+- A row filed under a node the taxonomy no longer has is in no scope: it cannot reach a
+  search through the word matches.
 - **A client that finishes sending right after its request no longer gets an empty reply.**
   `axum::serve` builds hyper connections with the default HTTP/1 settings, which treat the
   client's EOF as a disconnect and drop the response still being computed. Anything that shuts

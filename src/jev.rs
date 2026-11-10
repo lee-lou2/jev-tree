@@ -483,8 +483,7 @@ impl JevClient {
         let url = format!("{base_url}/v1/systemone");
         let mut attempt = 0;
         loop {
-            // One attempt: the request and its whole body. A reply that breaks
-            // off mid-body is a transport failure like any other.
+            // One attempt: the request and its whole body.
             let outcome: Result<Judgment, (JevError, Option<Duration>)> = async {
                 let response = self
                     .client
@@ -503,10 +502,18 @@ impl JevClient {
                         .then(|| retry_wait(attempt, Some(response.headers())));
                     return Err((JevError::Status(status.as_u16()), wait));
                 }
-                response
-                    .json::<Judgment>()
-                    .await
-                    .map_err(|error| (JevError::Transport(error), Some(retry_wait(attempt, None))))
+                // A body that breaks off is worth another attempt. A whole body
+                // that does not read as a judgment is not: the same request
+                // would get the same reply.
+                let bytes = response.bytes().await.map_err(|error| {
+                    (JevError::Transport(error), Some(retry_wait(attempt, None)))
+                })?;
+                serde_json::from_slice::<Judgment>(&bytes).map_err(|error| {
+                    (
+                        JevError::Invalid(format!("unreadable reply: {error}")),
+                        None,
+                    )
+                })
             }
             .await;
             match outcome {
