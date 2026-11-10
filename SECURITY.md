@@ -17,6 +17,14 @@ and the impact.
 
 Never commit `.env`, `.jev-tree.key`, `.jev-tree.salt`, or `data/*.db`.
 
+## What the log holds
+
+Every finished search and ingest writes one `run` line at `info`: where it landed, scores,
+timings, and the first 200 characters of the request. That text is what makes it possible
+to measure the server against the requests it really gets; it is also whatever your users
+typed. Set `JEV_TREE_LOG_QUERIES=0` to leave the text out, and treat the log file like the
+database. Secrets are never logged: settings changes log names and ids only.
+
 ## Before exposing the server
 
 The default bind is `127.0.0.1`. Without a login password the process runs in open mode, where

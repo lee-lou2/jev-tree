@@ -1,6 +1,6 @@
 [package]
 name = "jev-tree"
-version = "0.10.1"
+version = "0.11.0"
 edition = "2024"
 rust-version = "1.99"
 authors = ["lee-lou2 <lee@lou2.kr>"]
@@ -13,7 +13,7 @@ repository = "https://github.com/lee-lou2/jev-tree"
 axum = { version = "0.8", features = ["json", "http1", "tokio"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time", "net"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 rusqlite = { version = "0.41", features = ["bundled"] }
 async-stream = "0.3"

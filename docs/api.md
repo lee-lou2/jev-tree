@@ -88,8 +88,8 @@ Combined text must be 1–8000 characters.
 ```jsonc
 {
   "query": "my parcel is stuck at customs",
-  "leaf_id": "orders_tracking",          // null = outside the tree, items is empty
-  "abstained": false,                    // true = the best item is weak (score < 0.45, or < 0.30 with directness < 1.0), answer "I don't know"
+  "leaf_id": "orders_tracking",          // null = outside the tree and no item answers
+  "abstained": false,                    // true = the best item scores below 0.55, answer "I don't know"
   "path": [{"id": "orders", "name": "Orders", "probability": 0.47, "confidence": 0.6}],
   "items": [{
     "item": {"id": "1", "category_id": "orders_tracking", "question": "...", "answer": "...",
@@ -116,11 +116,22 @@ Pick the answer by `role`, not by position. When `abstained` is true every item 
 to `reference` — do not answer from them. A `candidate` with `id: null` is the terminal
 choice (`__none__`).
 
-Jev scores every active item in the landed subtree, then `limit` is applied. When the route
-was unsure of its pick (chosen probability below 0.9) the pool also holds the items of the
-two next-best nodes — never the pick's own ancestors or descendants, and only a runner-up's
-own items when its subtree holds more than 64 — so an item's `category_id` can differ from
-`leaf_id`. The routed node's own items win near-ties. A call carries up to 32 items and 24 KB
+Jev scores every item in the pool, then `limit` is applied. The pool is every active item
+in the landed subtree, plus two more sources, so an item's `category_id` can differ from
+`leaf_id`:
+
+- when the route was unsure of its pick (chosen probability below 0.9), the items of the
+  two next-best nodes — never the pick's own ancestors or descendants, and only a
+  runner-up's own items when its subtree holds more than 64;
+- always, the 20 active items inside `root` (and `start_node`) that share the most words
+  with the request, wherever they are filed.
+
+Every item is scored the same way and held to the same line. The routed node's own items
+win near-ties. `leaf_id: null` means the route refused **and** no item answers: when the
+route refused but a pooled item clears 0.55, the search lands on that item's node
+(`leaf_id`, `path`) and `trace.leaf_id` keeps the route's `null`. An out-of-scope request
+can therefore come back with `leaf_id: null`, `abstained: true`, and a few `reference`
+items; they are not answers. A call carries up to 32 items and 24 KB
 of request, four calls run at a time, and text over 8,000 characters (more than the API
 accepts, so only a row put in the database another way) is cut for the evaluator only (the
 result carries the stored text). `trace.router` says who picked the node:
@@ -137,7 +148,6 @@ result carries the stored text). `trace.router` says who picked the node:
 | `coarse map` | the scope is too big for one choice | Jev's pick over the deepest tree level one choice can name; `reason` says how many branches it opened |
 | the walk's start (`the knowledge root` in a forest) | always | the choice over the menu, with probabilities |
 | `llm review` | a pick below 0.8 and an LLM configured | the model's pick from the same menu |
-| `scope check` | a pick below 0.85 that no LLM reviewed | whether the tree covers the request at all; only a confident `out` holds it |
 
 A pick whose subtree did not fit the menu repeats the coarse map and choice inside that
 subtree, so the steps can show two rounds.
@@ -148,8 +158,12 @@ settings changed in between (any of those invalidates every cached result). The 
 answer is the earlier one, `trace.run_id` included.
 
 The menu is **every node in the walk** whenever one choice can name them (up to 254 nodes,
-Jev takes at most 255 options with `__none__`, and 80 KB of menu text), so the evaluator
-judges meaning even when the request shares no characters with the taxonomy. A walk with
+Jev takes at most 255 options with `__none__`, and 74 KB of menu text), so the evaluator
+judges meaning even when the request shares no characters with the taxonomy. Options go out
+in tree order with `__none__` last, and `__none__` is a refusal only at 0.5 or more;
+below that the best node is the pick. Each node also shows the questions already filed
+under it that share the request's words, so the choice sees what a node holds and not only
+what its description says. A walk with
 `start_node` picks inside that subtree only and has no `__none__`. The forest walk can
 abstain, and so can a `root` scope: it walks the root's children as the forest, so
 `leaf_id: null` there means "outside this root". A bigger scope builds the menu from two
@@ -188,7 +202,7 @@ Same request body, `text/event-stream` response, one JSON object per `data:` lin
 
 | `type` | payload |
 |---|---|
-| `descent_step` (`status: asking`) | depth, frontiers with candidate children |
+| `descent_step` (`status: asking`) | depth, frontiers with candidate children; on the menu choice, `hinted` is how many nodes showed filed questions (0 on an ingest) |
 | `descent_step` (`status: answered`) | the step that chose |
 | `retrieval_completed` | `count`, `category_id` |
 | `candidate_evaluated` | `item_id`, `score`, `role` |

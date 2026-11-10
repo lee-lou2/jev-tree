@@ -128,6 +128,7 @@ run options
   --out DIR                         results directory (default eval/results/runs/<run id>)
   --note TEXT                       free text stored with the run
   --no-history                      do not append to eval/results/history.csv
+  --lenient                         run a dataset that fails `validate` (a tree exported from a live server)
   --no-preflight                    skip the one-case check that the key and LLM work
   --allow-llm-fallback              skip the check that the LLM review answers
   --dry-run                         print the plan and stop
@@ -340,7 +341,14 @@ fn cmd_run(args: &Args) -> Result<(), String> {
     };
     let (kb, cases, parse_errors) = load(args)?;
     let findings = check(&kb, &cases, parse_errors);
-    if !findings.errors.is_empty() {
+    if !findings.errors.is_empty() && args.flag("lenient") {
+        // A tree exported from a live server need not follow the golden set's
+        // conventions (snake_case ids, names unique across the forest).
+        eprintln!(
+            "{} dataset errors ignored (--lenient)",
+            findings.errors.len()
+        );
+    } else if !findings.errors.is_empty() {
         for error in findings.errors.iter().take(20) {
             eprintln!("error: {error}");
         }
@@ -645,6 +653,7 @@ fn preflight(
                 &variant.nodes,
                 &menu,
                 true,
+                &HashMap::new(),
             ));
             if let Err(error) = reviewed {
                 return Err(format!(

@@ -253,6 +253,10 @@ pub struct SearchOut {
     /// Evaluator calls and billed input tokens, from the run's `usage` events.
     #[serde(default)]
     pub cost: Cost,
+    /// What each routing step saw: its name, its pick and its best candidates
+    /// with their probabilities. Lets a threshold be re-read from a recorded run.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub steps: Vec<Value>,
 }
 
 /// What one run paid, read off its `usage` events. Zero on records made before
@@ -483,6 +487,30 @@ fn path_ids(value: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// One trace step, cut down to what a later analysis reads.
+fn step_summary(step: &Value) -> Value {
+    let mut candidates: Vec<(Value, f64)> = step["candidates"]
+        .as_array()
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|row| Some((row["id"].clone(), row["probability"].as_f64()?)))
+                .collect()
+        })
+        .unwrap_or_default();
+    candidates.sort_by(|a, b| b.1.total_cmp(&a.1));
+    let none = candidates
+        .iter()
+        .find(|(id, _)| id.is_null())
+        .map(|(_, probability)| *probability);
+    candidates.truncate(8);
+    json!({
+        "name": step["node_name"],
+        "choice": step["choice_id"],
+        "top": candidates,
+        "none": none,
+    })
+}
+
 async fn search(
     state: &AppState,
     variant: &Variant,
@@ -507,6 +535,10 @@ async fn search(
             out.router = value["trace"]["router"].as_str().unwrap_or("").to_string();
             out.abstained = value["abstained"].as_bool().unwrap_or(false);
             out.trace_score = value["trace"]["score"].as_f64();
+            out.steps = value["trace"]["steps"]
+                .as_array()
+                .map(|steps| steps.iter().map(step_summary).collect())
+                .unwrap_or_default();
             out.items = value["items"]
                 .as_array()
                 .map(|rows| {
