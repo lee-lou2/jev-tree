@@ -134,7 +134,7 @@ The route is **one Jev choice** (`flat_route`):
     always, wherever they are filed.
   Most misses are sideways (a sibling, another branch): the answer is filed one node over
   from where its description points. On a live tree the answer was among the results for
-  82% of answerable requests with the routed subtree alone and for 96% with the pool.
+  82% of answerable requests with the routed subtree alone and for 95% with the pool.
   Every item is ranked the same way and held to the same line; none needs a higher score
   for having come from outside.
 - **A refusal is checked against the items.** When the route says `__none__`, the word
@@ -303,11 +303,17 @@ Verified against the current code. Do not assume the rest of this document hides
 
 | Severity | Issue |
 |---|---|
-| Medium | On the 1,902-node benchmark (`eval/large`) the right node is in the recalled menu for 98% of requests, but the final choice picks it for only 69% (Jev alone); most misses are sideways between nodes whose scopes overlap. Rescue recovers much of the answer (E2E 82%), the LLM review more. The benchmark's own labels are strict and its domains overlap by design, so part of that gap is label noise — but not all of it. |
+| Medium | **A search answers too readily when the knowledge base has no answer.** On a live customer-support tree, 131 of 489 real requests had no item that answers them; the search held 47 and answered 84 (71 with an item that is related but does not answer, 13 with an unrelated one). Jev's scores for "related" and "answers" overlap: a related top item scores 0.68 at the median, an answering one 0.88. Raising `HOLD_BELOW` trades real answers for holds (at 0.60, 16 of 358 real answers held against 6). Read `role`: only `recommended` (≥ 0.65) is an answer to send as it is. |
+| Medium | **Jev scores an item higher when weaker look-alikes are ranked beside it**, and the pool now always has some. The golden `sparse` tree (one item a leaf, the answer often missing) answers 46 of 264 unanswerable questions; so did 0.10.1 measured the same day (43), so the pool did not make it worse there, but the scores are not absolute. Ranking one item per call does not fix it (E2E 86.5% against 89.2%). |
+| Medium | On the 1,902-node benchmark (`eval/large`) the right node is in the recalled menu for 98% of requests and the final choice picks it for 83% (Jev alone; 69% before the menu showed filed questions). What is left is mostly sideways, between nodes whose scopes overlap; the pool recovers the answer (E2E 87%). The benchmark's labels are strict and its domains overlap by design, so part of the gap is label noise. |
+| Low | **Filed questions help a search and not an ingest**, so only a search sees them. A new Q&A filed with them landed in the right node 118–122 times of 160 on the benchmark, without them 126–127: look-alikes one branch over pull it there. An ingest therefore still routes by description alone, and a tree whose descriptions do not say what its nodes hold files worse than it finds. An LLM review recovers most of it (134 of 160). |
+| Low | The pool can bring in an item from a neighbouring domain that reads like the answer (a lost *personal* card for a lost *company* card). On the golden `deep` tree that costs a few cases (E2E 98.4% → 97.1%, 9 lost and 3 won, not significant); on the larger sets the pool wins by far more than it loses. |
+| Low | `jev-latest` moved from `jev-1.13.0` to `jev-1.14.0` on 2026-10-14 and scores moved with it (golden `sparse` 90.8% → 89.4% on unchanged code). A recorded run is comparable only with runs of the same model; compare builds on the same day. |
 | Low | The coarse map costs one more Jev call (about 19K input tokens on the benchmark) for every request on a scope past 254 nodes, and a pick whose branch was cut repeats it inside that branch. Not measured beyond 1,902 nodes. |
-| Low | On a big tree Jev is unsure more often: the LLM reviewed 43% of requests at 1,902 nodes against 12% on the golden tree, each review about 6.5K tokens and a few seconds. |
+| Low | The LLM reviews 9% of requests on the golden tree, 27% at 1,902 nodes and 45% on a live tree, each a few thousand tokens and 1–3 seconds (p95 7–9 s with `muse-ember-1.0` at `low`). On a search it changes little; turn it off for searches by leaving the LLM settings empty if the tail matters more than ingest filing. |
+| Low | The run log grows without bound (about 300 bytes a run) and holds request text. Rotate it; `JEV_TREE_LOG_QUERIES=0` drops the text. |
 | Low | The search result cache (`src/cache.rs`, 1,024 results for 10 minutes) is per process. Several processes behind a balancer each keep their own. |
-| Low | Ranking loads every active row in the landed subtree (plus up to 64 rows from each of two runners-up) and scores it with Jev in batches of up to 32 items / 24 KB, four at a time. A 2,201-item subtree is about a hundred calls. Fine at seed scale; not a plan for tens of thousands of rows under one node. |
+| Low | Ranking loads every active row in the landed subtree (plus up to 64 rows from each of two runners-up and 20 word matches) and scores it with Jev in batches of up to 32 items / 24 KB, four at a time. A 2,201-item subtree is about a hundred calls. Fine at seed scale; not a plan for tens of thousands of rows under one node. |
 | Low | A degraded Jev call still makes up to three attempts (the first try and two retries) before the run deadline trips. |
 | Low | `context` (32 turns, no per-turn limit) is sent twice per call. A very long one can push a request past the evaluator's window and the run ends 502 with a "shorten the input" message. |
 | Low | Re-sending the question of a *published* row without `auto_publish` turns it back into a draft, so it leaves search until it is published again. The golden set counts this as `live_demoted` and expects it; a separate pending revision would need a schema change. |
@@ -315,12 +321,17 @@ Verified against the current code. Do not assume the rest of this document hides
 
 ## Common mistakes
 
-1. Trusting `items[0]`. Read `role` and `abstained`.
+1. Trusting `items[0]`. Read `role` and `abstained`. An item's `category_id` need not be
+   `leaf_id`: the pool reaches past the routed subtree.
 2. Reading `evaluator: "unconfigured"` as a Jev outage. It means no key is saved,
    and `/api/run` will return 400 until one is.
 3. Treating `ingest` as a save. The default is a draft. Passing `item_id` files the row where
    it already is: to move it, pass `start_node`.
 4. Editing a route without updating `static/openapi.json` and `docs/api.md`.
 5. Growing the seed without describing siblings. Siblings must be mutually exclusive,
-   and each `description` should say how it differs from its siblings.
+   and each `description` should say how it differs from its siblings. A search can find
+   an item its node's description does not mention; an ingest cannot file by it.
 6. Adding a second runtime, a `classify` mode, or a new default port.
+7. Reading a public benchmark as your accuracy. Measure on your own tree and requests.
+8. Comparing a run with one recorded under another Jev release, or two single runs
+   without pairing them.

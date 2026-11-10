@@ -1,6 +1,116 @@
 # Changelog
 
-## Unreleased
+## 0.11.0
+
+Measured against a live tree for the first time: a customer-support knowledge base people
+maintain (246 nodes, 2,534 active items), 489 real requests, answers judged by a model that
+read every item of the subtree. 0.10.1 scored 98% end to end on the golden set and 61% there.
+One real request in ten came back as "outside the tree" with no result at all, and one
+answer in eight sat one node over from where the route landed. Every change below was made
+on that set and checked on the golden set and the 1,902-node benchmark. Runs are compared
+on the same day: `jev-latest` moved to `jev-1.14.0` on 2026-10-14 and scores moved with it.
+
+### Changed
+
+- **A node shows what is filed under it.** On a search, each node in the menu ends with the
+  questions already filed there that share the request's words (`이미 있는 질문: …`; three a
+  node, 80 characters each, 6 KB a menu). A description says what a node is meant to hold;
+  the questions show what it does hold. Right node on the 1,902-node benchmark 69.5% → 84.9%
+  with Jev alone (0.10's LLM review had reached 78%), golden 95.9% → 97.1%, the live tree
+  53% → 60%. Jev and the LLM read the same text. An ingest does not see them: a new Q&A has
+  no twin filed, and look-alikes one branch over pulled it there (118–122 of 160 filed right
+  with them, 126–127 without).
+- **A search ranks the items that share its words, wherever they are filed.** The pool is
+  the routed subtree, the two runners-up of an unsure pick, and now the 20 best BM25 matches
+  (question and answer) inside `root` and `start_node`. BM25 proposes; Jev ranks every item
+  the same way. Answer among the results on the live tree: 82% → 95%.
+- **One hold line, 0.55.** `abstained` is true when the best item scores below it. The
+  second line for a "direct" item (0.30) and the third for items a rescue brought in (0.75)
+  are gone: on the live tree the 0.75 line threw away one right answer in six.
+- **`__none__` is a refusal only at 0.5 or more.** Below that the best node is the pick.
+  Several plausible nodes split their probability and left `__none__` the largest single
+  option: 43 of 489 live requests were refused that way, 29 with the majority rule, and the
+  golden set's out-of-scope requests are caught 32 times in 38 against 33.
+- **A refusal is checked against the items.** A route that says "outside the tree" still
+  ranks the word matches. If one clears the hold line the search lands on its node
+  (`leaf_id`, `path`); `trace.leaf_id` keeps the route's `null`. `leaf_id: null` now means
+  the route refused and no item answers, and can come with a few `reference` items.
+  Refused live requests: 21 → 1.
+- **Options go out in tree order, `__none__` last.** `serde_json` sorted the keys, which put
+  `__none__` ahead of every lowercase id, and the evaluator leans toward the option it reads
+  first. Built with `preserve_order`; a test fails if it is dropped.
+- **The LLM review prompt says what `__none__` is for:** a topic no node covers. "Belongs to
+  no node" was read as "no node names exactly this" and refused 39 live requests the tree
+  covers. The review also reads the description to 240 characters, as Jev does (was 180).
+- **Evaluator retries** honour `retry-after` and `retry-after-ms`, wait 250 ms doubling up
+  to 5 s with a quarter of it randomised, and retry a reply cut off mid-body. An LLM failure
+  is logged as the LLM's (`LLM returned HTTP 502`, not `TypeSafe returned …`), and a
+  transient one is tried once more inside the review's budget.
+- Toolchain 1.99.1 (was 1.98.1); `rusqlite` 0.41 and current patch releases of the rest.
+
+### Added
+
+- **A `run` log line for every finished search and ingest**: mode, root, where it landed,
+  the route's probability, pool size, `abstained`, the top item and its score, milliseconds,
+  and the first 200 characters of the request. And an `llm review` line for every review:
+  Jev's pick, the LLM's, whether it changed, milliseconds. Until now the server kept no
+  record of what it was asked, so nothing could be measured against real use.
+  `JEV_TREE_LOG_QUERIES=0` leaves the request text out.
+- `descent_step` (`asking`) carries `hinted`: how many nodes showed filed questions.
+- Eval runner: `--lenient` runs a dataset that fails `validate` (a tree exported from a live
+  server does not follow the golden set's naming rules), and every case records its routing
+  steps with candidate probabilities, so a probability line can be re-read from a run.
+  `eval/README.md` describes how to build such a set from your own tree and requests.
+
+### Removed
+
+- **The scope check** (a second Jev call on a pick below 0.85). On all three sets it refused
+  nothing the menu had not already refused.
+
+### Measured
+
+Jev alone, 0.10.1 against 0.11.0, same day (`jev-1.14.0`):
+
+| | 0.10.1 | 0.11.0 | paired |
+|---|---:|---:|---|
+| Live tree, 489 requests — top item answers (of the answerable) | 70.9% | **80.2%** | |
+| — answer among the results | 81.8% | **95.3%** | |
+| — refused with no result | 21 | **1** | |
+| 1,902-node benchmark, 1,500 cases — E2E | 82.0%¹ | **86.8%** | +113 / −44, p < 0.0001 |
+| — right node | 68.7%¹ | **82.6%** | +249 / −41, p < 0.0001 |
+| Golden `standard` — E2E / right node | 98.4% / 95.5% | 98.2% / 97.3% | E2E +3 / −4 · node +10 / −2 |
+| Golden `deep` | 98.4% / 96.0% | 97.1% / 97.5% | E2E +3 / −9 · node +10 / −3 |
+| Golden `flat` | 98.4% / 97.0% | 98.6% / 98.9% | E2E +3 / −2 · node +8 / −1 |
+| Golden `sparse` | 89.4% / 95.3% | 88.1% / 96.4% | E2E +16 / −22 · node +7 / −2 |
+| Latency p50, golden / benchmark / live | 0.4 / 0.9 / 0.6 s | 0.5 / 0.8 / 0.5 s | |
+
+¹ Recorded 2026-10-21 under `jev-1.13.0`; 0.10.1 re-run today on 400 of the cases: E2E
+81.2–81.8%, right node 68.8–70.1%.
+
+The golden set's end-to-end number does not move outside its noise (two runs of one build
+differ by up to 0.7 points); the right-node rate rises on every tree shape. What `deep` and
+`sparse` lose is a look-alike from a neighbouring domain entering the pool and winning (a
+lost personal card for a lost company card), which the golden set plants on purpose.
+
+The LLM review, with the new menu (reviewer on picks below 0.8):
+
+| | benchmark E2E / right node | live: top answers / among results | search p95 | ingest filed right (160 / 68) |
+|---|---:|---:|---:|---:|
+| Jev alone | 88.5% / 84.9% | 80–82% / 95–96% | 1 s | 122 / 66 |
+| + `muse-wonder-1.0-contributor` · high | 89.7% / 87.0% | 82.3% / 96.9% | 18–20 s | 136 / 67 |
+| + `muse-ember-1.0` · high | 88.7% / 86.8% | 81.0% / 96.9% | 8–10 s | – / 67 |
+| + `muse-ember-1.0` · low | 89.2% / 87.3% | 82.1% / 96.6% | 7–9 s | 134 / 68 |
+
+On a search the review now adds little: the menu shows what the nodes hold and the pool
+reaches one branch over, which is what the review used to fix. On an ingest it adds a lot,
+because there the node is the result. The three settings agree on accuracy and differ in
+the tail.
+
+Tried and not kept, each on data: a companion Noul for scope in place of `__none__` (caught
+23 of 38 out-of-scope requests against 32); one state field instead of the repeated
+conversation (ranking fell, +5 / −28 on the benchmark); naming an item by its place and
+spelling out Noul/Score criteria in the ranking questions (+9 / −57); 40 word matches
+instead of 20; ranking one item per call (golden `sparse` 89.2% → 86.5%).
 
 ### Fixed
 

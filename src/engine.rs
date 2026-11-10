@@ -916,7 +916,7 @@ const RESCUE_MAX_ITEMS: usize = 64;
 /// branch.
 ///
 /// Measured with 20. Live tree, 489 real requests: the answer was in the
-/// results for 82% of the answerable ones without the matches and for 96% with
+/// results for 82% of the answerable ones without the matches and for 95% with
 /// them, and requests refused as "outside the tree" fell from 19 to 1. The
 /// 1,902-node benchmark: E2E 82.6% → 88.3%. Golden: 98.6% → 98.0%, two cases,
 /// where a matched overview item out-scored the leaf's own. 40 was no better
